@@ -11,6 +11,9 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script src="config.js"></script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -128,24 +131,22 @@
         // --- REJESTRACJA SERVICE WORKERA (DLA PWA) ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').then(reg => {
-                    console.log('Service Worker zarejestrowany', reg);
-                }).catch(err => {
-                    console.log('Błąd rejestracji Service Workera', err);
-                });
+                navigator.serviceWorker.register('/sw.js').catch(err => console.log('Błąd SW:', err));
             });
         }
 
-        // --- KONFIGURACJA SUPABASE ---
-        const SUPABASE_URL = 'https://znrrvqgqxjxgahpfuqkm.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpucnJ2cWdxeGp4Z2FocGZ1cWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MTQwMjcsImV4cCI6MjA5MjA5MDAyN30.-G3UiUGsDaca7KomB4dv9sWxDcIvFqik_xpEMAW3jAM';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // --- KONFIGURACJA Z PLIKU CONFIG.JS ---
+        if (typeof CONFIG === 'undefined') {
+            alert('Brak pliku config.js! Upewnij się, że plik istnieje obok index.html.');
+        }
+        const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 
         let allLogs = [];
         let allTasks = [];
         let currentSettingsTaskName = '';
         let toastTimeout;
 
+        // --- FUNKCJE POMOCNICZE (Czas i Toast) ---
         function getRelativeTime(dateString) {
             const today = new Date(); today.setHours(0,0,0,0);
             const target = new Date(dateString); target.setHours(0,0,0,0);
@@ -176,6 +177,26 @@
             return { color: 'text-emerald-500 font-semibold', label: relTime, tooltip: `Kolejne wykonanie za ${diffDays} dni.` };
         }
 
+        // --- OBLICZANIE WYNIKU PRIORYTETU ---
+        function calculatePriorityScore(task, latestLogDate) {
+            // Jeśli nie ma interwału (czyli nie ma przypomnienia) -> wynik -1 (na sam dół)
+            if (!task.interval_days || task.interval_days <= 0) return -1;
+            
+            // Jeśli jest interwał, ale nigdy nie wykonano -> wynik bardzo wysoki (pilne)
+            if (!latestLogDate) return 9999; 
+            
+            const last = new Date(latestLogDate);
+            last.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const diffDays = Math.floor((today - last) / (1000 * 60 * 60 * 24));
+            
+            // Współczynnik: ile dni minęło / co ile trzeba robić.
+            // Np. zrobione 28 dni temu / zadanie co 14 dni = wynik 2.0.
+            return diffDays / task.interval_days;
+        }
+
         function showToast(message) {
             const toast = document.getElementById('toast');
             toast.innerText = message;
@@ -186,10 +207,11 @@
             }, 3000);
         }
 
+        // --- DASHBOARD (Kompaktowa Lista + Sortowanie) ---
         async function loadDashboard() {
             const list = document.getElementById('dashboard-list');
             const [tasksRes, logsRes] = await Promise.all([
-                supabaseClient.from('tasks').select('*').order('name', { ascending: true }),
+                supabaseClient.from('tasks').select('*'),
                 supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false })
             ]);
 
@@ -201,8 +223,25 @@
                 return;
             }
 
-            list.innerHTML = allTasks.map(task => {
+            // Grupujemy zadania i obliczamy ich "wynik" priorytetu
+            let tasksWithScores = allTasks.map(task => {
                 const latestLog = allLogs.find(l => l.activity_name === task.name);
+                const score = calculatePriorityScore(task, latestLog?.created_at);
+                return { task, latestLog, score };
+            });
+
+            // Sortujemy listę
+            tasksWithScores.sort((a, b) => {
+                // Najpierw po wyniku priorytetu malejąco (największe zaległości na górze)
+                if (b.score !== a.score) {
+                    return b.score - a.score; 
+                }
+                // Jeśli remis, to alfabetycznie po nazwie
+                return a.task.name.localeCompare(b.task.name);
+            });
+
+            list.innerHTML = tasksWithScores.map(item => {
+                const { task, latestLog } = item;
                 const status = getCompactStatus(latestLog?.created_at, task.interval_days);
                 const safeName = encodeURIComponent(task.name);
                 const safeTooltip = status.tooltip.replace(/'/g, "\\'");
@@ -226,6 +265,7 @@
             }).join('');
         }
 
+        // --- ZARZĄDZANIE ---
         function openSettingsScreen(encodedName) {
             currentSettingsTaskName = decodeURIComponent(encodedName);
             const task = allTasks.find(t => t.name === currentSettingsTaskName);
