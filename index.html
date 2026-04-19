@@ -19,6 +19,9 @@
         .hidden { display: none !important; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        /* Styl dla naszego przełącznika */
+        input:checked ~ .dot { transform: translateX(100%); }
+        input:checked ~ .block-bg { background-color: #4f46e5; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen pb-20 overflow-x-hidden">
@@ -48,22 +51,42 @@
             <h2 class="text-2xl font-bold text-slate-800 mb-6" id="settings-title">Ustawienia</h2>
 
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">System Powiadomień</h3>
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Główne Uprawnienia Telefonu</h3>
                 <div id="push-status" class="text-xs font-medium mb-4 text-slate-500 italic">Sprawdzanie statusu...</div>
                 <button id="push-btn" onclick="requestNotificationPermission()" class="w-full bg-slate-800 text-white font-semibold py-3 rounded-xl active:scale-95 transition-all text-sm">
                     🔔 Włącz powiadomienia
                 </button>
-                <button onclick="testLocalNotification()" class="w-full mt-2 text-indigo-600 text-[11px] font-bold uppercase tracking-widest">
-                    Wyślij testowy alert (5 sek.)
-                </button>
             </div>
 
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Parametry czynności</h3>
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Ustawienia tej czynności</h3>
                 <div class="space-y-4">
-                    <input type="text" id="set-task-name" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
-                    <input type="number" id="set-task-interval" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
-                    <button onclick="saveTaskSettings()" class="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl active:scale-95 shadow-md">Zapisz zmiany</button>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">Nazwa</label>
+                        <input type="text" id="set-task-name" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">Powtarzaj co (dni)</label>
+                        <input type="number" id="set-task-interval" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
+                    </div>
+                    
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <label for="set-task-push" class="flex flex-col cursor-pointer">
+                            <span class="text-sm font-semibold text-slate-700">Wysyłaj przypomnienia</span>
+                            <span class="text-[10px] text-slate-400">Gdy zadanie jest zaległe</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <div class="relative">
+                                <input type="checkbox" id="set-task-push" class="sr-only">
+                                <div class="block-bg block bg-slate-200 w-10 h-6 rounded-full transition-colors"></div>
+                                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform"></div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <button onclick="saveTaskSettings()" class="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl active:scale-95 shadow-md mt-4">
+                        Zapisz zmiany
+                    </button>
                 </div>
             </div>
 
@@ -106,6 +129,19 @@
         </div>
     </div>
 
+    <div id="edit-log-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex justify-center items-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-100">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Edytuj wpis</h3>
+            <input type="hidden" id="edit-log-id">
+            <input type="date" id="edit-log-date" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium mb-3">
+            <textarea id="edit-log-notes" class="w-full p-3 rounded-xl border border-slate-200 text-sm h-24 resize-none"></textarea>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeEditLogModal()" class="flex-1 bg-slate-100 text-slate-600 font-semibold py-3 rounded-xl">Anuluj</button>
+                <button onclick="saveEditLog()" class="flex-1 bg-indigo-600 text-white font-semibold py-3 rounded-xl">Zapisz</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- LOGIKA POWIADOMIEŃ ---
         async function checkNotificationStatus() {
@@ -113,60 +149,41 @@
             const btn = document.getElementById('push-btn');
             
             if (!('Notification' in window)) {
-                statusEl.innerText = "Twoja przeglądarka nie obsługuje powiadomień.";
+                statusEl.innerText = "Brak obsługi powiadomień.";
                 btn.classList.add('hidden');
                 return;
             }
 
             if (Notification.permission === 'granted') {
-                statusEl.innerText = "✅ Powiadomienia są włączone.";
-                btn.innerText = "Powiadomienia aktywne";
+                statusEl.innerText = "✅ Zgoda na powiadomienia aktywna.";
+                btn.innerText = "Zgoda udzielona";
                 btn.disabled = true;
                 btn.classList.replace('bg-slate-800', 'bg-emerald-100');
                 btn.classList.replace('text-white', 'text-emerald-700');
             } else if (Notification.permission === 'denied') {
-                statusEl.innerText = "❌ Zablokowałeś powiadomienia w ustawieniach telefonu.";
-                btn.innerText = "Odblokuj w ustawieniach";
+                statusEl.innerText = "❌ Odmówiłeś zgody. Zmień to w ustawieniach telefonu.";
             } else {
-                statusEl.innerText = "🔔 Jeszcze nie włączyłeś powiadomień.";
+                statusEl.innerText = "🔔 Wymagana pierwsza zgoda telefonu.";
             }
         }
 
         async function requestNotificationPermission() {
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
-                showToast("Dziękuję! Powiadomienia włączone.");
-                // Tutaj w przyszłości wyślemy token do bazy Supabase
+                showToast("Zgoda udzielona!");
                 checkNotificationStatus();
             } else {
-                alert("Aby otrzymywać przypomnienia, musisz zezwolić na powiadomienia.");
+                alert("Musisz zezwolić na powiadomienia systemowe.");
             }
         }
 
-        function testLocalNotification() {
-            showToast("Test za 5 sekund... Możesz teraz wyjść z apki!");
-            setTimeout(() => {
-                if (Notification.permission === 'granted') {
-                    navigator.serviceWorker.ready.then(registration => {
-                        registration.showNotification('HomeVibe Test', {
-                            body: 'To jest Twoje pierwsze powiadomienie! Tak to będzie wyglądać.',
-                            icon: '/icon.png',
-                            badge: '/icon.png',
-                            vibrate: [200, 100, 200]
-                        });
-                    });
-                }
-            }, 5000);
-        }
-
-        // --- RESZTA LOGIKI (Bez zmian w działaniu, tylko config) ---
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js');
-            });
+            window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
         }
 
+        if (typeof CONFIG === 'undefined') alert('Brak pliku config.js!');
         const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+
         let allLogs = []; let allTasks = []; let currentSettingsTaskName = ''; let toastTimeout;
 
         function getRelativeTime(d) {
@@ -208,14 +225,22 @@
             let scored = allTasks.map(t => {
                 const last = allLogs.find(l => l.activity_name === t.name);
                 return { t, last, score: calculatePriority(t, last?.created_at) };
-            }).sort((a,b) => b.score - a.score);
+            }).sort((a,b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                return a.t.name.localeCompare(b.t.name);
+            });
+
+            if(scored.length === 0) { list.innerHTML = `<p class="text-center text-slate-400 py-10">Brak zadań.</p>`; return; }
 
             list.innerHTML = scored.map(item => {
                 const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
+                // Ikonka dla wyciszonych zadań
+                const muteIcon = item.t.push_enabled === false ? `<span title="Powiadomienia wyłączone" class="ml-2 text-slate-300 text-xs">🔕</span>` : '';
+
                 return `
                     <div class="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
                         <div class="flex-1 cursor-pointer pr-4" onclick="showToast('${status.tooltip}')">
-                            <h3 class="font-bold text-slate-800 text-base leading-tight">${item.t.name}</h3>
+                            <h3 class="font-bold text-slate-800 text-base leading-tight flex items-center">${item.t.name} ${muteIcon}</h3>
                             <p class="text-[13px] ${status.color} mt-0.5">${status.label}</p>
                         </div>
                         <div class="flex items-center gap-2">
@@ -238,10 +263,14 @@
             document.getElementById('settings-title').innerText = currentSettingsTaskName;
             document.getElementById('set-task-name').value = task.name;
             document.getElementById('set-task-interval').value = task.interval_days;
+            
+            // Ustawienie przełącznika (jeśli pole nie istnieje w starej bazie, uzna za true)
+            document.getElementById('set-task-push').checked = task.push_enabled !== false;
+
             renderHistory();
             document.getElementById('main-screen').classList.add('hidden');
             document.getElementById('settings-screen').classList.remove('hidden');
-            checkNotificationStatus(); // Sprawdź status pushy w ustawieniach
+            checkNotificationStatus();
         }
 
         function closeSettingsScreen() {
@@ -250,17 +279,18 @@
             loadDashboard();
         }
 
-        // --- FUNKCJE POMOCNICZE (Reszta kodu bez zmian funkcjonalnych) ---
         async function saveTaskSettings() {
             const n = document.getElementById('set-task-name').value.trim();
             const i = parseInt(document.getElementById('set-task-interval').value) || 0;
+            const pushEnabled = document.getElementById('set-task-push').checked;
+
             if (currentSettingsTaskName !== n) {
                 await supabaseClient.from('activity_logs').update({ activity_name: n }).eq('activity_name', currentSettingsTaskName);
-                await supabaseClient.from('tasks').insert([{ name: n, interval_days: i }]);
+                await supabaseClient.from('tasks').insert([{ name: n, interval_days: i, push_enabled: pushEnabled }]);
                 await supabaseClient.from('tasks').delete().eq('name', currentSettingsTaskName);
                 currentSettingsTaskName = n;
             } else {
-                await supabaseClient.from('tasks').update({ interval_days: i }).eq('name', currentSettingsTaskName);
+                await supabaseClient.from('tasks').update({ interval_days: i, push_enabled: pushEnabled }).eq('name', currentSettingsTaskName);
             }
             showToast("Zapisano!");
         }
@@ -275,9 +305,12 @@
         function renderHistory() {
             const logs = allLogs.filter(l => l.activity_name === currentSettingsTaskName);
             document.getElementById('settings-history-list').innerHTML = logs.map(l => `
-                <div class="bg-slate-50 p-3 rounded-xl flex justify-between items-center border border-slate-100">
+                <div class="bg-slate-50 p-3 rounded-xl flex justify-between items-center border border-slate-100 mb-2">
                     <p class="text-sm font-bold text-slate-700">${new Date(l.created_at).toLocaleDateString('pl-PL')}</p>
-                    <button onclick="deleteLog(${l.id})" class="text-slate-300 p-2">🗑️</button>
+                    <div class="flex gap-2">
+                        <button onclick="openEditLogModal(${l.id}, '${l.created_at.split('T')[0]}', '${encodeURIComponent(l.notes||'')}')">✏️</button>
+                        <button onclick="deleteLog(${l.id})">🗑️</button>
+                    </div>
                 </div>`).join('') || '<p class="text-center py-4 text-slate-400 text-sm">Brak wpisów.</p>';
         }
 
@@ -292,7 +325,8 @@
         async function saveNewTask() {
             const n = document.getElementById('new-task-name').value;
             const i = document.getElementById('new-task-interval').value;
-            await supabaseClient.from('tasks').insert([{ name: n, interval_days: parseInt(i)||0 }]);
+            // Nowe zadania domyślnie mają włączony push
+            await supabaseClient.from('tasks').insert([{ name: n, interval_days: parseInt(i)||0, push_enabled: true }]);
             closeNewTaskModal(); loadDashboard();
         }
 
@@ -310,6 +344,23 @@
             const nt = document.getElementById('add-log-notes').value;
             await supabaseClient.from('activity_logs').insert([{ activity_name: n, created_at: `${d}T12:00:00.000Z`, notes: nt }]);
             closeAddLogModal(); loadDashboard();
+        }
+
+        function openEditLogModal(id, date, notes) {
+            document.getElementById('edit-log-id').value = id;
+            document.getElementById('edit-log-date').value = date;
+            document.getElementById('edit-log-notes').value = decodeURIComponent(notes);
+            document.getElementById('edit-log-modal').classList.remove('hidden');
+        }
+        function closeEditLogModal() { document.getElementById('edit-log-modal').classList.add('hidden'); }
+        async function saveEditLog() {
+            const id = document.getElementById('edit-log-id').value;
+            const d = document.getElementById('edit-log-date').value;
+            const n = document.getElementById('edit-log-notes').value;
+            await supabaseClient.from('activity_logs').update({ created_at: `${d}T12:00:00.000Z`, notes: n }).eq('id', id);
+            closeEditLogModal(); 
+            const res = await supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false });
+            allLogs = res.data; renderHistory();
         }
 
         loadDashboard();
