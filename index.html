@@ -11,6 +11,7 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <script src="config.js"></script>
     
     <style>
@@ -19,14 +20,14 @@
         .hidden { display: none !important; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        /* Styl dla przełącznika PUSH */
+        /* Styl dla przełącznika PUSH w Ustawieniach Domu */
         input:checked ~ .dot { transform: translateX(100%); }
         input:checked ~ .block-bg { background-color: #4f46e5; }
     </style>
 </head>
 <body class="bg-slate-50 h-screen flex flex-col overflow-hidden">
 
-    <main class="flex-1 overflow-y-auto pb-24">
+    <main id="main-screen" class="flex-1 overflow-y-auto pb-24 transition-all duration-300">
         
         <div id="view-home" class="max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300">
             <header class="mb-8 flex justify-between items-center mt-2">
@@ -39,7 +40,7 @@
                 </button>
             </header>
             <div id="dashboard-list" class="flex flex-col space-y-3">
-                <p class="text-slate-400 text-sm italic text-center py-10">Ładowanie...</p>
+                <p class="text-slate-400 text-sm italic text-center py-10">Ładowanie Twojego planu dnia...</p>
             </div>
         </div>
 
@@ -78,7 +79,7 @@
 
     </main>
 
-    <nav class="fixed bottom-0 w-full bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] pb-safe z-30">
+    <nav id="bottom-nav" class="fixed bottom-0 w-full bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] pb-safe z-30 transition-all duration-300">
         <div class="flex justify-around items-center max-w-xl mx-auto h-16">
             <button onclick="switchView('home')" id="nav-home" class="flex flex-col items-center justify-center w-full h-full text-indigo-600 transition-colors">
                 <span class="text-xl mb-1">🏠</span>
@@ -90,6 +91,108 @@
             </button>
         </div>
     </nav>
+
+    <div id="settings-screen" class="hidden fixed inset-0 bg-slate-50 z-40 overflow-y-auto flex flex-col transition-all duration-300">
+        <div class="max-w-xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col pt-8">
+            <button onclick="closeSettingsScreen()" class="flex items-center text-slate-500 font-semibold mb-6 active:scale-95 transition-transform w-fit text-lg">
+                <span class="mr-2">←</span> Wróć
+            </button>
+
+            <h2 class="text-2xl font-bold text-slate-800 mb-6" id="settings-title">Ustawienia</h2>
+
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Uprawnienia Telefonu</h3>
+                <div id="push-status" class="text-xs font-medium mb-4 text-slate-500 italic">Sprawdzanie statusu...</div>
+                <button id="push-btn" onclick="requestNotificationPermission()" class="w-full bg-slate-800 text-white font-semibold py-3 rounded-xl active:scale-95 transition-all text-sm">
+                    🔔 Włącz powiadomienia
+                </button>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Ustawienia czynności</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">Nazwa</label>
+                        <input type="text" id="set-task-name" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">Powtarzaj co (dni)</label>
+                        <input type="number" id="set-task-interval" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
+                    </div>
+                    
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <label for="set-task-push" class="flex flex-col cursor-pointer">
+                            <span class="text-sm font-semibold text-slate-700">Wysyłaj przypomnienia</span>
+                            <span class="text-[10px] text-slate-400">Gdy zadanie jest zaległe</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <div class="relative">
+                                <input type="checkbox" id="set-task-push" class="sr-only">
+                                <div class="block-bg block bg-slate-200 w-10 h-6 rounded-full transition-colors"></div>
+                                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform"></div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <button onclick="saveTaskSettings()" class="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl active:scale-95 shadow-md mt-4">
+                        Zapisz zmiany
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6 flex-1">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Historia wykonania</h3>
+                <div id="settings-history-list" class="space-y-3"></div>
+            </div>
+
+            <div class="mt-auto pt-6 pb-6">
+                <button onclick="deleteCurrentTask()" class="w-full bg-red-50 text-red-600 font-bold py-3 rounded-xl border border-red-100">Usuń czynność</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm font-medium px-5 py-3 rounded-full shadow-2xl transition-all duration-300 opacity-0 translate-y-10 pointer-events-none z-50 whitespace-nowrap">
+        Wiadomość
+    </div>
+
+    <div id="new-task-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Nowa czynność w domu</h3>
+            <input type="text" id="new-task-name" placeholder="Nazwa (np. Filtry)" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium mb-3">
+            <input type="number" id="new-task-interval" placeholder="Częstotliwość (dni)" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeNewTaskModal()" class="flex-1 bg-slate-100 py-3 rounded-xl text-slate-600 font-semibold">Anuluj</button>
+                <button onclick="saveNewTask()" class="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-semibold">Dodaj</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-log-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-slate-800 mb-1">Wykonano!</h3>
+            <p class="text-sm text-slate-500 mb-4" id="add-log-subtitle"></p>
+            <input type="hidden" id="add-log-name">
+            <input type="date" id="add-log-date" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium mb-3">
+            <textarea id="add-log-notes" placeholder="Notatki (opcjonalnie)..." class="w-full p-3 rounded-xl border border-slate-200 text-sm h-20 resize-none"></textarea>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeAddLogModal()" class="flex-1 bg-slate-100 py-3 rounded-xl text-slate-600 font-semibold">Anuluj</button>
+                <button onclick="saveNewLog()" class="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-semibold">Zapisz</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-log-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex justify-center items-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-100">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Edytuj wpis</h3>
+            <input type="hidden" id="edit-log-id">
+            <input type="date" id="edit-log-date" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium mb-3">
+            <textarea id="edit-log-notes" class="w-full p-3 rounded-xl border border-slate-200 text-sm h-24 resize-none"></textarea>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeEditLogModal()" class="flex-1 bg-slate-100 text-slate-600 font-semibold py-3 rounded-xl">Anuluj</button>
+                <button onclick="saveEditLog()" class="flex-1 bg-indigo-600 text-white font-semibold py-3 rounded-xl">Zapisz</button>
+            </div>
+        </div>
+    </div>
 
     <div id="new-profile-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex justify-center items-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-xl">
@@ -107,7 +210,6 @@
             <h3 class="text-lg font-bold text-slate-800 mb-4">Co chcesz śledzić?</h3>
             <div class="space-y-4">
                 <input type="text" id="h-task-name" placeholder="Nazwa (np. Katar, Szczoteczka)" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium focus:border-rose-500 focus:outline-none">
-                
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 mb-2 uppercase">Typ śledzenia</label>
                     <select id="h-task-type" onchange="toggleHealthInterval()" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none bg-white">
@@ -115,7 +217,6 @@
                         <option value="duration">Trwające (np. katar, gorączka)</option>
                     </select>
                 </div>
-
                 <div id="h-task-interval-container">
                     <input type="number" id="h-task-interval" placeholder="Przypomnij co ile dni" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:border-rose-500">
                 </div>
@@ -127,37 +228,42 @@
         </div>
     </div>
 
-    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm font-medium px-5 py-3 rounded-full shadow-2xl transition-all duration-300 opacity-0 translate-y-10 pointer-events-none z-50">Wiadomość</div>
-
-    <div id="legacy-modals"></div>
-
     <script>
-        // --- INICJALIZACJA ---
+        // --- INICJALIZACJA I ZMIENNE GLOBALNE ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(e => console.log(e)));
+        }
         if (typeof CONFIG === 'undefined') alert('Brak pliku config.js!');
+        
         const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 
         let activeView = 'home';
+        let toastTimeout;
+        
+        // Zmienne - Dom
+        let allLogs = []; 
+        let allTasks = []; 
+        let currentSettingsTaskName = '';
+        
+        // Zmienne - Zdrowie
         let profiles = [];
         let currentProfileId = null;
         let healthTasks = [];
-        let toastTimeout;
 
-        // --- NAWIGACJA ---
+        // --- NAWIGACJA GŁÓWNA ---
         function switchView(view) {
             activeView = view;
             
-            // Kolory ikon na pasku
             document.getElementById('nav-home').className = `flex flex-col items-center justify-center w-full h-full transition-colors ${view === 'home' ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-500'}`;
             document.getElementById('nav-health').className = `flex flex-col items-center justify-center w-full h-full transition-colors ${view === 'health' || view === 'profile' ? 'text-rose-500' : 'text-slate-400 hover:text-rose-500'}`;
 
-            // Ukrywanie/pokazywanie ekranów
             document.getElementById('view-home').classList.add('hidden');
             document.getElementById('view-health').classList.add('hidden');
             document.getElementById('view-profile').classList.add('hidden');
 
             if (view === 'home') {
                 document.getElementById('view-home').classList.remove('hidden');
-                loadDashboard(); // Ładuje stary moduł domowy
+                loadDashboard();
             } else if (view === 'health') {
                 document.getElementById('view-health').classList.remove('hidden');
                 loadProfiles();
@@ -168,29 +274,232 @@
         }
 
         function showToast(msg) {
-            const t = document.getElementById('toast'); t.innerText = msg;
+            const t = document.getElementById('toast'); 
+            t.innerText = msg;
             t.classList.remove('opacity-0', 'translate-y-10');
-            clearTimeout(toastTimeout); toastTimeout = setTimeout(() => t.classList.add('opacity-0', 'translate-y-10'), 3000);
+            clearTimeout(toastTimeout); 
+            toastTimeout = setTimeout(() => t.classList.add('opacity-0', 'translate-y-10'), 3000);
         }
 
         // ==========================================
-        // LOGIKA: ZDROWIE - PROFILE
+        // LOGIKA: DOM
+        // ==========================================
+
+        async function checkNotificationStatus() {
+            const statusEl = document.getElementById('push-status');
+            const btn = document.getElementById('push-btn');
+            
+            if (!('Notification' in window)) {
+                statusEl.innerText = "Brak obsługi powiadomień.";
+                btn.classList.add('hidden'); return;
+            }
+            if (Notification.permission === 'granted') {
+                statusEl.innerText = "✅ Zgoda na powiadomienia aktywna.";
+                btn.innerText = "Zgoda udzielona"; btn.disabled = true;
+                btn.classList.replace('bg-slate-800', 'bg-emerald-100');
+                btn.classList.replace('text-white', 'text-emerald-700');
+            } else if (Notification.permission === 'denied') {
+                statusEl.innerText = "❌ Odmówiłeś zgody. Zmień to w ustawieniach telefonu.";
+            } else {
+                statusEl.innerText = "🔔 Wymagana pierwsza zgoda telefonu.";
+            }
+        }
+
+        async function requestNotificationPermission() {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                showToast("Zgoda udzielona!"); checkNotificationStatus();
+            } else {
+                alert("Musisz zezwolić na powiadomienia systemowe.");
+            }
+        }
+
+        function getRelativeTime(d) {
+            const now = new Date(); now.setHours(0,0,0,0);
+            const target = new Date(d); target.setHours(0,0,0,0);
+            const diff = Math.floor((now - target) / 86400000);
+            if (diff === 0) return "dzisiaj"; if (diff === 1) return "wczoraj";
+            if (diff < 7) return `${diff} dni temu`;
+            return target.toLocaleDateString('pl-PL');
+        }
+
+        function getCompactStatus(lastDate, interval) {
+            if (!lastDate) return { color: 'text-slate-400', label: 'Nigdy', tooltip: 'Brak wpisów.' };
+            if (!interval || interval <= 0) return { color: 'text-slate-400', label: getRelativeTime(lastDate), tooltip: 'Brak harmonogramu.' };
+            const last = new Date(lastDate); last.setHours(0,0,0,0);
+            const today = new Date(); today.setHours(0,0,0,0);
+            const next = new Date(last); next.setDate(last.getDate() + interval);
+            const diff = Math.ceil((next - today) / 86400000);
+            if (diff < 0) return { color: 'text-red-500 font-bold', label: getRelativeTime(lastDate), tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` };
+            if (diff === 0) return { color: 'text-amber-500 font-bold', label: getRelativeTime(lastDate), tooltip: 'Dzisiaj!' };
+            return { color: 'text-emerald-500 font-semibold', label: getRelativeTime(lastDate), tooltip: `Za ${diff} dni.` };
+        }
+
+        function calculatePriority(task, lastDate) {
+            if (!task.interval_days || task.interval_days <= 0) return -1;
+            if (!lastDate) return 999;
+            const diff = Math.floor((new Date() - new Date(lastDate)) / 86400000);
+            return diff / task.interval_days;
+        }
+
+        async function loadDashboard() {
+            const list = document.getElementById('dashboard-list');
+            const [tRes, lRes] = await Promise.all([
+                supabaseClient.from('tasks').select('*'),
+                supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false })
+            ]);
+            allTasks = tRes.data || []; allLogs = lRes.data || [];
+            
+            let scored = allTasks.map(t => {
+                const last = allLogs.find(l => l.activity_name === t.name);
+                return { t, last, score: calculatePriority(t, last?.created_at) };
+            }).sort((a,b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                return a.t.name.localeCompare(b.t.name);
+            });
+
+            if(scored.length === 0) { list.innerHTML = `<p class="text-center text-slate-400 py-10">Brak zadań domowych.</p>`; return; }
+
+            list.innerHTML = scored.map(item => {
+                const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
+                const muteIcon = item.t.push_enabled === false ? `<span title="Powiadomienia wyłączone" class="ml-2 text-slate-300 text-xs">🔕</span>` : '';
+
+                return `
+                    <div class="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
+                        <div class="flex-1 cursor-pointer pr-4" onclick="showToast('${status.tooltip}')">
+                            <h3 class="font-bold text-slate-800 text-base leading-tight flex items-center">${item.t.name} ${muteIcon}</h3>
+                            <p class="text-[13px] ${status.color} mt-0.5">${status.label}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="openAddLogModal('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 font-bold text-2xl flex items-center justify-center pb-1 active:scale-90">+</button>
+                            <button onclick="openSettingsScreen('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center active:scale-90">⚙️</button>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function openSettingsScreen(name) {
+            currentSettingsTaskName = decodeURIComponent(name);
+            const task = allTasks.find(t => t.name === currentSettingsTaskName);
+            document.getElementById('settings-title').innerText = currentSettingsTaskName;
+            document.getElementById('set-task-name').value = task.name;
+            document.getElementById('set-task-interval').value = task.interval_days;
+            document.getElementById('set-task-push').checked = task.push_enabled !== false;
+
+            renderHistory();
+            document.getElementById('main-screen').classList.add('hidden');
+            document.getElementById('bottom-nav').classList.add('hidden');
+            document.getElementById('settings-screen').classList.remove('hidden');
+            checkNotificationStatus();
+        }
+
+        function closeSettingsScreen() {
+            document.getElementById('settings-screen').classList.add('hidden');
+            document.getElementById('main-screen').classList.remove('hidden');
+            document.getElementById('bottom-nav').classList.remove('hidden');
+            loadDashboard();
+        }
+
+        async function saveTaskSettings() {
+            const n = document.getElementById('set-task-name').value.trim();
+            const i = parseInt(document.getElementById('set-task-interval').value) || 0;
+            const pushEnabled = document.getElementById('set-task-push').checked;
+
+            if (currentSettingsTaskName !== n) {
+                await supabaseClient.from('activity_logs').update({ activity_name: n }).eq('activity_name', currentSettingsTaskName);
+                await supabaseClient.from('tasks').insert([{ name: n, interval_days: i, push_enabled: pushEnabled }]);
+                await supabaseClient.from('tasks').delete().eq('name', currentSettingsTaskName);
+                currentSettingsTaskName = n;
+            } else {
+                await supabaseClient.from('tasks').update({ interval_days: i, push_enabled: pushEnabled }).eq('name', currentSettingsTaskName);
+            }
+            showToast("Zapisano!");
+        }
+
+        async function deleteCurrentTask() {
+            if(confirm("Usunąć czynność?")) {
+                await supabaseClient.from('tasks').delete().eq('name', currentSettingsTaskName);
+                closeSettingsScreen();
+            }
+        }
+
+        function renderHistory() {
+            const logs = allLogs.filter(l => l.activity_name === currentSettingsTaskName);
+            document.getElementById('settings-history-list').innerHTML = logs.map(l => `
+                <div class="bg-slate-50 p-3 rounded-xl flex justify-between items-center border border-slate-100 mb-2">
+                    <p class="text-sm font-bold text-slate-700">${new Date(l.created_at).toLocaleDateString('pl-PL')}</p>
+                    <div class="flex gap-2">
+                        <button onclick="openEditLogModal(${l.id}, '${l.created_at.split('T')[0]}', '${encodeURIComponent(l.notes||'')}')">✏️</button>
+                        <button onclick="deleteLog(${l.id})">🗑️</button>
+                    </div>
+                </div>`).join('') || '<p class="text-center py-4 text-slate-400 text-sm">Brak wpisów.</p>';
+        }
+
+        async function deleteLog(id) {
+            await supabaseClient.from('activity_logs').delete().eq('id', id);
+            const res = await supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false });
+            allLogs = res.data; renderHistory();
+        }
+
+        function openNewTaskModal() { document.getElementById('new-task-modal').classList.remove('hidden'); }
+        function closeNewTaskModal() { document.getElementById('new-task-modal').classList.add('hidden'); }
+        async function saveNewTask() {
+            const n = document.getElementById('new-task-name').value.trim();
+            const i = document.getElementById('new-task-interval').value;
+            if (!n) return;
+            await supabaseClient.from('tasks').insert([{ name: n, interval_days: parseInt(i)||0, push_enabled: true }]);
+            closeNewTaskModal(); loadDashboard();
+        }
+
+        function openAddLogModal(n) {
+            const name = decodeURIComponent(n);
+            document.getElementById('add-log-subtitle').innerText = name;
+            document.getElementById('add-log-name').value = name;
+            document.getElementById('add-log-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('add-log-notes').value = '';
+            document.getElementById('add-log-modal').classList.remove('hidden');
+        }
+        function closeAddLogModal() { document.getElementById('add-log-modal').classList.add('hidden'); }
+        async function saveNewLog() {
+            const n = document.getElementById('add-log-name').value;
+            const d = document.getElementById('add-log-date').value;
+            const nt = document.getElementById('add-log-notes').value;
+            await supabaseClient.from('activity_logs').insert([{ activity_name: n, created_at: `${d}T12:00:00.000Z`, notes: nt }]);
+            closeAddLogModal(); loadDashboard();
+        }
+
+        function openEditLogModal(id, date, notes) {
+            document.getElementById('edit-log-id').value = id;
+            document.getElementById('edit-log-date').value = date;
+            document.getElementById('edit-log-notes').value = decodeURIComponent(notes);
+            document.getElementById('edit-log-modal').classList.remove('hidden');
+        }
+        function closeEditLogModal() { document.getElementById('edit-log-modal').classList.add('hidden'); }
+        async function saveEditLog() {
+            const id = document.getElementById('edit-log-id').value;
+            const d = document.getElementById('edit-log-date').value;
+            const n = document.getElementById('edit-log-notes').value;
+            await supabaseClient.from('activity_logs').update({ created_at: `${d}T12:00:00.000Z`, notes: n }).eq('id', id);
+            closeEditLogModal(); 
+            const res = await supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false });
+            allLogs = res.data; renderHistory();
+        }
+
+        // ==========================================
+        // LOGIKA: ZDROWIE & PROFILE
         // ==========================================
         async function loadProfiles() {
             const list = document.getElementById('profiles-list');
-            const { data, error } = await supabaseClient.from('profiles').select('*').order('name');
+            const { data } = await supabaseClient.from('profiles').select('*').order('name');
             profiles = data || [];
 
             if (profiles.length === 0) {
-                list.innerHTML = `<p class="col-span-2 text-center text-slate-400 py-10">Brak profili. Dodaj domownika.</p>`;
-                return;
+                list.innerHTML = `<p class="col-span-2 text-center text-slate-400 py-10">Brak profili. Dodaj domownika.</p>`; return;
             }
 
             list.innerHTML = profiles.map(p => `
-                <button onclick="openProfile(${p.id}, '${encodeURIComponent(p.name)}')" class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 active:scale-95 transition-transform hover:border-rose-200">
-                    <div class="w-14 h-14 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-2xl font-bold">
-                        ${p.name.charAt(0).toUpperCase()}
-                    </div>
+                <button onclick="openProfile(${p.id}, '${encodeURIComponent(p.name)}')" class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 active:scale-95 transition-transform">
+                    <div class="w-14 h-14 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-2xl font-bold">${p.name.charAt(0).toUpperCase()}</div>
                     <span class="font-bold text-slate-700">${p.name}</span>
                 </button>
             `).join('');
@@ -203,8 +512,7 @@
             const name = document.getElementById('new-profile-name').value.trim();
             if (!name) return;
             await supabaseClient.from('profiles').insert([{ name }]);
-            closeNewProfileModal();
-            loadProfiles();
+            closeNewProfileModal(); loadProfiles();
         }
 
         function openProfile(id, encodedName) {
@@ -213,19 +521,15 @@
             switchView('profile');
         }
 
-        // ==========================================
-        // LOGIKA: ZDROWIE - KOKPIT OSOBY
-        // ==========================================
         async function loadProfileDashboard() {
             const list = document.getElementById('health-tasks-list');
             list.innerHTML = `<p class="text-slate-400 text-sm italic text-center py-10">Ładowanie...</p>`;
             
-            const { data, error } = await supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId);
+            const { data } = await supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId);
             healthTasks = data || [];
 
             if (healthTasks.length === 0) {
-                list.innerHTML = `<p class="text-center text-slate-400 py-10">Brak śledzonych zdarzeń. Kliknij + na górze.</p>`;
-                return;
+                list.innerHTML = `<p class="text-center text-slate-400 py-10">Brak śledzonych zdarzeń. Kliknij + na górze.</p>`; return;
             }
 
             list.innerHTML = healthTasks.map(task => {
@@ -242,9 +546,7 @@
                             <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mt-1">${typeLabel}</p>
                         </div>
                         <div class="flex items-center gap-2">
-                            <button class="w-10 h-10 rounded-full bg-rose-50 text-rose-500 font-bold text-2xl flex items-center justify-center pb-1 active:scale-90 transition-transform">
-                                +
-                            </button>
+                            <button class="w-10 h-10 rounded-full bg-rose-50 text-rose-500 font-bold text-2xl flex items-center justify-center pb-1 active:scale-90 transition-transform">+</button>
                         </div>
                     </div>
                 `;
@@ -272,30 +574,15 @@
             const name = document.getElementById('h-task-name').value.trim();
             const type = document.getElementById('h-task-type').value;
             const interval = document.getElementById('h-task-interval').value;
-            
             if (!name) return;
-            
             await supabaseClient.from('health_tasks').insert([{ 
-                profile_id: currentProfileId,
-                name: name, 
-                task_type: type,
-                interval_days: type === 'cyclical' ? (parseInt(interval) || 0) : 0
+                profile_id: currentProfileId, name: name, task_type: type, interval_days: type === 'cyclical' ? (parseInt(interval) || 0) : 0
             }]);
-            
-            closeNewHealthTaskModal();
-            loadProfileDashboard();
+            closeNewHealthTaskModal(); loadProfileDashboard();
         }
 
-        // Uruchom widok domowy przy starcie
+        // START APLIKACJI
         switchView('home');
-
-        // UWAGA: Funkcje loadDashboard() dla modułu domowego pozostały bez zmian logicznych, 
-        // ale w tym skróconym pliku wymagane jest doklejenie Twoich poprzednich funkcji (dla skrócenia długości odpowiedzi zignorowano tutaj bebechy Home)
-        function loadDashboard() {
-            document.getElementById('dashboard-list').innerHTML = `<p class="text-center text-slate-400 py-10">Tu ładuje się Twój stary moduł domowy...</p>`;
-            // Tu wklej zawartość swojej starej funkcji loadDashboard()
-        }
-        function openNewTaskModal() {} // Zaślepka pod stary kod
     </script>
 </body>
 </html>
