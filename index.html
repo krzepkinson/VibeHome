@@ -171,7 +171,7 @@
             <div class="space-y-4">
                 <input type="text" id="h-task-name" placeholder="Nazwa (np. Katar)" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
                 <select id="h-task-type" onchange="toggleHealthInterval()" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium bg-white">
-                    <option value="cyclical">Cykliczne (np. szczoteczka co X dni)</option>
+                    <option value="cyclical">Cykliczne (np. leki co X dni)</option>
                     <option value="duration">Trwające (np. katar, gorączka)</option>
                 </select>
                 <div id="h-task-interval-container">
@@ -181,6 +181,57 @@
             <div class="flex gap-3 mt-6">
                 <button onclick="closeNewHealthTaskModal()" class="flex-1 bg-slate-100 text-slate-600 font-semibold py-3 rounded-xl">Anuluj</button>
                 <button onclick="saveNewHealthTask()" class="flex-1 bg-rose-500 text-white font-semibold py-3 rounded-xl">Dodaj</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="health-settings-screen" class="hidden fixed inset-0 bg-slate-50 z-40 overflow-y-auto flex flex-col transition-all duration-300">
+        <div class="max-w-xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col pt-8">
+            <button onclick="closeHealthSettingsScreen()" class="flex items-center text-slate-500 font-semibold mb-6 active:scale-95 w-fit text-lg">
+                <span class="mr-2">←</span> Wróć
+            </button>
+            <h2 class="text-2xl font-bold text-slate-800 mb-6" id="h-settings-title">Ustawienia Zdrowia</h2>
+            
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
+                <div class="space-y-4">
+                    <input type="text" id="set-h-task-name" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
+                    <div id="set-h-task-interval-container">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">Powtarzaj co (dni)</label>
+                        <input type="number" id="set-h-task-interval" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
+                    </div>
+                    <button onclick="saveHealthTaskSettings()" class="w-full bg-rose-500 text-white font-semibold py-3 rounded-xl shadow-md">Zapisz zmiany</button>
+                </div>
+            </div>
+            
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6 flex-1">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Historia zdarzeń</h3>
+                <div id="h-settings-history-list" class="space-y-3"></div>
+            </div>
+            <button onclick="deleteHealthTask()" class="w-full bg-red-50 text-red-600 font-bold py-3 rounded-xl border border-red-100 mb-6">Usuń zdarzenie</button>
+        </div>
+    </div>
+
+    <div id="edit-health-log-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex justify-center items-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-100">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Edytuj historię</h3>
+            <input type="hidden" id="edit-hlog-id">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Początek</label>
+                    <input type="date" id="edit-hlog-start" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
+                </div>
+                <div id="edit-hlog-end-container">
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Koniec (zostaw puste by wznowić)</label>
+                    <input type="date" id="edit-hlog-end" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Notatki</label>
+                    <textarea id="edit-hlog-notes" class="w-full p-3 rounded-xl border border-slate-200 text-sm h-24 resize-none"></textarea>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeEditHealthLogModal()" class="flex-1 bg-slate-100 text-slate-600 font-semibold py-3 rounded-xl">Anuluj</button>
+                <button onclick="saveEditHealthLog()" class="flex-1 bg-rose-500 text-white font-semibold py-3 rounded-xl">Zapisz</button>
             </div>
         </div>
     </div>
@@ -212,7 +263,6 @@
             else if (view === 'profile') { document.getElementById('view-profile').classList.remove('hidden'); loadProfileDashboard(); }
         }
 
-        // Uruchom startowy widok i ładuj logikę
         window.onload = () => switchView('home');
     </script>
 
