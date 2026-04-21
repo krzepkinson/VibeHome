@@ -45,7 +45,7 @@
                     <h1 class="text-2xl font-bold text-slate-800">Zdrowie i Higiena</h1>
                     <p class="text-sm text-slate-500">Wybierz profil domownika</p>
                 </div>
-                <button onclick="openNewProfileModal()" class="w-10 h-10 bg-rose-500 text-white rounded-full hover:bg-rose-600 active:scale-95 flex items-center justify-center text-2xl pb-1 shadow-lg shadow-rose-200">+</button>
+                <button onclick="openNewProfileModal()" class="w-10 h-10 bg-slate-800 text-white rounded-full hover:bg-slate-700 active:scale-95 flex items-center justify-center text-2xl pb-1 shadow-lg shadow-slate-200">+</button>
             </header>
             <div id="profiles-list" class="grid grid-cols-2 gap-4"></div>
         </div>
@@ -58,22 +58,26 @@
                 <div class="flex justify-between items-center">
                     <div>
                         <h1 class="text-2xl font-bold text-slate-800" id="profile-name-title">Imię</h1>
-                        <p class="text-sm text-rose-500 font-medium">Karta zdrowia</p>
+                        <p class="text-sm text-slate-500 font-medium">Karta zdrowia</p>
                     </div>
-                    <button onclick="openNewHealthTaskModal()" class="w-10 h-10 bg-rose-500 text-white rounded-full hover:bg-rose-600 active:scale-95 flex items-center justify-center text-2xl pb-1 shadow-lg shadow-rose-200">+</button>
+                    <button onclick="openNewHealthTaskModal()" class="w-10 h-10 bg-slate-800 text-white rounded-full hover:bg-slate-700 active:scale-95 flex items-center justify-center text-2xl pb-1 shadow-lg shadow-slate-200">+</button>
                 </div>
             </header>
             
-            <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 mb-8">
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 mb-8 transition-all">
                 <div class="flex justify-between items-center mb-4">
-                    <button onclick="changeCalendarMonth(-1)" class="w-8 h-8 flex justify-center items-center rounded-full bg-slate-50 text-slate-400 hover:text-rose-500 font-bold active:scale-90">&lt;</button>
-                    <h3 class="font-bold text-slate-800 uppercase tracking-wide text-sm" id="calendar-month-year">Miesiąc Rok</h3>
-                    <button onclick="changeCalendarMonth(1)" class="w-8 h-8 flex justify-center items-center rounded-full bg-slate-50 text-slate-400 hover:text-rose-500 font-bold active:scale-90">&gt;</button>
+                    <button id="cal-prev-btn" onclick="changeCalendarMonth(-1)" class="w-8 h-8 flex justify-center items-center rounded-full bg-slate-50 text-slate-400 hover:text-slate-800 font-bold active:scale-90 transition-colors">&lt;</button>
+                    
+                    <div class="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onclick="toggleCalendarMode()">
+                        <h3 class="font-bold text-slate-800 uppercase tracking-wide text-sm flex items-center gap-1" id="calendar-title">
+                            Miesiąc Rok <span class="text-xs text-slate-400">🔍</span>
+                        </h3>
+                    </div>
+
+                    <button id="cal-next-btn" onclick="changeCalendarMonth(1)" class="w-8 h-8 flex justify-center items-center rounded-full bg-slate-50 text-slate-400 hover:text-slate-800 font-bold active:scale-90 transition-colors">&gt;</button>
                 </div>
-                <div class="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 uppercase mb-2">
-                    <div>Pn</div><div>Wt</div><div>Śr</div><div>Cz</div><div>Pt</div><div>Sb</div><div>Nd</div>
-                </div>
-                <div id="calendar-grid" class="grid grid-cols-7 gap-1">
+                
+                <div id="calendar-container">
                     </div>
             </div>
 
@@ -87,14 +91,14 @@
                 <span class="text-xl mb-1">🏠</span>
                 <span class="text-[10px] font-bold uppercase tracking-wider">Dom</span>
             </button>
-            <button onclick="switchView('health')" id="nav-health" class="flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-rose-500 transition-colors">
+            <button onclick="switchView('health')" id="nav-health" class="flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-slate-800 transition-colors">
                 <span class="text-xl mb-1">❤️</span>
                 <span class="text-[10px] font-bold uppercase tracking-wider">Zdrowie</span>
             </button>
         </div>
     </nav>
 
-    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm font-medium px-5 py-3 rounded-full shadow-2xl transition-all duration-300 opacity-0 translate-y-10 pointer-events-none z-50 whitespace-nowrap">Wiadomość</div>
+    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm font-medium px-5 py-3 rounded-full shadow-2xl transition-all duration-300 opacity-0 translate-y-10 pointer-events-none z-50 whitespace-nowrap z-[70]">Wiadomość</div>
 
     <div id="new-task-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex justify-center items-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-xl">
@@ -174,7 +178,7 @@
             <input type="text" id="new-profile-name" placeholder="Imię (np. Janek)" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium mb-6">
             <div class="flex gap-3">
                 <button onclick="closeNewProfileModal()" class="flex-1 bg-slate-100 text-slate-600 font-semibold py-3 rounded-xl">Anuluj</button>
-                <button onclick="saveNewProfile()" class="flex-1 bg-rose-500 text-white font-semibold py-3 rounded-xl">Zapisz</button>
+                <button onclick="saveNewProfile()" class="flex-1 bg-slate-800 text-white font-semibold py-3 rounded-xl">Zapisz</button>
             </div>
         </div>
     </div>
@@ -194,7 +198,7 @@
             </div>
             <div class="flex gap-3 mt-6">
                 <button onclick="closeNewHealthTaskModal()" class="flex-1 bg-slate-100 text-slate-600 font-semibold py-3 rounded-xl">Anuluj</button>
-                <button onclick="saveNewHealthTask()" class="flex-1 bg-rose-500 text-white font-semibold py-3 rounded-xl">Dodaj</button>
+                <button onclick="saveNewHealthTask()" class="flex-1 bg-slate-800 text-white font-semibold py-3 rounded-xl">Dodaj</button>
             </div>
         </div>
     </div>
@@ -213,7 +217,7 @@
                         <label class="block text-xs font-semibold text-slate-500 mb-1">Powtarzaj co (dni)</label>
                         <input type="number" id="set-h-task-interval" class="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium">
                     </div>
-                    <button onclick="saveHealthTaskSettings()" class="w-full bg-rose-500 text-white font-semibold py-3 rounded-xl shadow-md">Zapisz zmiany</button>
+                    <button onclick="saveHealthTaskSettings()" class="w-full bg-slate-800 text-white font-semibold py-3 rounded-xl shadow-md">Zapisz zmiany</button>
                 </div>
             </div>
             
@@ -245,8 +249,22 @@
             </div>
             <div class="flex gap-3 mt-6">
                 <button onclick="closeEditHealthLogModal()" class="flex-1 bg-slate-100 text-slate-600 font-semibold py-3 rounded-xl">Anuluj</button>
-                <button onclick="saveEditHealthLog()" class="flex-1 bg-rose-500 text-white font-semibold py-3 rounded-xl">Zapisz</button>
+                <button onclick="saveEditHealthLog()" class="flex-1 bg-slate-800 text-white font-semibold py-3 rounded-xl">Zapisz</button>
             </div>
+        </div>
+    </div>
+
+    <div id="day-details-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex justify-center items-end sm:items-center p-0 sm:p-4 transition-all">
+        <div class="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 shadow-xl max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800" id="day-details-title">Szczegóły Dnia</h3>
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest" id="day-details-date">Data</p>
+                </div>
+                <button onclick="closeDayDetailsModal()" class="w-8 h-8 bg-slate-100 text-slate-500 rounded-full font-bold active:scale-90">✕</button>
+            </div>
+            <div id="day-details-list" class="space-y-3 overflow-y-auto pb-4">
+                </div>
         </div>
     </div>
 
@@ -266,7 +284,7 @@
         function switchView(view) {
             activeView = view;
             document.getElementById('nav-home').className = `flex flex-col items-center justify-center w-full h-full transition-colors ${view === 'home' ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-500'}`;
-            document.getElementById('nav-health').className = `flex flex-col items-center justify-center w-full h-full transition-colors ${view === 'health' || view === 'profile' ? 'text-rose-500' : 'text-slate-400 hover:text-rose-500'}`;
+            document.getElementById('nav-health').className = `flex flex-col items-center justify-center w-full h-full transition-colors ${view === 'health' || view === 'profile' ? 'text-slate-800' : 'text-slate-400 hover:text-slate-800'}`;
 
             document.getElementById('view-home').classList.add('hidden');
             document.getElementById('view-health').classList.add('hidden');
