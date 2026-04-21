@@ -383,4 +383,15 @@ async function saveEditHealthLog() {
     await supabaseClient.from('health_logs').update(updateData).eq('id', id);
     closeEditHealthLogModal(); 
     
-    const res = await supabaseClient.from('health_logs').select('*').order
+    const res = await supabaseClient.from('health_logs').select('*').order('start_date', { ascending: false });
+    healthLogs = res.data || []; 
+    renderHealthHistory();
+}
+
+async function deleteHealthLog(id) {
+    if(!confirm("Usunąć ten wpis z historii?")) return;
+    await supabaseClient.from('health_logs').delete().eq('id', id);
+    const res = await supabaseClient.from('health_logs').select('*').order('start_date', { ascending: false });
+    healthLogs = res.data || []; 
+    renderHealthHistory();
+}
