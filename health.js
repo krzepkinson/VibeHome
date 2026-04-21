@@ -1,3 +1,9 @@
+// ==========================================
+// LOGIKA: ZDROWIE & PROFILE (health.js)
+// ==========================================
+
+console.log("Health module loaded (Color-blind friendly & Zoom Out)");
+
 let profiles = [];
 let currentProfileId = null;
 let healthTasks = [];
@@ -6,7 +12,8 @@ let currentSettingsHealthTaskId = null;
 
 // Konfiguracja Kalendarza
 let currentCalDate = new Date();
-const calendarColors = ['bg-rose-500', 'bg-indigo-500', 'bg-amber-500', 'bg-emerald-500', 'bg-cyan-500'];
+let calendarMode = 'month'; // 'month' lub 'year'
+const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
 
 async function loadProfiles() {
     const list = document.getElementById('profiles-list');
@@ -23,8 +30,8 @@ async function loadProfiles() {
     }
 
     list.innerHTML = profiles.map(p => `
-        <button onclick="openProfile(${p.id}, '${encodeURIComponent(p.name)}')" class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 active:scale-95 transition-transform hover:border-rose-200">
-            <div class="w-14 h-14 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-2xl font-bold">${p.name.charAt(0).toUpperCase()}</div>
+        <button onclick="openProfile(${p.id}, '${encodeURIComponent(p.name)}')" class="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-3 active:scale-95 transition-transform hover:border-slate-300">
+            <div class="w-14 h-14 bg-slate-100 text-slate-800 rounded-full flex items-center justify-center text-2xl font-bold">${p.name.charAt(0).toUpperCase()}</div>
             <span class="font-bold text-slate-700">${p.name}</span>
         </button>
     `).join('');
@@ -43,33 +50,68 @@ async function saveNewProfile() {
 function openProfile(id, encodedName) {
     currentProfileId = id;
     document.getElementById('profile-name-title').innerText = decodeURIComponent(encodedName);
-    currentCalDate = new Date(); // Resetuj kalendarz do obecnego miesiąca przy wchodzeniu w profil
+    currentCalDate = new Date();
+    calendarMode = 'month';
     switchView('profile');
 }
 
-// === KALENDARZ MIESIĘCZNY ===
+// === KALENDARZ LOGIKA ===
+
+function toggleCalendarMode() {
+    calendarMode = calendarMode === 'month' ? 'year' : 'month';
+    renderCalendar();
+}
+
+function changeCalendarMonth(offset) {
+    if (calendarMode === 'month') {
+        currentCalDate.setMonth(currentCalDate.getMonth() + offset);
+    } else {
+        currentCalDate.setFullYear(currentCalDate.getFullYear() + offset);
+    }
+    renderCalendar();
+}
+
+function zoomToMonth(monthIndex) {
+    currentCalDate.setMonth(monthIndex);
+    calendarMode = 'month';
+    renderCalendar();
+}
+
 function renderCalendar() {
-    const monthYearEl = document.getElementById('calendar-month-year');
-    const gridEl = document.getElementById('calendar-grid');
-    if (!monthYearEl || !gridEl) return;
+    const container = document.getElementById('calendar-container');
+    const titleEl = document.getElementById('calendar-title');
+    const prevBtn = document.getElementById('cal-prev-btn');
+    const nextBtn = document.getElementById('cal-next-btn');
 
     const year = currentCalDate.getFullYear();
     const month = currentCalDate.getMonth();
-    
-    const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
-    monthYearEl.innerText = `${monthNames[month]} ${year}`;
 
-    // Szukamy, jakim dniem tygodnia jest pierwszy dzień miesiąca
+    if (calendarMode === 'month') {
+        titleEl.innerHTML = `${monthNames[month]} ${year} <span class="text-xs text-slate-400">🔍</span>`;
+        prevBtn.classList.remove('invisible');
+        nextBtn.classList.remove('invisible');
+        renderMonthlyView(container, year, month);
+    } else {
+        titleEl.innerHTML = `Rok ${year} <span class="text-xs text-slate-400">🔍</span>`;
+        renderYearlyView(container, year);
+    }
+}
+
+// --- WIDOK MIESIĄCA ---
+function renderMonthlyView(container, year, month) {
+    let html = `
+        <div class="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 uppercase mb-2">
+            <div>Pn</div><div>Wt</div><div>Śr</div><div>Cz</div><div>Pt</div><div>Sb</div><div>Nd</div>
+        </div>
+        <div class="grid grid-cols-7 gap-1">
+    `;
+
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
-    // Przesunięcie kalendarza by tydzień zaczynał się od Poniedziałku (w JS 0 = Niedziela)
     let startOffset = firstDay - 1;
     if (startOffset === -1) startOffset = 6;
 
-    let html = '';
-    
-    // Generowanie pustych kratek na początek miesiąca
     for (let i = 0; i < startOffset; i++) {
         html += `<div></div>`;
     }
@@ -77,52 +119,130 @@ function renderCalendar() {
     const today = new Date();
     today.setHours(0,0,0,0);
 
-    // Wypełniamy kalendarz numerami dni
     for (let day = 1; day <= daysInMonth; day++) {
         const currentDay = new Date(year, month, day);
         currentDay.setHours(0,0,0,0);
         
         let activeTaskIds = new Set();
 
-        // Sprawdzamy logi, które nakładają się na ten konkretny dzień kalendarza
         healthLogs.forEach(log => {
-            const s = new Date(log.start_date); 
-            s.setHours(0,0,0,0);
-            
-            // Jeśli nie ma end_date, to znaczy że trwa DO DZIŚ włącznie
-            let e = log.end_date ? new Date(log.end_date) : today;
-            e.setHours(0,0,0,0);
-            
-            if (currentDay >= s && currentDay <= e) {
-                activeTaskIds.add(log.health_task_id);
-            }
+            const s = new Date(log.start_date); s.setHours(0,0,0,0);
+            let e = log.end_date ? new Date(log.end_date) : today; e.setHours(0,0,0,0);
+            if (currentDay >= s && currentDay <= e) activeTaskIds.add(log.health_task_id);
         });
 
-        // Generujemy kolorowe kropki na podstawie ID zadań
-        const dots = Array.from(activeTaskIds).slice(0, 4).map(id => {
-            const colorClass = calendarColors[id % calendarColors.length];
-            return `<div class="w-1.5 h-1.5 rounded-full ${colorClass}"></div>`;
-        }).join('');
-        
         const isToday = currentDay.getTime() === today.getTime();
-        const todayStyle = isToday 
-            ? 'bg-rose-50 text-rose-600 font-bold border border-rose-200' 
-            : 'text-slate-700 hover:bg-slate-50 cursor-default';
+        const hasEvents = activeTaskIds.size > 0;
+
+        // BARDZIEJ DOSTĘPNY STYL (Brak polegania na kolorze tęczy)
+        let cellClass = "flex flex-col items-center justify-center py-2 rounded-xl text-sm transition-all duration-200 ";
+        
+        if (hasEvents) {
+            // Dzień z chorobą/zdarzeniem: Wyraźne szare tło, pogrubienie
+            cellClass += "bg-slate-300 text-slate-900 font-bold cursor-pointer active:scale-95 shadow-[inset_0_1px_3px_rgba(0,0,0,0.1)]";
+        } else {
+            // Zwykły dzień
+            cellClass += "text-slate-600 bg-slate-50";
+        }
+
+        // Dzisiejszy dzień zawsze zyskuje obramowanie i wyróżniony tekst
+        if (isToday) {
+            cellClass += " border-2 border-slate-800 font-black";
+        } else if (!hasEvents) {
+            cellClass += " border border-transparent";
+        }
+
+        const onClickEvent = hasEvents ? `onclick="openDayDetails('${year}-${String(month+1).padStart(2, '0')}-${String(day).padStart(2, '0')}')"` : '';
 
         html += `
-            <div class="flex flex-col items-center justify-start py-2 rounded-lg ${todayStyle} min-h-[44px] transition-colors">
-                <span class="text-sm ${activeTaskIds.size > 0 && !isToday ? 'font-bold' : ''}">${day}</span>
-                <div class="flex flex-wrap justify-center gap-[3px] mt-1 px-1">${dots}</div>
+            <div ${onClickEvent} class="${cellClass} min-h-[44px]">
+                ${day}
             </div>
         `;
     }
     
-    gridEl.innerHTML = html;
+    html += `</div>`;
+    container.innerHTML = html;
 }
 
-function changeCalendarMonth(offset) {
-    currentCalDate.setMonth(currentCalDate.getMonth() + offset);
-    renderCalendar();
+// --- WIDOK ROKU (Zoom Out Heatmapa) ---
+function renderYearlyView(container, year) {
+    let html = `<div class="grid grid-cols-3 gap-3">`;
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    for (let m = 0; m < 12; m++) {
+        html += `
+            <div onclick="zoomToMonth(${m})" class="bg-slate-50 p-2 rounded-xl cursor-pointer active:scale-95 transition-transform hover:bg-slate-100 border border-slate-100">
+                <h4 class="text-[9px] font-bold text-center text-slate-500 uppercase tracking-widest mb-1">${monthNames[m].substring(0,3)}</h4>
+                <div class="grid grid-cols-7 gap-[2px]">
+        `;
+
+        const daysInMonth = new Date(year, m + 1, 0).getDate();
+        
+        for (let day = 1; day <= daysInMonth; day++) {
+            const currentDay = new Date(year, m, day);
+            currentDay.setHours(0,0,0,0);
+            
+            let hasEvents = false;
+            healthLogs.forEach(log => {
+                const s = new Date(log.start_date); s.setHours(0,0,0,0);
+                let e = log.end_date ? new Date(log.end_date) : today; e.setHours(0,0,0,0);
+                if (currentDay >= s && currentDay <= e) hasEvents = true;
+            });
+
+            // Mikro kwadraciki
+            const bgClass = hasEvents ? "bg-slate-400" : "bg-white border border-slate-200";
+            html += `<div class="aspect-square rounded-[2px] ${bgClass}"></div>`;
+        }
+        
+        html += `</div></div>`;
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+// --- SZCZEGÓŁY DNIA ---
+function openDayDetails(dateString) {
+    const targetDate = new Date(dateString);
+    targetDate.setHours(0,0,0,0);
+
+    let activeEvents = [];
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    healthLogs.forEach(log => {
+        const s = new Date(log.start_date); s.setHours(0,0,0,0);
+        let e = log.end_date ? new Date(log.end_date) : today; e.setHours(0,0,0,0);
+        
+        if (targetDate >= s && targetDate <= e) {
+            const task = healthTasks.find(t => t.id === log.health_task_id);
+            if(task) activeEvents.push({ task, log });
+        }
+    });
+
+    const listEl = document.getElementById('day-details-list');
+    document.getElementById('day-details-date').innerText = targetDate.toLocaleDateString('pl-PL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    listEl.innerHTML = activeEvents.map(ev => {
+        const isDuration = ev.task.task_type === 'duration';
+        const icon = isDuration ? '⏱️' : '🔄';
+        return `
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <h4 class="font-bold text-slate-800 flex items-center gap-2 mb-1">
+                    <span>${icon}</span> ${ev.task.name}
+                </h4>
+                ${ev.log.notes ? `<p class="text-sm text-slate-600 mt-2 bg-white p-2 rounded border border-slate-100">${ev.log.notes}</p>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('day-details-modal').classList.remove('hidden');
+}
+
+function closeDayDetailsModal() {
+    document.getElementById('day-details-modal').classList.add('hidden');
 }
 
 async function loadProfileDashboard() {
@@ -136,7 +256,6 @@ async function loadProfileDashboard() {
     healthTasks = tasksRes.data || [];
     healthLogs = logsRes.data || [];
 
-    // Po załadowaniu nowych danych z bazy odświeżamy widok kalendarza!
     renderCalendar();
 
     if (healthTasks.length === 0) {
@@ -156,29 +275,27 @@ async function loadProfileDashboard() {
 
     list.innerHTML = enrichedTasks.map(({task, latestLog, isActive}) => {
         const isCyclical = task.task_type === 'cyclical';
-        const taskColorDotClass = calendarColors[task.id % calendarColors.length];
-        
         let uiState = {};
 
         if (isCyclical) {
             uiState.icon = '🔄';
-            uiState.statusColor = 'text-slate-400';
+            uiState.statusColor = 'text-slate-500';
             uiState.statusText = latestLog ? `Ostatnio: ${getRelativeTime(latestLog.start_date)}` : 'Nigdy nie wykonano';
-            uiState.button = `<button onclick="logHealthAction(${task.id})" class="w-10 h-10 rounded-full bg-rose-50 text-rose-500 font-bold text-2xl flex items-center justify-center pb-1 active:scale-90">+</button>`;
+            uiState.button = `<button onclick="logHealthAction(${task.id})" class="w-10 h-10 rounded-full bg-slate-100 text-slate-800 font-bold text-2xl flex items-center justify-center pb-1 active:scale-90">+</button>`;
             uiState.bgColor = 'bg-white';
         } else {
             uiState.icon = '⏱️';
             if (isActive) {
                 const daysOngoing = Math.floor((new Date() - new Date(latestLog.start_date)) / 86400000);
-                uiState.statusColor = 'text-amber-600 font-bold';
+                uiState.statusColor = 'text-slate-800 font-bold';
                 uiState.statusText = `Aktywne: Trwa od ${daysOngoing === 0 ? 'dzisiaj' : daysOngoing + ' dni'}`;
-                uiState.bgColor = 'bg-amber-50 border-amber-200';
-                uiState.button = `<button onclick="stopDurationTask(${latestLog.id})" class="w-10 h-10 rounded-full bg-amber-200 text-amber-700 font-bold text-xl flex items-center justify-center active:scale-90">■</button>`;
+                uiState.bgColor = 'bg-slate-200 border-slate-300';
+                uiState.button = `<button onclick="stopDurationTask(${latestLog.id})" class="w-10 h-10 rounded-full bg-slate-800 text-white font-bold text-xl flex items-center justify-center active:scale-90">■</button>`;
             } else {
-                uiState.statusColor = 'text-slate-400';
+                uiState.statusColor = 'text-slate-500';
                 uiState.statusText = latestLog ? `Ostatnio: ${getRelativeTime(latestLog.start_date)}` : 'Brak historii';
                 uiState.bgColor = 'bg-white';
-                uiState.button = `<button onclick="startDurationTask(${task.id})" class="w-10 h-10 rounded-full bg-rose-50 text-rose-500 font-bold text-2xl flex items-center justify-center pb-1 active:scale-90">+</button>`;
+                uiState.button = `<button onclick="startDurationTask(${task.id})" class="w-10 h-10 rounded-full bg-slate-100 text-slate-800 font-bold text-2xl flex items-center justify-center pb-1 active:scale-90">+</button>`;
             }
         }
 
@@ -186,11 +303,10 @@ async function loadProfileDashboard() {
             <div class="flex items-center justify-between p-4 ${uiState.bgColor} rounded-2xl shadow-sm border border-slate-100 transition-colors">
                 <div class="flex-1 pr-4">
                     <h3 class="font-bold text-slate-800 text-base leading-tight flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full ${taskColorDotClass}"></span>
-                        ${task.name}
+                        <span>${uiState.icon}</span> ${task.name}
                     </h3>
                     <p class="text-[12px] ${uiState.statusColor} mt-1 flex items-center gap-1">
-                        ${uiState.icon} ${uiState.statusText}
+                        ${uiState.statusText}
                     </p>
                 </div>
                 <div class="flex items-center gap-2">
@@ -335,8 +451,8 @@ function renderHealthHistory() {
                     ${l.notes ? `<p class="text-[11px] text-slate-500 mt-0.5">${l.notes}</p>` : ''}
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="openEditHealthLogModal(${l.id}, '${safeStart}', '${safeEnd}', '${encodedNotes}', '${task.task_type}')">✏️</button>
-                    <button onclick="deleteHealthLog(${l.id})">🗑️</button>
+                    <button onclick="openEditHealthLogModal(${l.id}, '${safeStart}', '${safeEnd}', '${encodedNotes}', '${task.task_type}')" class="w-8 h-8 rounded hover:bg-slate-200">✏️</button>
+                    <button onclick="deleteHealthLog(${l.id})" class="w-8 h-8 rounded hover:bg-red-100">🗑️</button>
                 </div>
             </div>`;
     }).join('') || '<p class="text-center py-4 text-slate-400 text-sm">Brak wpisów w historii.</p>';
