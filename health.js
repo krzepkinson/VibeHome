@@ -1,6 +1,4 @@
-// ==========================================
-// LOGIKA: ZDROWIE & PROFILE (health.js)
-// ==========================================
+console.log("Plik health.js załadowany poprawnie!");
 
 let profiles = [];
 let currentProfileId = null;
@@ -8,13 +6,22 @@ let healthTasks = [];
 let healthLogs = [];
 let currentSettingsHealthTaskId = null;
 
+// --- PROFILE ---
 async function loadProfiles() {
     const list = document.getElementById('profiles-list');
-    const { data } = await supabaseClient.from('profiles').select('*').order('name');
+    const { data, error } = await supabaseClient.from('profiles').select('*').order('name');
+    
+    if (error) {
+        console.error("Błąd pobierania profili:", error);
+        list.innerHTML = `<p class="col-span-2 text-center text-red-400 py-10">Błąd połączenia z bazą.</p>`;
+        return;
+    }
+
     profiles = data || [];
 
     if (profiles.length === 0) {
-        list.innerHTML = `<p class="col-span-2 text-center text-slate-400 py-10">Brak profili. Dodaj domownika.</p>`; return;
+        list.innerHTML = `<p class="col-span-2 text-center text-slate-400 py-10">Brak profili. Dodaj domownika.</p>`; 
+        return;
     }
 
     list.innerHTML = profiles.map(p => `
@@ -32,7 +39,8 @@ async function saveNewProfile() {
     const name = document.getElementById('new-profile-name').value.trim();
     if (!name) return;
     await supabaseClient.from('profiles').insert([{ name }]);
-    closeNewProfileModal(); loadProfiles();
+    closeNewProfileModal(); 
+    loadProfiles();
 }
 
 function openProfile(id, encodedName) {
@@ -41,6 +49,7 @@ function openProfile(id, encodedName) {
     switchView('profile');
 }
 
+// --- KOKPIT ZDROWIA (Osoby) ---
 async function loadProfileDashboard() {
     const list = document.getElementById('health-tasks-list');
     
@@ -53,10 +62,10 @@ async function loadProfileDashboard() {
     healthLogs = logsRes.data || [];
 
     if (healthTasks.length === 0) {
-        list.innerHTML = `<p class="text-center text-slate-400 py-10">Brak śledzonych zdarzeń. Kliknij + na górze.</p>`; return;
+        list.innerHTML = `<p class="text-center text-slate-400 py-10">Brak śledzonych zdarzeń. Kliknij + na górze.</p>`; 
+        return;
     }
 
-    // Sortujemy dla lepszej czytelności (aktywne zdarzenia na górze)
     const enrichedTasks = healthTasks.map(task => {
         const taskLogs = healthLogs.filter(l => l.health_task_id === task.id);
         const latestLog = taskLogs[0];
@@ -111,7 +120,7 @@ async function loadProfileDashboard() {
     }).join('');
 }
 
-// Obsługa Akcji
+// --- AKCJE ZDROWOTNE ---
 async function logHealthAction(taskId) {
     const today = new Date().toISOString();
     await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: today, end_date: today }]);
@@ -133,7 +142,7 @@ async function stopDurationTask(logId) {
     loadProfileDashboard();
 }
 
-// Tworzenie Nowego Zdarzenia
+// --- NOWE ZADANIE ---
 function openNewHealthTaskModal() {
     document.getElementById('h-task-name').value = '';
     document.getElementById('h-task-type').value = 'cyclical';
@@ -155,20 +164,21 @@ async function saveNewHealthTask() {
     const name = document.getElementById('h-task-name').value.trim();
     const type = document.getElementById('h-task-type').value;
     const interval = document.getElementById('h-task-interval').value;
+    
     if (!name) return;
+    
     await supabaseClient.from('health_tasks').insert([{ 
         profile_id: currentProfileId, 
         name: name, 
         task_type: type, 
         interval_days: type === 'cyclical' ? (parseInt(interval) || 0) : 0
     }]);
-    closeNewHealthTaskModal(); loadProfileDashboard();
+    
+    closeNewHealthTaskModal(); 
+    loadProfileDashboard();
 }
 
-// ==========================================
-// USTAWIENIA I EDYCJA HISTORII ZDROWIA
-// ==========================================
-
+// --- USTAWIENIA I EDYCJA ---
 function openHealthSettingsScreen(taskId) {
     currentSettingsHealthTaskId = taskId;
     const task = healthTasks.find(t => t.id === taskId);
@@ -252,14 +262,12 @@ function renderHealthHistory() {
     }).join('') || '<p class="text-center py-4 text-slate-400 text-sm">Brak wpisów w historii.</p>';
 }
 
-// EDYCJA LOGU ZDROWIA (Modyfikacja wsteczna)
+// --- EDYCJA POJEDYNCZEGO LOGU ZDROWOTNEGO ---
 function openEditHealthLogModal(id, startDate, endDate, encodedNotes, taskType) {
     document.getElementById('edit-hlog-id').value = id;
     
-    // Ustawiamy datę startową
     document.getElementById('edit-hlog-start').value = startDate ? startDate.split('T')[0] : '';
 
-    // Obsługa daty końcowej dla trwających wydarzeń
     const endInput = document.getElementById('edit-hlog-end');
     const endContainer = document.getElementById('edit-hlog-end-container');
     
@@ -288,18 +296,15 @@ async function saveEditHealthLog() {
         notes: notes || null
     };
 
-    // Jeśli edytujemy chorobę "Trwającą", musimy zadbać o end_date
     if (!document.getElementById('edit-hlog-end-container').classList.contains('hidden')) {
         updateData.end_date = endRaw ? `${endRaw}T12:00:00.000Z` : null;
     } else {
-        // Dla zadań cyklicznych end_date zawsze jest równe start_date, żeby nie psuć bazy
         updateData.end_date = updateData.start_date;
     }
 
     await supabaseClient.from('health_logs').update(updateData).eq('id', id);
     closeEditHealthLogModal(); 
     
-    // Odśwież logi w pamięci i UI
     const res = await supabaseClient.from('health_logs').select('*').order('start_date', { ascending: false });
     healthLogs = res.data || []; 
     renderHealthHistory();
@@ -311,3 +316,4 @@ async function deleteHealthLog(id) {
     const res = await supabaseClient.from('health_logs').select('*').order('start_date', { ascending: false });
     healthLogs = res.data || []; 
     renderHealthHistory();
+}
