@@ -2,26 +2,17 @@
 // LOGIKA: PRZEGLĄD GŁÓWNY (dashboard.js)
 // ==========================================
 
-// Słownik ikon dla pomieszczeń
-const ROOM_ICONS = {
-    'Kuchnia': '🍳',
-    'Łazienka': '🛁',
-    'Sypialnia': '🛏️',
-    'Salon': '🛋️',
-    'Pokój dziecięcy': '🧸',
-    'Inne': '📦'
-};
-
 async function loadDashboardOverview() {
     const listEl = document.getElementById('dashboard-overview-list');
     listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Analiza danych...</p>`;
 
-    const [hTasksRes, hLogsRes, profRes, healthTasksRes, healthLogsRes] = await Promise.all([
+    const [hTasksRes, hLogsRes, profRes, healthTasksRes, healthLogsRes, roomsRes] = await Promise.all([
         supabaseClient.from('tasks').select('*'),
         supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false }),
         supabaseClient.from('profiles').select('*'),
         supabaseClient.from('health_tasks').select('*'),
-        supabaseClient.from('health_logs').select('*').order('start_date', { ascending: false })
+        supabaseClient.from('health_logs').select('*').order('start_date', { ascending: false }),
+        supabaseClient.from('rooms').select('*') // NOWE!
     ]);
 
     const homeTasks = hTasksRes.data || [];
@@ -29,6 +20,11 @@ async function loadDashboardOverview() {
     const profiles = profRes.data || [];
     const healthTasks = healthTasksRes.data || [];
     const healthLogs = healthLogsRes.data || [];
+    const dbRooms = roomsRes.data || [];
+
+    // Słownik ikon tworzony w locie
+    const roomIconsMap = {};
+    dbRooms.forEach(r => roomIconsMap[r.name] = r.icon);
 
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -36,11 +32,8 @@ async function loadDashboardOverview() {
     let overviewHtml = "";
     let hasAnyAlerts = false;
 
-    // ----------------------------------------------------
-    // SEKCJA 1: AKTYWNE STANY (Np. Katar)
-    // ----------------------------------------------------
+    // SEKCJA 1: AKTYWNE STANY
     let activeHealthAlerts = [];
-    
     healthTasks.filter(t => t.task_type === 'duration').forEach(task => {
         const taskLogs = healthLogs.filter(l => l.health_task_id === task.id);
         const latestLog = taskLogs[0];
@@ -51,11 +44,7 @@ async function loadDashboardOverview() {
             const diffDays = Math.floor((today - start) / 86400000);
             const durationText = diffDays === 0 ? "od dzisiaj" : (diffDays === 1 ? "od wczoraj" : `od ${diffDays} dni`);
             
-            activeHealthAlerts.push({
-                profileName: profile ? profile.name : 'Ktoś',
-                taskName: task.name,
-                durationText: durationText
-            });
+            activeHealthAlerts.push({ profileName: profile ? profile.name : 'Ktoś', taskName: task.name, durationText: durationText });
         }
     });
 
@@ -79,28 +68,18 @@ async function loadDashboardOverview() {
         `;
     }
 
-    // ----------------------------------------------------
     // SEKCJA 2: ZDROWIE - CYKLICZNE
-    // ----------------------------------------------------
     let overdueHealthCyclical = [];
-    
     healthTasks.filter(t => t.task_type === 'cyclical' && t.interval_days > 0).forEach(task => {
         const taskLogs = healthLogs.filter(l => l.health_task_id === task.id);
         const latestLog = taskLogs[0];
-        
         if (latestLog) {
             const last = new Date(latestLog.start_date); last.setHours(0,0,0,0);
             const next = new Date(last); next.setDate(last.getDate() + task.interval_days);
             const diff = Math.ceil((next - today) / 86400000);
-            
             if (diff <= 0) {
                 const profile = profiles.find(p => p.id === task.profile_id);
-                overdueHealthCyclical.push({
-                    profileName: profile ? profile.name : 'Ktoś',
-                    taskName: task.name,
-                    daysDiff: diff,
-                    lastDate: last
-                });
+                overdueHealthCyclical.push({ profileName: profile ? profile.name : 'Ktoś', taskName: task.name, daysDiff: diff, lastDate: last });
             }
         }
     });
@@ -124,30 +103,20 @@ async function loadDashboardOverview() {
         `;
     }
 
-    // ----------------------------------------------------
-    // SEKCJA 3: DOM - GRUPOWANIE PO POMIESZCZENIACH
-    // ----------------------------------------------------
+    // SEKCJA 3: DOM - DYNAMICZNE POMIESZCZENIA
     let roomOverdueCounts = {};
-    // Inicjalizujemy obiekty, żeby licznik wynosił 0
-    Object.keys(ROOM_ICONS).forEach(r => roomOverdueCounts[r] = 0);
 
     homeTasks.filter(t => t.interval_days > 0).forEach(task => {
         const lastLog = homeLogs.find(l => l.activity_name === task.name);
         const roomName = task.room || 'Inne';
-        
-        // Zabezpieczenie przed usuniętymi pomieszczeniami
         if (roomOverdueCounts[roomName] === undefined) roomOverdueCounts[roomName] = 0;
 
         if (lastLog) {
             const last = new Date(lastLog.created_at); last.setHours(0,0,0,0);
             const next = new Date(last); next.setDate(last.getDate() + task.interval_days);
             const diff = Math.ceil((next - today) / 86400000);
-            
-            if (diff <= 0) {
-                roomOverdueCounts[roomName]++;
-            }
+            if (diff <= 0) roomOverdueCounts[roomName]++;
         } else {
-            // Brak wpisów w historii = pilne do wykonania
             roomOverdueCounts[roomName]++;
         }
     });
@@ -156,17 +125,17 @@ async function loadDashboardOverview() {
 
     if (totalOverdueHome > 0) {
         hasAnyAlerts = true;
-        
         let roomsGridHtml = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">`;
         
         Object.entries(roomOverdueCounts).forEach(([room, count]) => {
             if (count > 0) {
+                const icon = roomIconsMap[room] || '📦'; // Pobieramy z mapy lub default
                 roomsGridHtml += `
                     <div onclick="switchView('home')" class="relative bg-[#1e1f20] p-4 rounded-[24px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center">
                         <div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
                             ${count}
                         </div>
-                        <div class="text-3xl mb-2 opacity-80">${ROOM_ICONS[room]}</div>
+                        <div class="text-3xl mb-2 opacity-80">${icon}</div>
                         <h3 class="text-xs font-medium text-neutral-200">${room}</h3>
                     </div>
                 `;
