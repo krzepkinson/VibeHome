@@ -24,12 +24,15 @@ async function loadDashboard() {
     list.innerHTML = scored.map(item => {
         const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
         const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
+        
+        // Pigułka z pomieszczeniem
+        const roomBadge = `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${item.t.room || 'Inne'}</span>`;
 
         return `
             <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1">
                 <div class="flex-1 cursor-pointer pr-4" onclick="showToast('${status.tooltip}')">
-                    <h3 class="font-medium text-neutral-100 text-sm flex items-center">${item.t.name} ${muteIcon}</h3>
-                    <p class="text-[11px] ${status.color} mt-0.5">${status.label}</p>
+                    <h3 class="font-medium text-neutral-100 text-sm flex items-center">${item.t.name} ${roomBadge} ${muteIcon}</h3>
+                    <p class="text-[11px] ${status.color} mt-1">${status.label}</p>
                 </div>
                 <div class="flex items-center gap-1.5">
                     <button onclick="openAddLogModal('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#0f5223]/20 text-[#c4eed0] font-medium text-lg flex items-center justify-center pb-0.5 active:scale-90 transition-transform">+</button>
@@ -56,7 +59,6 @@ function getCompactStatus(lastDate, interval) {
     const next = new Date(last); next.setDate(last.getDate() + interval);
     const diff = Math.ceil((next - today) / 86400000);
     
-    // Ciemne kolory dla statusów
     if (diff < 0) return { color: 'text-[#ffb4ab]', label: getRelativeTime(lastDate), tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` };
     if (diff === 0) return { color: 'text-[#ffb4ab]', label: getRelativeTime(lastDate), tooltip: 'Dzisiaj!' };
     return { color: 'text-[#c4eed0]', label: getRelativeTime(lastDate), tooltip: `Za ${diff} dni.` };
@@ -76,6 +78,8 @@ function openSettingsScreen(name) {
     document.getElementById('set-task-name').value = task.name;
     document.getElementById('set-task-interval').value = task.interval_days;
     document.getElementById('set-task-push').checked = task.push_enabled !== false;
+    document.getElementById('set-task-room').value = task.room || 'Inne'; // Pobieranie pokoju
+    
     renderHistory();
     document.getElementById('main-screen').classList.add('hidden');
     document.getElementById('bottom-nav').classList.add('hidden');
@@ -92,15 +96,16 @@ function closeSettingsScreen() {
 async function saveTaskSettings() {
     const n = document.getElementById('set-task-name').value.trim();
     const i = parseInt(document.getElementById('set-task-interval').value) || 0;
+    const r = document.getElementById('set-task-room').value; // Nowe pole
     const pushEnabled = document.getElementById('set-task-push').checked;
 
     if (currentSettingsTaskName !== n) {
         await supabaseClient.from('activity_logs').update({ activity_name: n }).eq('activity_name', currentSettingsTaskName);
-        await supabaseClient.from('tasks').insert([{ name: n, interval_days: i, push_enabled: pushEnabled }]);
+        await supabaseClient.from('tasks').insert([{ name: n, interval_days: i, push_enabled: pushEnabled, room: r }]);
         await supabaseClient.from('tasks').delete().eq('name', currentSettingsTaskName);
         currentSettingsTaskName = n;
     } else {
-        await supabaseClient.from('tasks').update({ interval_days: i, push_enabled: pushEnabled }).eq('name', currentSettingsTaskName);
+        await supabaseClient.from('tasks').update({ interval_days: i, push_enabled: pushEnabled, room: r }).eq('name', currentSettingsTaskName);
     }
     showToast("Zapisano!");
 }
@@ -136,8 +141,10 @@ function closeNewTaskModal() { document.getElementById('new-task-modal').classLi
 async function saveNewTask() {
     const n = document.getElementById('new-task-name').value.trim();
     const i = document.getElementById('new-task-interval').value;
+    const r = document.getElementById('new-task-room').value; // Nowe pole
+    
     if (!n) return;
-    await supabaseClient.from('tasks').insert([{ name: n, interval_days: parseInt(i)||0, push_enabled: true }]);
+    await supabaseClient.from('tasks').insert([{ name: n, interval_days: parseInt(i)||0, push_enabled: true, room: r }]);
     closeNewTaskModal(); loadDashboard();
 }
 
