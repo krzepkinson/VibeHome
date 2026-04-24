@@ -2,11 +2,20 @@
 // LOGIKA: PRZEGLĄD GŁÓWNY (dashboard.js)
 // ==========================================
 
+// Słownik ikon dla pomieszczeń
+const ROOM_ICONS = {
+    'Kuchnia': '🍳',
+    'Łazienka': '🛁',
+    'Sypialnia': '🛏️',
+    'Salon': '🛋️',
+    'Pokój dziecięcy': '🧸',
+    'Inne': '📦'
+};
+
 async function loadDashboardOverview() {
     const listEl = document.getElementById('dashboard-overview-list');
     listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Analiza danych...</p>`;
 
-    // Pobieramy wszystko co potrzebne z obu modułów
     const [hTasksRes, hLogsRes, profRes, healthTasksRes, healthLogsRes] = await Promise.all([
         supabaseClient.from('tasks').select('*'),
         supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false }),
@@ -28,7 +37,7 @@ async function loadDashboardOverview() {
     let hasAnyAlerts = false;
 
     // ----------------------------------------------------
-    // SEKCJA 1: AKTYWNE STANY (Np. Katar) - Najwyższy priorytet
+    // SEKCJA 1: AKTYWNE STANY (Np. Katar)
     // ----------------------------------------------------
     let activeHealthAlerts = [];
     
@@ -71,7 +80,7 @@ async function loadDashboardOverview() {
     }
 
     // ----------------------------------------------------
-    // SEKCJA 2: ZDROWIE - CYKLICZNE (Przeterminowane)
+    // SEKCJA 2: ZDROWIE - CYKLICZNE
     // ----------------------------------------------------
     let overdueHealthCyclical = [];
     
@@ -84,7 +93,7 @@ async function loadDashboardOverview() {
             const next = new Date(last); next.setDate(last.getDate() + task.interval_days);
             const diff = Math.ceil((next - today) / 86400000);
             
-            if (diff <= 0) { // Dzisiaj lub zaległe
+            if (diff <= 0) {
                 const profile = profiles.find(p => p.id === task.profile_id);
                 overdueHealthCyclical.push({
                     profileName: profile ? profile.name : 'Ktoś',
@@ -105,7 +114,7 @@ async function loadDashboardOverview() {
                     <div onclick="switchView('health')" class="bg-[#1e1f20] p-4 rounded-[24px] border border-[#ffb4ab]/30 mb-2 cursor-pointer active:scale-95 transition-transform">
                         <div class="flex justify-between items-center">
                             <div>
-                                <h3 class="text-sm font-medium text-neutral-100">${alert.taskName} (${alert.profileName})</h3>
+                                <h3 class="text-sm font-medium text-neutral-100">${alert.taskName} <span class="text-neutral-400">(${alert.profileName})</span></h3>
                                 <p class="text-xs text-[#ffb4ab] mt-0.5">${alert.daysDiff < 0 ? `Zaległe o ${Math.abs(alert.daysDiff)} dni` : 'Do zrobienia dzisiaj'}</p>
                             </div>
                         </div>
@@ -116,55 +125,69 @@ async function loadDashboardOverview() {
     }
 
     // ----------------------------------------------------
-    // SEKCJA 3: DOM (Przeterminowane)
+    // SEKCJA 3: DOM - GRUPOWANIE PO POMIESZCZENIACH
     // ----------------------------------------------------
-    let overdueHomeTasks = [];
+    let roomOverdueCounts = {};
+    // Inicjalizujemy obiekty, żeby licznik wynosił 0
+    Object.keys(ROOM_ICONS).forEach(r => roomOverdueCounts[r] = 0);
 
     homeTasks.filter(t => t.interval_days > 0).forEach(task => {
         const lastLog = homeLogs.find(l => l.activity_name === task.name);
+        const roomName = task.room || 'Inne';
+        
+        // Zabezpieczenie przed usuniętymi pomieszczeniami
+        if (roomOverdueCounts[roomName] === undefined) roomOverdueCounts[roomName] = 0;
+
         if (lastLog) {
             const last = new Date(lastLog.created_at); last.setHours(0,0,0,0);
             const next = new Date(last); next.setDate(last.getDate() + task.interval_days);
             const diff = Math.ceil((next - today) / 86400000);
             
-            if (diff <= 0) { // Dzisiaj lub zaległe
-                overdueHomeTasks.push({
-                    taskName: task.name,
-                    daysDiff: diff
-                });
+            if (diff <= 0) {
+                roomOverdueCounts[roomName]++;
             }
         } else {
-            // Nigdy nie wykonano, ale ma interwał - wymaga wykonania!
-            overdueHomeTasks.push({ taskName: task.name, daysDiff: -999 });
+            // Brak wpisów w historii = pilne do wykonania
+            roomOverdueCounts[roomName]++;
         }
     });
 
-    if (overdueHomeTasks.length > 0) {
+    const totalOverdueHome = Object.values(roomOverdueCounts).reduce((a, b) => a + b, 0);
+
+    if (totalOverdueHome > 0) {
         hasAnyAlerts = true;
+        
+        let roomsGridHtml = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">`;
+        
+        Object.entries(roomOverdueCounts).forEach(([room, count]) => {
+            if (count > 0) {
+                roomsGridHtml += `
+                    <div onclick="switchView('home')" class="relative bg-[#1e1f20] p-4 rounded-[24px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center">
+                        <div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
+                            ${count}
+                        </div>
+                        <div class="text-3xl mb-2 opacity-80">${ROOM_ICONS[room]}</div>
+                        <h3 class="text-xs font-medium text-neutral-200">${room}</h3>
+                    </div>
+                `;
+            }
+        });
+        roomsGridHtml += `</div>`;
+
         overviewHtml += `
             <div class="mb-2 mt-4">
-                <h2 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest mb-3 pl-1">Dom: Wymaga uwagi</h2>
-                ${overdueHomeTasks.map(alert => `
-                    <div onclick="switchView('home')" class="bg-[#1e1f20] p-4 rounded-[24px] border border-[#333537] mb-2 cursor-pointer active:scale-95 transition-transform">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h3 class="text-sm font-medium text-neutral-100">${alert.taskName}</h3>
-                                <p class="text-xs text-[#a8c7fa] mt-0.5">${alert.daysDiff === -999 ? 'Nigdy nie wykonano' : (alert.daysDiff < 0 ? `Zaległe o ${Math.abs(alert.daysDiff)} dni` : 'Do zrobienia dzisiaj')}</p>
-                            </div>
-                        </div>
-                    </div>
-                `).join('')}
+                <h2 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest mb-3 pl-1">Dom: Przeterminowane zadania</h2>
+                ${roomsGridHtml}
             </div>
         `;
     }
 
-    // Jeśli wszystko zrobione :)
     if (!hasAnyAlerts) {
         overviewHtml = `
             <div class="flex flex-col items-center justify-center py-16 text-center">
-                <div class="text-5xl mb-4">☕</div>
+                <div class="text-5xl mb-4 opacity-80">☕</div>
                 <h3 class="text-lg font-medium text-neutral-200">Wszystko pod kontrolą!</h3>
-                <p class="text-sm text-neutral-500 mt-1">Żadnych zaległych zadań domowych ani aktywnie chorujących domowników.</p>
+                <p class="text-sm text-neutral-500 mt-1">Żadnych zaległych zadań ani aktywnie chorujących domowników.</p>
             </div>
         `;
     }
