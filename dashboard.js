@@ -12,7 +12,7 @@ async function loadDashboardOverview() {
         supabaseClient.from('profiles').select('*'),
         supabaseClient.from('health_tasks').select('*'),
         supabaseClient.from('health_logs').select('*').order('start_date', { ascending: false }),
-        supabaseClient.from('rooms').select('*') // NOWE!
+        supabaseClient.from('rooms').select('*')
     ]);
 
     const homeTasks = hTasksRes.data || [];
@@ -22,7 +22,6 @@ async function loadDashboardOverview() {
     const healthLogs = healthLogsRes.data || [];
     const dbRooms = roomsRes.data || [];
 
-    // Słownik ikon tworzony w locie
     const roomIconsMap = {};
     dbRooms.forEach(r => roomIconsMap[r.name] = r.icon);
 
@@ -129,9 +128,10 @@ async function loadDashboardOverview() {
         
         Object.entries(roomOverdueCounts).forEach(([room, count]) => {
             if (count > 0) {
-                const icon = roomIconsMap[room] || '📦'; // Pobieramy z mapy lub default
+                const icon = roomIconsMap[room] || '📦';
+                // ZMIANA: Zamiast switchView('home'), wywołujemy nową funkcję filterHomeByRoom z home.js
                 roomsGridHtml += `
-                    <div onclick="switchView('home')" class="relative bg-[#1e1f20] p-4 rounded-[24px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center">
+                    <div onclick="filterHomeByRoom('${room}')" class="relative bg-[#1e1f20] p-4 rounded-[24px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center">
                         <div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
                             ${count}
                         </div>
