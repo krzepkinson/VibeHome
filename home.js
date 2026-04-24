@@ -1,3 +1,7 @@
+// ==========================================
+// LOGIKA: DOM (home.js)
+// ==========================================
+
 let allHomeLogs = []; 
 let allHomeTasks = []; 
 let currentSettingsTaskName = '';
@@ -19,7 +23,10 @@ async function loadDashboard() {
         return a.t.name.localeCompare(b.t.name);
     });
 
-    if(scored.length === 0) { list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań domowych.</p>`; return; }
+    if(scored.length === 0) { 
+        list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań domowych.</p>`; 
+        return; 
+    }
 
     list.innerHTML = scored.map(item => {
         const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
@@ -46,7 +53,8 @@ function getRelativeTime(d) {
     const now = new Date(); now.setHours(0,0,0,0);
     const target = new Date(d); target.setHours(0,0,0,0);
     const diff = Math.floor((now - target) / 86400000);
-    if (diff === 0) return "dzisiaj"; if (diff === 1) return "wczoraj";
+    if (diff === 0) return "dzisiaj"; 
+    if (diff === 1) return "wczoraj";
     if (diff < 7) return `${diff} dni temu`;
     return target.toLocaleDateString('pl-PL');
 }
@@ -54,6 +62,7 @@ function getRelativeTime(d) {
 function getCompactStatus(lastDate, interval) {
     if (!lastDate) return { color: 'text-neutral-500', label: 'Nigdy', tooltip: 'Brak wpisów.' };
     if (!interval || interval <= 0) return { color: 'text-neutral-500', label: getRelativeTime(lastDate), tooltip: 'Brak harmonogramu.' };
+    
     const last = new Date(lastDate); last.setHours(0,0,0,0);
     const today = new Date(); today.setHours(0,0,0,0);
     const next = new Date(last); next.setDate(last.getDate() + interval);
@@ -71,14 +80,17 @@ function calculatePriority(task, lastDate) {
     return diff / task.interval_days;
 }
 
-function openSettingsScreen(name) {
+async function openSettingsScreen(name) {
     currentSettingsTaskName = decodeURIComponent(name);
     const task = allHomeTasks.find(t => t.name === currentSettingsTaskName);
+    
     document.getElementById('settings-title').innerText = currentSettingsTaskName;
     document.getElementById('set-task-name').value = task.name;
     document.getElementById('set-task-interval').value = task.interval_days;
     document.getElementById('set-task-push').checked = task.push_enabled !== false;
-    document.getElementById('set-task-room').value = task.room || 'Inne'; // Pobieranie pokoju
+    
+    // Dynamiczne ładowanie pokojów z bazy (korzysta z funkcji z settings.js)
+    await populateRoomsDropdown('set-task-room', task.room || 'Inne');
     
     renderHistory();
     document.getElementById('main-screen').classList.add('hidden');
@@ -96,8 +108,10 @@ function closeSettingsScreen() {
 async function saveTaskSettings() {
     const n = document.getElementById('set-task-name').value.trim();
     const i = parseInt(document.getElementById('set-task-interval').value) || 0;
-    const r = document.getElementById('set-task-room').value; // Nowe pole
+    const r = document.getElementById('set-task-room').value; 
     const pushEnabled = document.getElementById('set-task-push').checked;
+
+    if (!n) return;
 
     if (currentSettingsTaskName !== n) {
         await supabaseClient.from('activity_logs').update({ activity_name: n }).eq('activity_name', currentSettingsTaskName);
@@ -132,20 +146,33 @@ function renderHistory() {
 async function deleteLog(id) {
     await supabaseClient.from('activity_logs').delete().eq('id', id);
     const res = await supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false });
-    allHomeLogs = res.data; renderHistory();
+    allHomeLogs = res.data; 
+    renderHistory();
 }
 
-function openNewTaskModal() { document.getElementById('new-task-modal').classList.remove('hidden'); }
-function closeNewTaskModal() { document.getElementById('new-task-modal').classList.add('hidden'); }
+async function openNewTaskModal() { 
+    // Dynamiczne ładowanie pokojów z bazy
+    await populateRoomsDropdown('new-task-room');
+    
+    document.getElementById('new-task-name').value = '';
+    document.getElementById('new-task-interval').value = '';
+    document.getElementById('new-task-modal').classList.remove('hidden'); 
+}
+
+function closeNewTaskModal() { 
+    document.getElementById('new-task-modal').classList.add('hidden'); 
+}
 
 async function saveNewTask() {
     const n = document.getElementById('new-task-name').value.trim();
     const i = document.getElementById('new-task-interval').value;
-    const r = document.getElementById('new-task-room').value; // Nowe pole
+    const r = document.getElementById('new-task-room').value;
     
     if (!n) return;
+    
     await supabaseClient.from('tasks').insert([{ name: n, interval_days: parseInt(i)||0, push_enabled: true, room: r }]);
-    closeNewTaskModal(); loadDashboard();
+    closeNewTaskModal(); 
+    loadDashboard();
 }
 
 function openAddLogModal(n) {
@@ -156,14 +183,19 @@ function openAddLogModal(n) {
     document.getElementById('add-log-notes').value = '';
     document.getElementById('add-log-modal').classList.remove('hidden');
 }
-function closeAddLogModal() { document.getElementById('add-log-modal').classList.add('hidden'); }
+
+function closeAddLogModal() { 
+    document.getElementById('add-log-modal').classList.add('hidden'); 
+}
 
 async function saveNewLog() {
     const n = document.getElementById('add-log-name').value;
     const d = document.getElementById('add-log-date').value;
     const nt = document.getElementById('add-log-notes').value;
+    
     await supabaseClient.from('activity_logs').insert([{ activity_name: n, created_at: `${d}T12:00:00.000Z`, notes: nt }]);
-    closeAddLogModal(); loadDashboard();
+    closeAddLogModal(); 
+    loadDashboard();
 }
 
 function openEditLogModal(id, date, notes) {
@@ -172,14 +204,20 @@ function openEditLogModal(id, date, notes) {
     document.getElementById('edit-log-notes').value = decodeURIComponent(notes);
     document.getElementById('edit-log-modal').classList.remove('hidden');
 }
-function closeEditLogModal() { document.getElementById('edit-log-modal').classList.add('hidden'); }
+
+function closeEditLogModal() { 
+    document.getElementById('edit-log-modal').classList.add('hidden'); 
+}
 
 async function saveEditLog() {
     const id = document.getElementById('edit-log-id').value;
     const d = document.getElementById('edit-log-date').value;
     const n = document.getElementById('edit-log-notes').value;
+    
     await supabaseClient.from('activity_logs').update({ created_at: `${d}T12:00:00.000Z`, notes: n }).eq('id', id);
     closeEditLogModal(); 
+    
     const res = await supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false });
-    allHomeLogs = res.data; renderHistory();
+    allHomeLogs = res.data; 
+    renderHistory();
 }
