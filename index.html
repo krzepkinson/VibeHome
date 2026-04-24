@@ -16,12 +16,7 @@
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500&display=swap');
-        body { 
-            font-family: 'Outfit', sans-serif; 
-            -webkit-tap-highlight-color: transparent; 
-            background-color: #131314; 
-            color: #e3e3e3; 
-        }
+        body { font-family: 'Outfit', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #131314; color: #e3e3e3; }
         .hidden { display: none !important; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #444746; border-radius: 10px; }
@@ -41,10 +36,7 @@
                     <p class="text-sm text-neutral-400">Oto Twój dzisiejszy przegląd</p>
                 </div>
             </header>
-            
-            <div id="dashboard-overview-list" class="flex flex-col space-y-4">
-                <p class="text-neutral-500 text-xs text-center py-10">Generowanie podsumowania...</p>
-            </div>
+            <div id="dashboard-overview-list" class="flex flex-col space-y-4"></div>
         </div>
 
         <div id="view-home" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300">
@@ -71,9 +63,7 @@
 
         <div id="view-profile" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300">
             <header class="mb-6 mt-2">
-                <button onclick="switchView('health')" class="flex items-center text-neutral-400 text-sm font-medium mb-4 active:scale-95 w-fit">
-                    <span class="mr-2">←</span> Wróć
-                </button>
+                <button onclick="switchView('health')" class="flex items-center text-neutral-400 text-sm font-medium mb-4 active:scale-95 w-fit"><span class="mr-2">←</span> Wróć</button>
                 <div class="flex justify-between items-center">
                     <div>
                         <h1 class="text-xl font-medium text-neutral-100 tracking-wide" id="profile-name-title">Imię</h1>
@@ -82,38 +72,25 @@
                     <button onclick="openNewHealthTaskModal()" class="w-10 h-10 bg-[#8c1d18] text-[#ffdad6] rounded-full hover:bg-[#a8251e] active:scale-95 flex items-center justify-center text-xl pb-1 transition-all">+</button>
                 </div>
             </header>
-            
             <div class="bg-[#1e1f20] p-4 rounded-[28px] border border-[#333537] mb-6 transition-all">
                 <div class="flex justify-between items-center mb-4">
                     <button id="cal-prev-btn" onclick="changeCalendarMonth(-1)" class="w-8 h-8 flex justify-center items-center rounded-full text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 active:scale-90 transition-colors">&lt;</button>
                     <div class="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onclick="toggleCalendarMode()">
-                        <h3 class="font-medium text-neutral-200 uppercase tracking-widest text-xs flex items-center gap-1" id="calendar-title">
-                            Miesiąc Rok <span class="text-[10px] text-neutral-500">🔍</span>
-                        </h3>
+                        <h3 class="font-medium text-neutral-200 uppercase tracking-widest text-xs flex items-center gap-1" id="calendar-title">Miesiąc Rok <span class="text-[10px] text-neutral-500">🔍</span></h3>
                     </div>
                     <button id="cal-next-btn" onclick="changeCalendarMonth(1)" class="w-8 h-8 flex justify-center items-center rounded-full text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 active:scale-90 transition-colors">&gt;</button>
                 </div>
                 <div id="calendar-container"></div>
             </div>
-
             <div id="health-tasks-list" class="flex flex-col space-y-2"></div>
         </div>
     </main>
 
     <nav id="bottom-nav" class="fixed bottom-0 w-full bg-[#1e1f20] border-t border-[#333537] pb-safe z-30 transition-all duration-300">
         <div class="flex justify-around items-center max-w-xl mx-auto h-16">
-            <button onclick="switchView('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center w-full h-full text-[#c4eed0] transition-colors">
-                <span class="text-lg mb-1">✨</span>
-                <span class="text-[9px] font-medium uppercase tracking-wider">Przegląd</span>
-            </button>
-            <button onclick="switchView('home')" id="nav-home" class="flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors">
-                <span class="text-lg mb-1">🏠</span>
-                <span class="text-[9px] font-medium uppercase tracking-wider">Dom</span>
-            </button>
-            <button onclick="switchView('health')" id="nav-health" class="flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors">
-                <span class="text-lg mb-1">❤️</span>
-                <span class="text-[9px] font-medium uppercase tracking-wider">Zdrowie</span>
-            </button>
+            <button onclick="switchView('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center w-full h-full text-[#c4eed0] transition-colors"><span class="text-lg mb-1">✨</span><span class="text-[9px] font-medium uppercase tracking-wider">Przegląd</span></button>
+            <button onclick="switchView('home')" id="nav-home" class="flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors"><span class="text-lg mb-1">🏠</span><span class="text-[9px] font-medium uppercase tracking-wider">Dom</span></button>
+            <button onclick="switchView('health')" id="nav-health" class="flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors"><span class="text-lg mb-1">❤️</span><span class="text-[9px] font-medium uppercase tracking-wider">Zdrowie</span></button>
         </div>
     </nav>
 
@@ -125,8 +102,25 @@
             <h2 class="text-xl font-medium text-neutral-100 tracking-wide mb-6" id="settings-title">Ustawienia</h2>
             <div class="bg-[#1e1f20] p-5 rounded-[28px] border border-[#333537] mb-4">
                 <div class="space-y-4">
-                    <div><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Nazwa</label><input type="text" id="set-task-name" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:border-[#a8c7fa] focus:outline-none"></div>
-                    <div><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Interwał (dni)</label><input type="number" id="set-task-interval" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:border-[#a8c7fa] focus:outline-none"></div>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Nazwa</label>
+                        <input type="text" id="set-task-name" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:border-[#a8c7fa] focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Pomieszczenie</label>
+                        <select id="set-task-room" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:border-[#a8c7fa] focus:outline-none">
+                            <option value="Kuchnia">Kuchnia</option>
+                            <option value="Łazienka">Łazienka</option>
+                            <option value="Sypialnia">Sypialnia</option>
+                            <option value="Salon">Salon</option>
+                            <option value="Pokój dziecięcy">Pokój dziecięcy</option>
+                            <option value="Inne">Inne</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Interwał (dni)</label>
+                        <input type="number" id="set-task-interval" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:border-[#a8c7fa] focus:outline-none">
+                    </div>
                     <div class="flex items-center justify-between pt-2">
                         <label class="flex flex-col cursor-pointer pl-1"><span class="text-sm font-medium text-neutral-200">Powiadomienia</span></label>
                         <label class="flex items-center cursor-pointer"><div class="relative"><input type="checkbox" id="set-task-push" class="sr-only"><div class="block-bg block bg-[#444746] w-10 h-6 rounded-full transition-colors"></div><div class="dot absolute left-1 top-1 bg-[#8e918f] w-4 h-4 rounded-full transition-transform"></div></div></label>
@@ -138,26 +132,33 @@
             <button onclick="deleteCurrentTask()" class="w-full bg-[#3c1414] text-[#ffb4ab] font-medium py-3.5 rounded-full border border-[#8c1d18]/30 mb-6 text-sm active:scale-95 transition-transform">Usuń czynność</button>
         </div>
     </div>
-    <div id="health-settings-screen" class="hidden fixed inset-0 bg-[#131314] z-40 overflow-y-auto flex flex-col transition-all duration-300">
-        <div class="max-w-xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col pt-8">
-            <button onclick="closeHealthSettingsScreen()" class="flex items-center text-neutral-400 text-sm font-medium mb-6 active:scale-95 w-fit"><span class="mr-2">←</span> Wróć</button>
-            <h2 class="text-xl font-medium text-neutral-100 tracking-wide mb-6" id="h-settings-title">Ustawienia Zdrowia</h2>
-            <div class="bg-[#1e1f20] p-5 rounded-[28px] border border-[#333537] mb-4">
-                <div class="space-y-4">
-                    <div><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Nazwa</label><input type="text" id="set-h-task-name" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:border-[#ffb4ab] focus:outline-none"></div>
-                    <div id="set-h-task-interval-container"><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Interwał (dni)</label><input type="number" id="set-h-task-interval" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:border-[#ffb4ab] focus:outline-none"></div>
-                    <button onclick="saveHealthTaskSettings()" class="w-full bg-[#8c1d18] text-[#ffdad6] font-medium py-3.5 rounded-full text-sm mt-2 active:scale-95 transition-transform">Zapisz zmiany</button>
-                </div>
+
+    <div id="new-task-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
+            <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Nowa czynność w domu</h3>
+            <input type="text" id="new-task-name" placeholder="Nazwa (np. Filtry)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm mb-3 focus:outline-none">
+            <select id="new-task-room" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm mb-3 focus:outline-none">
+                <option value="Kuchnia">Kuchnia</option>
+                <option value="Łazienka">Łazienka</option>
+                <option value="Sypialnia">Sypialnia</option>
+                <option value="Salon">Salon</option>
+                <option value="Pokój dziecięcy">Pokój dziecięcy</option>
+                <option value="Inne" selected>Inne</option>
+            </select>
+            <input type="number" id="new-task-interval" placeholder="Dni przypomnienia" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none">
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeNewTaskModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
+                <button onclick="saveNewTask()" class="flex-1 bg-[#004a77] text-[#c2e7ff] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Dodaj</button>
             </div>
-            <div class="bg-[#1e1f20] p-5 rounded-[28px] border border-[#333537] mb-4 flex-1"><h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest mb-4 pl-1">Historia zdarzeń</h3><div id="h-settings-history-list" class="space-y-2"></div></div>
-            <button onclick="deleteHealthTask()" class="w-full bg-[#3c1414] text-[#ffb4ab] font-medium py-3.5 rounded-full border border-[#8c1d18]/30 mb-6 text-sm active:scale-95 transition-transform">Usuń zdarzenie</button>
         </div>
     </div>
-    <div id="new-task-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Nowa czynność w domu</h3><input type="text" id="new-task-name" placeholder="Nazwa" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm mb-3 focus:outline-none"><input type="number" id="new-task-interval" placeholder="Dni" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none"><div class="flex gap-3 mt-6"><button onclick="closeNewTaskModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="saveNewTask()" class="flex-1 bg-[#004a77] text-[#c2e7ff] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Dodaj</button></div></div></div>
+
     <div id="add-log-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-1 tracking-wide">Wykonano</h3><p class="text-xs text-neutral-400 mb-4" id="add-log-subtitle"></p><input type="hidden" id="add-log-name"><input type="date" id="add-log-date" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm mb-3 focus:outline-none [color-scheme:dark]"><textarea id="add-log-notes" placeholder="Notatki..." class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm h-20 resize-none focus:outline-none"></textarea><div class="flex gap-3 mt-6"><button onclick="closeAddLogModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="saveNewLog()" class="flex-1 bg-[#0f5223] text-[#c4eed0] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button></div></div></div>
     <div id="edit-log-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Edytuj wpis</h3><input type="hidden" id="edit-log-id"><input type="date" id="edit-log-date" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm mb-3 focus:outline-none [color-scheme:dark]"><textarea id="edit-log-notes" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm h-24 resize-none focus:outline-none"></textarea><div class="flex gap-3 mt-6"><button onclick="closeEditLogModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="saveEditLog()" class="flex-1 bg-[#004a77] text-[#c2e7ff] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button></div></div></div>
+    
+    <div id="health-settings-screen" class="hidden fixed inset-0 bg-[#131314] z-40 overflow-y-auto flex flex-col transition-all duration-300"><div class="max-w-xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col pt-8"><button onclick="closeHealthSettingsScreen()" class="flex items-center text-neutral-400 text-sm font-medium mb-6 active:scale-95 w-fit"><span class="mr-2">←</span> Wróć</button><h2 class="text-xl font-medium text-neutral-100 tracking-wide mb-6" id="h-settings-title">Ustawienia Zdrowia</h2><div class="bg-[#1e1f20] p-5 rounded-[28px] border border-[#333537] mb-4"><div class="space-y-4"><div><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Nazwa</label><input type="text" id="set-h-task-name" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:border-[#ffb4ab] focus:outline-none"></div><div id="set-h-task-interval-container"><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Interwał (dni)</label><input type="number" id="set-h-task-interval" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:border-[#ffb4ab] focus:outline-none"></div><button onclick="saveHealthTaskSettings()" class="w-full bg-[#8c1d18] text-[#ffdad6] font-medium py-3.5 rounded-full text-sm mt-2 active:scale-95 transition-transform">Zapisz zmiany</button></div></div><div class="bg-[#1e1f20] p-5 rounded-[28px] border border-[#333537] mb-4 flex-1"><h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest mb-4 pl-1">Historia zdarzeń</h3><div id="h-settings-history-list" class="space-y-2"></div></div><button onclick="deleteHealthTask()" class="w-full bg-[#3c1414] text-[#ffb4ab] font-medium py-3.5 rounded-full border border-[#8c1d18]/30 mb-6 text-sm active:scale-95 transition-transform">Usuń zdarzenie</button></div></div>
     <div id="new-profile-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Dodaj domownika</h3><input type="text" id="new-profile-name" placeholder="Imię" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm mb-6 focus:outline-none focus:border-[#a8c7fa]"><div class="flex gap-3"><button onclick="closeNewProfileModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="saveNewProfile()" class="flex-1 bg-[#444746] text-[#e3e3e3] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button></div></div></div>
-    <div id="new-health-task-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Co śledzisz?</h3><div class="space-y-3"><input type="text" id="h-task-name" placeholder="Nazwa" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none"><select id="h-task-type" onchange="toggleHealthInterval()" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none"><option value="cyclical">Cykliczne (np. leki)</option><option value="duration">Trwające (np. katar)</option></select><div id="h-task-interval-container"><input type="number" id="h-task-interval" placeholder="Dni" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none"></div></div><div class="flex gap-3 mt-6"><button onclick="closeNewHealthTaskModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="saveNewHealthTask()" class="flex-1 bg-[#8c1d18] text-[#ffdad6] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Dodaj</button></div></div></div>
+    <div id="new-health-task-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Co chcesz śledzić?</h3><div class="space-y-3"><input type="text" id="h-task-name" placeholder="Nazwa (np. Katar)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none"><select id="h-task-type" onchange="toggleHealthInterval()" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none"><option value="cyclical">Cykliczne (np. leki co X dni)</option><option value="duration">Trwające (np. katar)</option></select><div id="h-task-interval-container"><input type="number" id="h-task-interval" placeholder="Dni przypomnienia" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none"></div></div><div class="flex gap-3 mt-6"><button onclick="closeNewHealthTaskModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="saveNewHealthTask()" class="flex-1 bg-[#8c1d18] text-[#ffdad6] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Dodaj</button></div></div></div>
     <div id="edit-health-log-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Edytuj historię</h3><input type="hidden" id="edit-hlog-id"><div class="space-y-3"><div><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Początek</label><input type="date" id="edit-hlog-start" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]"></div><div id="edit-hlog-end-container"><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Koniec (puste = trwa)</label><input type="date" id="edit-hlog-end" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]"></div><div><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Notatki</label><textarea id="edit-hlog-notes" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm h-20 resize-none focus:outline-none"></textarea></div></div><div class="flex gap-3 mt-6"><button onclick="closeEditHealthLogModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="saveEditHealthLog()" class="flex-1 bg-[#8c1d18] text-[#ffdad6] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button></div></div></div>
     <div id="day-details-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-end sm:items-center p-0 sm:p-4 transition-all"><div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-md p-6 shadow-2xl max-h-[80vh] flex flex-col"><div class="flex justify-between items-center mb-4 pb-2 border-b border-[#333537]"><div><h3 class="text-base font-medium text-neutral-100 tracking-wide" id="day-details-title">Szczegóły Dnia</h3><p class="text-[10px] uppercase tracking-widest text-neutral-400" id="day-details-date">Data</p></div><button onclick="closeDayDetailsModal()" class="w-8 h-8 rounded-full bg-[#333537] text-neutral-200 flex items-center justify-center font-medium active:scale-90 transition-transform">✕</button></div><div id="day-details-list" class="space-y-2 overflow-y-auto pb-4"></div></div></div>
 
@@ -177,25 +178,22 @@
         function switchView(view) {
             activeView = view;
             
-            // Logika kolorowania przycisków
             document.getElementById('nav-dashboard').className = `flex flex-col items-center justify-center w-full h-full transition-colors ${view === 'dashboard' ? 'text-[#c4eed0]' : 'text-neutral-500 hover:text-neutral-300'}`;
             document.getElementById('nav-home').className = `flex flex-col items-center justify-center w-full h-full transition-colors ${view === 'home' ? 'text-[#a8c7fa]' : 'text-neutral-500 hover:text-neutral-300'}`;
             document.getElementById('nav-health').className = `flex flex-col items-center justify-center w-full h-full transition-colors ${view === 'health' || view === 'profile' ? 'text-[#ffb4ab]' : 'text-neutral-500 hover:text-neutral-300'}`;
 
-            // Ukrywanie widoków
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-home').classList.add('hidden');
             document.getElementById('view-health').classList.add('hidden');
             document.getElementById('view-profile').classList.add('hidden');
 
-            // Pokazywanie wybranego
             if (view === 'dashboard') { document.getElementById('view-dashboard').classList.remove('hidden'); loadDashboardOverview(); }
             else if (view === 'home') { document.getElementById('view-home').classList.remove('hidden'); loadDashboard(); } 
             else if (view === 'health') { document.getElementById('view-health').classList.remove('hidden'); loadProfiles(); } 
             else if (view === 'profile') { document.getElementById('view-profile').classList.remove('hidden'); loadProfileDashboard(); }
         }
 
-        window.onload = () => switchView('dashboard'); // Aplikacja otwiera się domyślnie na przeglądzie!
+        window.onload = () => switchView('dashboard');
     </script>
 
     <script src="dashboard.js"></script>
