@@ -1,12 +1,7 @@
-// ==========================================
-// LOGIKA: DOM (home.js)
-// ==========================================
-
 let allHomeLogs = []; 
 let allHomeTasks = []; 
 let currentSettingsTaskName = '';
 
-// Inicjalizacja widoku Domu
 async function loadDashboard() {
     const list = document.getElementById('dashboard-list');
     const [tRes, lRes] = await Promise.all([
@@ -24,21 +19,21 @@ async function loadDashboard() {
         return a.t.name.localeCompare(b.t.name);
     });
 
-    if(scored.length === 0) { list.innerHTML = `<p class="text-center text-slate-400 py-10">Brak zadań domowych.</p>`; return; }
+    if(scored.length === 0) { list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań domowych.</p>`; return; }
 
     list.innerHTML = scored.map(item => {
         const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
-        const muteIcon = item.t.push_enabled === false ? `<span title="Powiadomienia wyłączone" class="ml-2 text-slate-300 text-xs">🔕</span>` : '';
+        const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
 
         return `
-            <div class="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
+            <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1">
                 <div class="flex-1 cursor-pointer pr-4" onclick="showToast('${status.tooltip}')">
-                    <h3 class="font-bold text-slate-800 text-base leading-tight flex items-center">${item.t.name} ${muteIcon}</h3>
-                    <p class="text-[13px] ${status.color} mt-0.5">${status.label}</p>
+                    <h3 class="font-medium text-neutral-100 text-sm flex items-center">${item.t.name} ${muteIcon}</h3>
+                    <p class="text-[11px] ${status.color} mt-0.5">${status.label}</p>
                 </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="openAddLogModal('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 font-bold text-2xl flex items-center justify-center pb-1 active:scale-90">+</button>
-                    <button onclick="openSettingsScreen('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center active:scale-90">⚙️</button>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="openAddLogModal('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#0f5223]/20 text-[#c4eed0] font-medium text-lg flex items-center justify-center pb-0.5 active:scale-90 transition-transform">+</button>
+                    <button onclick="openSettingsScreen('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#333537]/50 text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-sm">⚙️</button>
                 </div>
             </div>`;
     }).join('');
@@ -54,15 +49,17 @@ function getRelativeTime(d) {
 }
 
 function getCompactStatus(lastDate, interval) {
-    if (!lastDate) return { color: 'text-slate-400', label: 'Nigdy', tooltip: 'Brak wpisów.' };
-    if (!interval || interval <= 0) return { color: 'text-slate-400', label: getRelativeTime(lastDate), tooltip: 'Brak harmonogramu.' };
+    if (!lastDate) return { color: 'text-neutral-500', label: 'Nigdy', tooltip: 'Brak wpisów.' };
+    if (!interval || interval <= 0) return { color: 'text-neutral-500', label: getRelativeTime(lastDate), tooltip: 'Brak harmonogramu.' };
     const last = new Date(lastDate); last.setHours(0,0,0,0);
     const today = new Date(); today.setHours(0,0,0,0);
     const next = new Date(last); next.setDate(last.getDate() + interval);
     const diff = Math.ceil((next - today) / 86400000);
-    if (diff < 0) return { color: 'text-red-500 font-bold', label: getRelativeTime(lastDate), tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` };
-    if (diff === 0) return { color: 'text-amber-500 font-bold', label: getRelativeTime(lastDate), tooltip: 'Dzisiaj!' };
-    return { color: 'text-emerald-500 font-semibold', label: getRelativeTime(lastDate), tooltip: `Za ${diff} dni.` };
+    
+    // Ciemne kolory dla statusów
+    if (diff < 0) return { color: 'text-[#ffb4ab]', label: getRelativeTime(lastDate), tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` };
+    if (diff === 0) return { color: 'text-[#ffb4ab]', label: getRelativeTime(lastDate), tooltip: 'Dzisiaj!' };
+    return { color: 'text-[#c4eed0]', label: getRelativeTime(lastDate), tooltip: `Za ${diff} dni.` };
 }
 
 function calculatePriority(task, lastDate) {
@@ -118,13 +115,13 @@ async function deleteCurrentTask() {
 function renderHistory() {
     const logs = allHomeLogs.filter(l => l.activity_name === currentSettingsTaskName);
     document.getElementById('settings-history-list').innerHTML = logs.map(l => `
-        <div class="bg-slate-50 p-3 rounded-xl flex justify-between items-center border border-slate-100 mb-2">
-            <p class="text-sm font-bold text-slate-700">${new Date(l.created_at).toLocaleDateString('pl-PL')}</p>
-            <div class="flex gap-2">
-                <button onclick="openEditLogModal(${l.id}, '${l.created_at.split('T')[0]}', '${encodeURIComponent(l.notes||'')}')">✏️</button>
-                <button onclick="deleteLog(${l.id})">🗑️</button>
+        <div class="bg-[#131314] p-3 rounded-[16px] flex justify-between items-center border border-[#333537]">
+            <p class="text-xs font-medium text-neutral-200 pl-1">${new Date(l.created_at).toLocaleDateString('pl-PL')}</p>
+            <div class="flex gap-1">
+                <button onclick="openEditLogModal(${l.id}, '${l.created_at.split('T')[0]}', '${encodeURIComponent(l.notes||'')}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">✏️</button>
+                <button onclick="deleteLog(${l.id})" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-sm">🗑️</button>
             </div>
-        </div>`).join('') || '<p class="text-center py-4 text-slate-400 text-sm">Brak wpisów.</p>';
+        </div>`).join('') || '<p class="text-center py-4 text-neutral-500 text-xs">Brak wpisów.</p>';
 }
 
 async function deleteLog(id) {
