@@ -5,9 +5,36 @@
 let allHomeLogs = []; 
 let allHomeTasks = []; 
 let currentSettingsTaskName = '';
+let currentRoomFilter = null; // NOWE: Przechowuje aktualny filtr
+
+// NOWE: Funkcja odbierająca kliknięcie z Dashboardu
+function filterHomeByRoom(room) {
+    currentRoomFilter = room;
+    switchView('home'); // Ta funkcja z index.html wywoła loadDashboard()
+}
+
+// NOWE: Funkcja czyszcząca filtr
+function clearRoomFilter() {
+    currentRoomFilter = null;
+    loadDashboard();
+}
 
 async function loadDashboard() {
     const list = document.getElementById('dashboard-list');
+    
+    // Budowanie nagłówka filtra, jeśli filtr jest aktywny
+    let filterHeaderHtml = '';
+    if (currentRoomFilter) {
+        filterHeaderHtml = `
+            <div class="flex justify-between items-center mb-4 bg-[#a8c7fa]/10 p-3 rounded-[16px] border border-[#a8c7fa]/20">
+                <span class="text-xs font-medium text-[#a8c7fa] flex items-center gap-2">
+                    <span>🔍</span> Filtr: ${currentRoomFilter}
+                </span>
+                <button onclick="clearRoomFilter()" class="text-[10px] uppercase tracking-wider font-bold bg-[#a8c7fa]/20 text-[#a8c7fa] px-3 py-1.5 rounded-full active:scale-95 transition-colors">Wyczyść</button>
+            </div>
+        `;
+    }
+
     const [tRes, lRes] = await Promise.all([
         supabaseClient.from('tasks').select('*'),
         supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false })
@@ -15,7 +42,13 @@ async function loadDashboard() {
     allHomeTasks = tRes.data || []; 
     allHomeLogs = lRes.data || [];
     
-    let scored = allHomeTasks.map(t => {
+    // Filtrowanie zadań
+    let tasksToDisplay = allHomeTasks;
+    if (currentRoomFilter) {
+        tasksToDisplay = tasksToDisplay.filter(t => (t.room || 'Inne') === currentRoomFilter);
+    }
+    
+    let scored = tasksToDisplay.map(t => {
         const last = allHomeLogs.find(l => l.activity_name === t.name);
         return { t, last, score: calculatePriority(t, last?.created_at) };
     }).sort((a,b) => {
@@ -24,15 +57,15 @@ async function loadDashboard() {
     });
 
     if(scored.length === 0) { 
-        list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań domowych.</p>`; 
+        list.innerHTML = filterHeaderHtml + `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym widoku.</p>`; 
         return; 
     }
 
-    list.innerHTML = scored.map(item => {
+    list.innerHTML = filterHeaderHtml + scored.map(item => {
         const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
         const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
         
-        // Pigułka z pomieszczeniem
+        // Pigułka z pomieszczeniem (możemy ją wyświetlać zawsze, nawet gdy filtr jest włączony)
         const roomBadge = `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${item.t.room || 'Inne'}</span>`;
 
         return `
@@ -89,7 +122,6 @@ async function openSettingsScreen(name) {
     document.getElementById('set-task-interval').value = task.interval_days;
     document.getElementById('set-task-push').checked = task.push_enabled !== false;
     
-    // Dynamiczne ładowanie pokojów z bazy (korzysta z funkcji z settings.js)
     await populateRoomsDropdown('set-task-room', task.room || 'Inne');
     
     renderHistory();
@@ -151,7 +183,6 @@ async function deleteLog(id) {
 }
 
 async function openNewTaskModal() { 
-    // Dynamiczne ładowanie pokojów z bazy
     await populateRoomsDropdown('new-task-room');
     
     document.getElementById('new-task-name').value = '';
@@ -195,6 +226,9 @@ async function saveNewLog() {
     
     await supabaseClient.from('activity_logs').insert([{ activity_name: n, created_at: `${d}T12:00:00.000Z`, notes: nt }]);
     closeAddLogModal(); 
+    
+    // Jeśli używamy filtra a zadanie przestało być zaległe i ma opóźnienie = 0
+    // To list po przeładowaniu sama obniży jego priorytet, ale zostanie w tym filtrze pomieszczenia!
     loadDashboard();
 }
 
