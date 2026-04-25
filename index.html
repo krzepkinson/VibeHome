@@ -195,7 +195,6 @@
     <div id="day-details-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex justify-center items-end sm:items-center p-0 sm:p-4 transition-all"><div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-md p-6 shadow-2xl max-h-[80vh] flex flex-col"><div class="flex justify-between items-center mb-4 pb-2 border-b border-[#333537]"><div><h3 class="text-base font-medium text-neutral-100 tracking-wide" id="day-details-title">Szczegóły Dnia</h3><p class="text-[10px] uppercase tracking-widest text-neutral-400" id="day-details-date">Data</p></div><button onclick="closeDayDetailsModal()" class="w-8 h-8 rounded-full bg-[#333537] text-neutral-200 flex items-center justify-center font-medium active:scale-90 transition-transform">✕</button></div><div id="day-details-list" class="space-y-2 overflow-y-auto pb-4"></div></div></div>
 
     <script>
-        // UWAGA: Upewnij się, że config.js zawiera: const CONFIG = { SUPABASE_URL: '...', SUPABASE_KEY: '...' };
         const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
         let activeView = '';
         let toastTimeout;
@@ -273,7 +272,6 @@
         }
 
         window.onload = () => {
-            // Ustawiamy domyślny widok po załadowaniu
             const path = window.location.pathname.replace('/', '') || 'dashboard';
             const validViews = ['dashboard', 'home', 'health', 'settings'];
             const viewToLoad = validViews.includes(path) ? path : 'dashboard';
@@ -299,5 +297,10 @@
             }
         });
     </script>
+    
+    <script src="/dashboard.js"></script>
+    <script src="/home.js"></script>
+    <script src="/health.js"></script>
+    <script src="/settings.js"></script>
 </body>
 </html>
