@@ -7,15 +7,18 @@ let navHistory = [];
 
 window.switchView = function(view, skipHistory = false) {
     try {
+        // Zabezpieczenie: Jeśli nie ma użytkownika, zawsze pokazuj auth!
+        if (!window.currentUser && view !== 'auth') {
+            view = 'auth';
+        }
+        
         activeView = view;
         
-        // 1. Zarządzanie kolorami na dolnym pasku nawigacji
+        // 1. Zarządzanie kolorami na dolnym pasku
         const navIds = ['dashboard', 'home', 'health', 'settings'];
         navIds.forEach(id => {
             const el = document.getElementById(`nav-${id}`);
             if (!el) return;
-            
-            // Jeśli jesteśmy w profilu, podświetlamy Zdrowie
             if (view === id || (view === 'profile' && id === 'health')) {
                 el.className = `flex flex-col items-center justify-center w-full h-full text-[${id === 'dashboard' ? '#c4eed0' : id === 'home' ? '#a8c7fa' : id === 'settings' ? '#e3e3e3' : '#ffb4ab'}] transition-colors`;
             } else {
@@ -25,33 +28,42 @@ window.switchView = function(view, skipHistory = false) {
 
         // 2. Ukrywanie starych widoków
         document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
+        
         const header = document.getElementById('global-nav-header');
         if (header) header.classList.add('hidden');
         
         const bottomNav = document.getElementById('bottom-nav');
-        if (bottomNav) bottomNav.classList.remove('hidden');
 
-        // 3. Uruchamianie odpowiedniego modułu
-        if (view === 'dashboard') { 
-            document.getElementById('view-dashboard').classList.remove('hidden'); 
-            if(typeof loadDashboardOverview === 'function') loadDashboardOverview(); 
-        }
-        else if (view === 'home') { 
-            document.getElementById('view-home').classList.remove('hidden'); 
-            if(typeof loadDashboard === 'function') loadDashboard(); 
+        // 3. Widok Logowania (specjalne traktowanie)
+        if (view === 'auth') {
+            document.getElementById('view-auth').classList.remove('hidden');
+            if (bottomNav) bottomNav.classList.add('hidden');
         } 
-        else if (view === 'health' || view === 'profile') { 
-            document.getElementById('view-profile').classList.remove('hidden'); 
-            if(typeof initHealthModule === 'function') initHealthModule(); 
-            view = 'health'; // Do paska adresu wstawiamy tylko 'health'
-        } 
-        else if (view === 'settings') { 
-            document.getElementById('view-settings-main').classList.remove('hidden'); 
-            if(typeof initSettingsModule === 'function') initSettingsModule(); 
+        // Reszta standardowych widoków
+        else {
+            if (bottomNav) bottomNav.classList.remove('hidden');
+            
+            if (view === 'dashboard') { 
+                document.getElementById('view-dashboard').classList.remove('hidden'); 
+                if(typeof loadDashboardOverview === 'function') loadDashboardOverview(); 
+            }
+            else if (view === 'home') { 
+                document.getElementById('view-home').classList.remove('hidden'); 
+                if(typeof loadDashboard === 'function') loadDashboard(); 
+            } 
+            else if (view === 'health' || view === 'profile') { 
+                document.getElementById('view-profile').classList.remove('hidden'); 
+                if(typeof initHealthModule === 'function') initHealthModule(); 
+                view = 'health'; 
+            } 
+            else if (view === 'settings') { 
+                document.getElementById('view-settings-main').classList.remove('hidden'); 
+                if(typeof initSettingsModule === 'function') initSettingsModule(); 
+            }
         }
 
-        // 4. Magia podmiany URL (History API)
-        if (!skipHistory && ['dashboard', 'home', 'health', 'settings'].includes(view)) {
+        // 4. Magia podmiany URL
+        if (!skipHistory && ['dashboard', 'home', 'health', 'settings', 'auth'].includes(view)) {
             window.history.pushState({ view: view }, '', `/${view}`);
         }
     } catch (e) {
@@ -71,13 +83,11 @@ window.goForward = function(screenId) {
 };
 
 window.goBack = function() {
-    // Bezpieczne zamykanie okien edycji
     ['settings-screen', 'health-settings-screen', 'edit-profile-screen'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
     
-    // Czyszczenie filtra pokoju, jeśli wchodzimy z zakładki Dom
     if (typeof currentRoomFilter !== 'undefined' && currentRoomFilter !== null) {
         if(typeof clearRoomFilter === 'function') {
             clearRoomFilter(); 
@@ -89,21 +99,28 @@ window.goBack = function() {
     window.switchView(prev || 'dashboard', false); 
 };
 
-// --- START APLIKACJI I NASŁUCHIWANIE PRZEGLĄDARKI ---
+// --- START APLIKACJI Z ASYNCHRONICZNYM SPRAWDZANIEM SESJI ---
+window.addEventListener('DOMContentLoaded', async () => {
+    
+    // Najpierw sprawdzamy, czy mamy ciastko/token
+    const isLoggedIn = await window.checkSession();
+    
+    let path = window.location.pathname.replace('/', '') || 'dashboard';
+    const validViews = ['dashboard', 'home', 'health', 'settings', 'auth'];
+    let viewToLoad = validViews.includes(path) ? path : 'dashboard';
 
-window.addEventListener('DOMContentLoaded', () => {
-    const path = window.location.pathname.replace('/', '') || 'dashboard';
-    const validViews = ['dashboard', 'home', 'health', 'settings'];
-    const viewToLoad = validViews.includes(path) ? path : 'dashboard';
+    // Wymuszenie przekierowań
+    if (!isLoggedIn) {
+        viewToLoad = 'auth';
+    } else if (viewToLoad === 'auth') {
+        viewToLoad = 'dashboard'; // Zalogowany nie musi widzieć ekranu logowania
+    }
 
     window.history.replaceState({ view: viewToLoad }, '', `/${viewToLoad}`);
     window.switchView(viewToLoad, true);
 
-    // Rejestracja Service Workera
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').then(reg => {
-            console.log('Service Worker gotowy!', reg);
-        }).catch(err => console.error('Błąd SW', err));
+        navigator.serviceWorker.register('/sw.js').catch(err => console.error('Błąd SW', err));
     }
 });
 
