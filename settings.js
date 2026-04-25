@@ -8,6 +8,52 @@ let appProfiles = [];
 function initSettingsModule() {
     loadAppRooms();
     loadAppProfiles();
+    checkNotificationStatus(); // NOWE: Sprawdzanie uprawnień
+}
+
+// --------------------------------------------------------
+// SEKCJA: POWIADOMIENIA (NOWE)
+// --------------------------------------------------------
+function checkNotificationStatus() {
+    const statusText = document.getElementById('notif-status-text');
+    const btn = document.getElementById('notif-enable-btn');
+    if (!statusText || !btn) return;
+
+    if (!("Notification" in window)) {
+        statusText.innerText = "Twoja przeglądarka/system nie wspiera powiadomień.";
+        btn.classList.add('hidden');
+        return;
+    }
+
+    if (Notification.permission === "granted") {
+        statusText.innerText = "Status: Aktywne 🔔";
+        statusText.classList.replace('text-neutral-400', 'text-[#c4eed0]');
+        btn.classList.add('hidden');
+    } else if (Notification.permission === "denied") {
+        statusText.innerText = "Status: Zablokowane w systemie 🔕";
+        statusText.classList.replace('text-neutral-400', 'text-[#ffb4ab]');
+        btn.classList.add('hidden');
+    } else {
+        statusText.innerText = "Status: Wymaga zgody";
+        btn.classList.remove('hidden');
+    }
+}
+
+function requestNotificationPermission() {
+    if (!("Notification" in window)) return;
+    
+    Notification.requestPermission().then(permission => {
+        checkNotificationStatus();
+        if (permission === "granted") {
+            navigator.serviceWorker.ready.then(registration => {
+                registration.showNotification('HomeVibe', {
+                    body: 'Powiadomienia zostały włączone pomyślnie! 🎉',
+                    icon: '/icon.png',
+                    vibrate: [200, 100, 200]
+                });
+            });
+        }
+    });
 }
 
 // --------------------------------------------------------
@@ -88,9 +134,8 @@ async function populateRoomsDropdown(selectId, selectedValue = '') {
 }
 
 // --------------------------------------------------------
-// SEKCJA: DOMOWNICY (Wiek w miesiącach/latach)
+// SEKCJA: DOMOWNICY
 // --------------------------------------------------------
-
 function getAgeBadge(birthDateStr) {
     if (!birthDateStr) return '';
     const birthDate = new Date(birthDateStr);
@@ -107,12 +152,10 @@ function getAgeBadge(birthDateStr) {
 
     let ageText = "";
     if (totalMonths < 24) {
-        // Formatowanie dla miesięcy (0-23)
         if (totalMonths === 1) ageText = "1 miesiąc";
         else if ([2, 3, 4, 22, 23].includes(totalMonths)) ageText = `${totalMonths} miesiące`;
         else ageText = `${totalMonths} miesięcy`;
     } else {
-        // Formatowanie dla lat
         const years = Math.floor(totalMonths / 12);
         if (years === 1) ageText = "1 rok";
         else if ([2, 3, 4].includes(years % 10) && ![12, 13, 14].includes(years % 100)) ageText = `${years} lata`;
