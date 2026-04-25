@@ -83,7 +83,10 @@ async function loadAppRooms() {
                 <span class="text-xl">${room.icon || '📦'}</span>
                 <span class="text-sm font-medium text-neutral-200">${room.name}</span>
             </div>
-            <button onclick="deleteRoom('${encodeURIComponent(room.name)}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-500 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-sm">🗑️</button>
+            <div class="flex gap-1">
+                <button onclick="openEditRoomModal('${encodeURIComponent(room.name)}', '${room.icon}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">✏️</button>
+                <button onclick="deleteRoom('${encodeURIComponent(room.name)}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-sm">🗑️</button>
+            </div>
         </div>
     `).join('');
 }
@@ -108,13 +111,52 @@ async function saveNewRoom() {
     }]);
     
     if (error) {
-        if (error.code === '23505') showToast('Pomieszczenie o tej nazwie już istnieje!');
-        else showToast('Błąd zapisu: ' + error.message);
+        if (error.code === '23505') window.showToast('Pomieszczenie o tej nazwie już istnieje!');
+        else window.showToast('Błąd zapisu: ' + error.message);
     } else {
         closeNewRoomModal();
-        showToast('Dodano pomieszczenie!');
+        window.showToast('Dodano pomieszczenie!');
         loadAppRooms();
     }
+}
+
+function openEditRoomModal(encodedName, icon) {
+    const name = decodeURIComponent(encodedName);
+    document.getElementById('edit-room-old-name').value = name;
+    document.getElementById('edit-room-name').value = name;
+    document.getElementById('edit-room-icon').value = icon || '📦';
+    document.getElementById('edit-room-modal').classList.remove('hidden');
+}
+
+function closeEditRoomModal() { document.getElementById('edit-room-modal').classList.add('hidden'); }
+
+async function saveEditRoom() {
+    const oldName = document.getElementById('edit-room-old-name').value;
+    const newName = document.getElementById('edit-room-name').value.trim();
+    const newIcon = document.getElementById('edit-room-icon').value.trim() || '📦';
+    const uid = window.currentUser.id;
+
+    if (!newName) return;
+
+    // 1. Aktualizacja samego pokoju
+    const { error } = await supabaseClient.from('rooms').update({ name: newName, icon: newIcon }).eq('name', oldName).eq('user_id', uid);
+    
+    if (error) {
+        window.showToast('Błąd zapisu: ' + error.message);
+        return;
+    }
+
+    // 2. Kaskadowa aktualizacja zadań (jeśli zmieniono nazwę!)
+    if (oldName !== newName) {
+        await supabaseClient.from('tasks').update({ room: newName }).eq('room', oldName).eq('user_id', uid);
+    }
+
+    closeEditRoomModal();
+    window.showToast('Zaktualizowano pomieszczenie!');
+    loadAppRooms();
+    
+    // Jeśli główny moduł był wczytany, wymuś jego odświeżenie w tle
+    if (typeof loadDashboard === 'function') loadDashboard();
 }
 
 async function deleteRoom(encodedName) {
@@ -122,8 +164,9 @@ async function deleteRoom(encodedName) {
     if (!confirm(`Trwale usunąć pomieszczenie "${name}" z bazy? Czynności do niego przypisane otrzymają status "Inne".`)) return;
     
     await supabaseClient.from('rooms').delete().eq('name', name).eq('user_id', window.currentUser.id);
-    showToast('Usunięto pomieszczenie');
+    window.showToast('Usunięto pomieszczenie');
     loadAppRooms();
+    if (typeof loadDashboard === 'function') loadDashboard();
 }
 
 async function populateRoomsDropdown(selectId, selectedValue = '') {
@@ -152,9 +195,7 @@ function getAgeBadge(birthDateStr) {
     totalMonths -= birthDate.getMonth();
     totalMonths += today.getMonth();
     
-    if (today.getDate() < birthDate.getDate()) {
-        totalMonths--;
-    }
+    if (today.getDate() < birthDate.getDate()) totalMonths--;
     if (totalMonths < 0) totalMonths = 0;
 
     let ageText = "";
@@ -219,7 +260,7 @@ async function saveNewProfile() {
     }]);
     
     closeNewProfileModal(); 
-    showToast('Dodano domownika!');
+    window.showToast('Dodano domownika!');
     loadAppProfiles();
 }
 
@@ -255,7 +296,7 @@ async function saveProfileDetails() {
         weight: weight 
     }).eq('id', id).eq('user_id', window.currentUser.id);
     
-    showToast('Zapisano profil');
+    window.showToast('Zapisano profil');
     closeEditProfileScreen();
     
     loadAppProfiles(); 
