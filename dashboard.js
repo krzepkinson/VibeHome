@@ -6,13 +6,16 @@ async function loadDashboardOverview() {
     const listEl = document.getElementById('dashboard-overview-list');
     listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Analiza danych...</p>`;
 
+    // FILTROWANIE PO USER_ID
+    const uid = window.currentUser.id;
+
     const [hTasksRes, hLogsRes, profRes, healthTasksRes, healthLogsRes, roomsRes] = await Promise.all([
-        supabaseClient.from('tasks').select('*'),
-        supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false }),
-        supabaseClient.from('profiles').select('*'),
-        supabaseClient.from('health_tasks').select('*'),
-        supabaseClient.from('health_logs').select('*').order('start_date', { ascending: false }),
-        supabaseClient.from('rooms').select('*')
+        supabaseClient.from('tasks').select('*').eq('user_id', uid),
+        supabaseClient.from('activity_logs').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+        supabaseClient.from('profiles').select('*').eq('user_id', uid),
+        supabaseClient.from('health_tasks').select('*').eq('user_id', uid),
+        supabaseClient.from('health_logs').select('*').eq('user_id', uid).order('start_date', { ascending: false }),
+        supabaseClient.from('rooms').select('*').eq('user_id', uid)
     ]);
 
     const homeTasks = hTasksRes.data || [];
