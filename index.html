@@ -11,7 +11,8 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
+    
+    <script src="/config.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500&display=swap');
@@ -191,10 +192,10 @@
     <div id="new-health-task-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Co chcesz śledzić?</h3><div class="space-y-3"><input type="text" id="h-task-name" placeholder="Nazwa" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none"><select id="h-task-type" onchange="toggleHealthInterval()" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none"><option value="cyclical">Cykliczne (np. leki co X dni)</option><option value="duration">Trwające (np. katar)</option></select><div id="h-task-interval-container"><input type="number" id="h-task-interval" placeholder="Dni przypomnienia" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none"></div></div><div class="flex gap-3 mt-6"><button onclick="closeNewHealthTaskModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="saveNewHealthTask()" class="flex-1 bg-[#8c1d18] text-[#ffdad6] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Dodaj</button></div></div></div>
     <div id="edit-health-log-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Edytuj historię</h3><input type="hidden" id="edit-hlog-id"><div class="space-y-3"><div><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Początek</label><input type="date" id="edit-hlog-start" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]"></div><div id="edit-hlog-end-container"><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Koniec (puste = trwa)</label><input type="date" id="edit-hlog-end" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]"></div><div><label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Notatki</label><textarea id="edit-hlog-notes" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm h-20 resize-none focus:outline-none"></textarea></div></div><div class="flex gap-3 mt-6"><button onclick="closeEditHealthLogModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="saveEditHealthLog()" class="flex-1 bg-[#8c1d18] text-[#ffdad6] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button></div></div></div>
     <div id="new-room-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Nowe pomieszczenie</h3><div class="flex gap-2 mb-4"><input type="text" id="new-room-icon" placeholder="🏠" maxlength="2" class="w-16 text-center p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-xl focus:outline-none focus:border-[#a8c7fa]"><input type="text" id="new-room-name" placeholder="Nazwa (np. Garaż)" class="flex-1 p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]"></div><div class="flex gap-3 mt-4"><button onclick="closeNewRoomModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="saveNewRoom()" class="flex-1 bg-[#e3e3e3] text-[#131314] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Dodaj</button></div></div></div>
-    
     <div id="day-details-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex justify-center items-end sm:items-center p-0 sm:p-4 transition-all"><div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-md p-6 shadow-2xl max-h-[80vh] flex flex-col"><div class="flex justify-between items-center mb-4 pb-2 border-b border-[#333537]"><div><h3 class="text-base font-medium text-neutral-100 tracking-wide" id="day-details-title">Szczegóły Dnia</h3><p class="text-[10px] uppercase tracking-widest text-neutral-400" id="day-details-date">Data</p></div><button onclick="closeDayDetailsModal()" class="w-8 h-8 rounded-full bg-[#333537] text-neutral-200 flex items-center justify-center font-medium active:scale-90 transition-transform">✕</button></div><div id="day-details-list" class="space-y-2 overflow-y-auto pb-4"></div></div></div>
 
     <script>
+        // UWAGA: Upewnij się, że config.js zawiera: const CONFIG = { SUPABASE_URL: '...', SUPABASE_KEY: '...' };
         const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
         let activeView = '';
         let toastTimeout;
@@ -244,7 +245,7 @@
                     window.history.pushState({ view: view }, '', `/${view}`);
                 }
             } catch (e) {
-                console.error("Critical error in switchView: ", e);
+                console.error("Błąd podczas ładowania widoku (switchView): ", e);
             }
         }
 
@@ -272,6 +273,7 @@
         }
 
         window.onload = () => {
+            // Ustawiamy domyślny widok po załadowaniu
             const path = window.location.pathname.replace('/', '') || 'dashboard';
             const validViews = ['dashboard', 'home', 'health', 'settings'];
             const viewToLoad = validViews.includes(path) ? path : 'dashboard';
