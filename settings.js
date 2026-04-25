@@ -3,15 +3,23 @@
 // ==========================================
 
 let appRooms = [];
+let appProfiles = [];
 
-// Główna funkcja pobierająca pokoje dla całej aplikacji
+// Główna funkcja wywoływana przy wejściu w zakładkę Ustawienia
+function initSettingsModule() {
+    loadAppRooms();
+    loadAppProfiles();
+}
+
+// --------------------------------------------------------
+// SEKCJA: POMIESZCZENIA
+// --------------------------------------------------------
 async function fetchRoomsFromDB() {
     const { data } = await supabaseClient.from('rooms').select('*').order('name');
     appRooms = data || [];
     return appRooms;
 }
 
-// Renderowanie listy w zakładce Ustawienia
 async function loadAppRooms() {
     const listEl = document.getElementById('settings-rooms-list');
     await fetchRoomsFromDB();
@@ -69,25 +77,107 @@ async function deleteRoom(encodedName) {
     loadAppRooms();
 }
 
-// Funkcja eksportowana do home.js, aby wypełnić `<select>` opcjami z bazy
 async function populateRoomsDropdown(selectId, selectedValue = '') {
     const selectEl = document.getElementById(selectId);
     if (!selectEl) return;
-    
-    // Upewniamy się, że mamy świeżą listę
     if (appRooms.length === 0) await fetchRoomsFromDB();
 
-    // Generujemy dynamicznie <option>
     selectEl.innerHTML = appRooms.map(r => `
         <option value="${r.name}">${r.icon} ${r.name}</option>
     `).join('');
 
-    // Dodajemy fallback dla "Inne" (gdyby ktoś usunął wszystkie)
     if (!appRooms.find(r => r.name === 'Inne')) {
         selectEl.innerHTML += `<option value="Inne">📦 Inne</option>`;
     }
 
-    if (selectedValue) {
-        selectEl.value = selectedValue;
+    if (selectedValue) selectEl.value = selectedValue;
+}
+
+
+// --------------------------------------------------------
+// SEKCJA: DOMOWNICY (Wiek, waga, wzrost)
+// --------------------------------------------------------
+
+async function loadAppProfiles() {
+    const listEl = document.getElementById('settings-profiles-list');
+    const { data } = await supabaseClient.from('profiles').select('*').order('name');
+    appProfiles = data || [];
+
+    if (appProfiles.length === 0) {
+        listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak domowników.</p>`;
+        return;
     }
+
+    listEl.innerHTML = appProfiles.map(p => {
+        // Kalkulacja wieku
+        let ageText = '';
+        if (p.birth_date) {
+            const birthDate = new Date(p.birth_date);
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            ageText = `<span class="bg-[#333537] text-neutral-300 text-[9px] px-2 py-0.5 rounded-md ml-2 uppercase tracking-widest">${age} lat</span>`;
+        }
+
+        return `
+        <div class="flex justify-between items-center p-3 bg-[#131314] rounded-[20px] border border-[#333537]">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#444746] text-neutral-200 rounded-full flex items-center justify-center font-bold">${p.name.charAt(0).toUpperCase()}</div>
+                <div>
+                    <span class="text-sm font-medium text-neutral-200 flex items-center">${p.name} ${ageText}</span>
+                    <span class="text-[10px] text-neutral-500 mt-0.5 block">${p.height ? p.height + ' cm' : '-- cm'} • ${p.weight ? p.weight + ' kg' : '-- kg'}</span>
+                </div>
+            </div>
+            <button onclick="openEditProfileScreen(${p.id})" class="w-10 h-10 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">⚙️</button>
+        </div>
+        `;
+    }).join('');
+}
+
+function openEditProfileScreen(id) {
+    const profile = appProfiles.find(p => p.id === id);
+    if(!profile) return;
+    
+    document.getElementById('edit-profile-id').value = profile.id;
+    document.getElementById('edit-profile-name').value = profile.name;
+    document.getElementById('edit-profile-birth').value = profile.birth_date || '';
+    document.getElementById('edit-profile-height').value = profile.height || '';
+    document.getElementById('edit-profile-weight').value = profile.weight || '';
+    
+    document.getElementById('edit-profile-title').innerText = `Edytuj: ${profile.name}`;
+    
+    goForward('edit-profile-screen');
+}
+
+function closeEditProfileScreen() {
+    goBack();
+}
+
+async function saveProfileDetails() {
+    const id = document.getElementById('edit-profile-id').value;
+    const name = document.getElementById('edit-profile-name').value.trim();
+    const birth = document.getElementById('edit-profile-birth').value || null;
+    const height = document.getElementById('edit-profile-height').value || null;
+    const weight = document.getElementById('edit-profile-weight').value || null;
+
+    if(!name) return;
+
+    const updateData = { 
+        name: name, 
+        birth_date: birth, 
+        height: height, 
+        weight: weight 
+    };
+
+    await supabaseClient.from('profiles').update(updateData).eq('id', id);
+    
+    showToast('Zapisano profil');
+    closeEditProfileScreen();
+    
+    // Odśwież widok Ustawień oraz zmuś moduł Zdrowia do zaczytania nowych nazw z bazy
+    loadAppProfiles(); 
+    if(typeof initHealthModule === 'function') initHealthModule();
 }
