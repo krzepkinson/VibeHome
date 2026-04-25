@@ -139,6 +139,10 @@
                     <h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1">Domownicy</h3>
                     <button onclick="openNewProfileModal()" class="bg-[#333537] text-neutral-200 text-[10px] uppercase font-bold px-3 py-1.5 rounded-full hover:bg-[#444746] active:scale-95 transition-all">+ Dodaj</button>
                 </div>
+                <div class="bg-[#1e1f20] p-5 rounded-[28px] border border-[#333537] mb-6">
+                <h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-4">Konto</h3>
+                <button onclick="logoutUser()" class="w-full bg-[#3c1414] text-[#ffb4ab] font-medium py-3 rounded-[20px] border border-[#8c1d18]/30 text-sm active:scale-95 transition-transform">Wyloguj się</button>
+            </div>
                 <div id="settings-profiles-list" class="space-y-2"><p class="text-center text-neutral-500 text-xs py-4">Ładowanie...</p></div>
             </div>
         </div>
@@ -227,6 +231,7 @@
     <div id="day-details-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex justify-center items-end sm:items-center p-0 sm:p-4 transition-all"><div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-md p-6 shadow-2xl max-h-[80vh] flex flex-col"><div class="flex justify-between items-center mb-4 pb-2 border-b border-[#333537]"><div><h3 class="text-base font-medium text-neutral-100 tracking-wide" id="day-details-title">Szczegóły Dnia</h3><p class="text-[10px] uppercase tracking-widest text-neutral-400" id="day-details-date">Data</p></div><button onclick="closeDayDetailsModal()" class="w-8 h-8 rounded-full bg-[#333537] text-neutral-200 flex items-center justify-center font-medium active:scale-90 transition-transform">✕</button></div><div id="day-details-list" class="space-y-2 overflow-y-auto pb-4"></div></div></div>
 
 <script src="/utils.js"></script>
+    <script src="/auth.js"></script>
     <script src="/router.js"></script>
     <script src="/dashboard.js"></script>
     <script src="/home.js"></script>
