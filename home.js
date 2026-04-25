@@ -7,7 +7,7 @@ let allHomeTasks = [];
 let currentSettingsTaskName = '';
 let currentRoomFilter = null; 
 
-// --- FIX GLOBALNEJ NAWIGACJI ---
+// --- FIX GLOBALNEJ NAWIGACJI (Dla wsparcia URL) ---
 window.goBack = function() {
     const settingsOpen = !document.getElementById('settings-screen').classList.contains('hidden');
     const healthSettingsOpen = !document.getElementById('health-settings-screen').classList.contains('hidden');
@@ -28,7 +28,7 @@ window.goBack = function() {
     }
 
     const prev = navHistory.pop();
-    switchView(prev || 'dashboard', true); 
+    switchView(prev || 'dashboard', false); // <--- ZMIANA: false, by zaktualizować URL w przeglądarce!
 };
 
 // --- FILTROWANIE ---
