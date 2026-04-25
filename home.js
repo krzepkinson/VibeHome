@@ -7,100 +7,183 @@ let allHomeTasks = [];
 let currentSettingsTaskName = '';
 let currentRoomFilter = null; 
 
+// --- FIX GLOBALNEJ NAWIGACJI ---
+// Nadpisujemy goBack, żeby zachowywał się idealnie z nowymi kafelkami
+window.goBack = function() {
+    const settingsOpen = !document.getElementById('settings-screen').classList.contains('hidden');
+    const healthSettingsOpen = !document.getElementById('health-settings-screen').classList.contains('hidden');
+    const editProfileOpen = !document.getElementById('edit-profile-screen').classList.contains('hidden');
+    
+    // Jeśli zamykamy okno Ustawień, robimy to i przerywamy (by nie zabić filtra pokoju)
+    if (settingsOpen || healthSettingsOpen || editProfileOpen) {
+        document.getElementById('settings-screen').classList.add('hidden');
+        document.getElementById('health-settings-screen').classList.add('hidden');
+        document.getElementById('edit-profile-screen').classList.add('hidden');
+        
+        if (activeView === 'home') loadDashboard(); // Odświeżamy listę pod spodem
+        return; 
+    }
+
+    // Jeśli jesteśmy na liście zadań w pokoju -> Wracamy do siatki kafelków
+    if (typeof currentRoomFilter !== 'undefined' && currentRoomFilter !== null) {
+        clearRoomFilter(); 
+        return; 
+    }
+
+    // Jeśli nic z powyższych, używamy historii dolnego paska
+    const prev = navHistory.pop();
+    switchView(prev || 'dashboard', true); 
+};
+
+// --- FILTROWANIE ---
 function filterHomeByRoom(room) {
     currentRoomFilter = room;
-    navHistory.push('dashboard'); 
-    switchView('home'); 
+    if (activeView !== 'home') switchView('home'); 
+    else loadDashboard();
 }
 
 function clearRoomFilter() {
     currentRoomFilter = null;
-    switchView('dashboard'); 
+    loadDashboard(); 
 }
 
+// --- GŁÓWNA LOGIKA KOKPITU ---
 async function loadDashboard() {
     const list = document.getElementById('dashboard-list');
     const backBtn = document.getElementById('home-back-btn');
     
-    let filterHeaderHtml = '';
-    
+    // 1. ZMIANA UI NAGŁÓWKA W ZALEŻNOŚCI OD STANU
     if (currentRoomFilter) {
         if (backBtn) { backBtn.classList.remove('hidden'); backBtn.innerHTML = '←'; }
         const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
-        if (h1) h1.innerText = currentRoomFilter; if (p) p.innerText = 'Filtrowanie zadań';
+        if (h1) h1.innerText = currentRoomFilter === 'Wszystkie' ? 'Cały dom' : currentRoomFilter; 
+        if (p) p.innerText = 'Lista zadań';
     } else {
         if (backBtn) backBtn.classList.add('hidden');
         const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
-        if (h1) h1.innerText = 'Dom'; if (p) p.innerText = 'Zarządzanie przestrzenią';
+        if (h1) h1.innerText = 'Dom'; if (p) p.innerText = 'Wybierz pomieszczenie';
     }
 
-    const [tRes, lRes] = await Promise.all([
+    // 2. POBIERANIE DANYCH
+    const [tRes, lRes, rRes] = await Promise.all([
         supabaseClient.from('tasks').select('*'),
-        supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false })
+        supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false }),
+        supabaseClient.from('rooms').select('*').order('name')
     ]);
+    
     allHomeTasks = tRes.data || []; 
     allHomeLogs = lRes.data || [];
-    
+    const dbRooms = rRes.data || [];
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    // 3. WIDOK GŁÓWNY (SIATKA KAFELKÓW POMIESZCZEŃ)
+    if (!currentRoomFilter) {
+        let roomStats = {};
+        
+        // Inicjalizacja pokoi z bazy
+        dbRooms.forEach(r => roomStats[r.name] = { icon: r.icon, total: 0, overdue: 0 });
+        if (!roomStats['Inne']) roomStats['Inne'] = { icon: '📦', total: 0, overdue: 0 };
+        
+        let totalOverdueAll = 0;
+
+        // Liczenie zadań
+        allHomeTasks.forEach(task => {
+            const rName = task.room || 'Inne';
+            if (!roomStats[rName]) roomStats[rName] = { icon: '📦', total: 0, overdue: 0 };
+            
+            roomStats[rName].total++;
+            
+            if (task.interval_days > 0) {
+                const lastLog = allHomeLogs.find(l => l.activity_name === task.name);
+                let isOverdue = false;
+                if (lastLog) {
+                    const last = new Date(lastLog.created_at); last.setHours(0,0,0,0);
+                    const next = new Date(last); next.setDate(last.getDate() + task.interval_days);
+                    if (next <= today) isOverdue = true;
+                } else {
+                    isOverdue = true;
+                }
+                
+                if (isOverdue) {
+                    roomStats[rName].overdue++;
+                    totalOverdueAll++;
+                }
+            }
+        });
+
+        let html = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">`;
+        
+        // Zawsze pierwszy: Kafelek "Cały dom"
+        const allBadge = totalOverdueAll > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${totalOverdueAll}</div>` : '';
+        html += `
+            <div onclick="filterHomeByRoom('Wszystkie')" class="relative bg-[#004a77]/20 p-4 rounded-[24px] border border-[#004a77]/50 cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-28">
+                ${allBadge}
+                <div class="text-3xl mb-2 opacity-80">🏠</div>
+                <h3 class="text-xs font-medium text-[#c2e7ff]">Cały dom</h3>
+                <p class="text-[9px] text-[#c2e7ff]/70 mt-1 uppercase tracking-widest">${allHomeTasks.length} zadań</p>
+            </div>
+        `;
+
+        // Reszta Kafelków
+        Object.entries(roomStats).sort((a,b) => {
+            if(a[0] === 'Inne') return 1;
+            if(b[0] === 'Inne') return -1;
+            return a[0].localeCompare(b[0]);
+        }).forEach(([roomName, stats]) => {
+            const badge = stats.overdue > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${stats.overdue}</div>` : '';
+            html += `
+                <div onclick="filterHomeByRoom('${roomName}')" class="relative bg-[#1e1f20] p-4 rounded-[24px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-28">
+                    ${badge}
+                    <div class="text-3xl mb-2 opacity-80">${stats.icon}</div>
+                    <h3 class="text-xs font-medium text-neutral-200">${roomName}</h3>
+                    <p class="text-[9px] text-neutral-500 mt-1 uppercase tracking-widest">${stats.total} zadań</p>
+                </div>
+            `;
+        });
+        
+        html += `</div>`;
+        list.innerHTML = html;
+        return;
+    }
+
+    // 4. WIDOK LISTY (Gdy włączony jest konkretny pokój)
     let tasksToDisplay = allHomeTasks;
-    if (currentRoomFilter) {
+    if (currentRoomFilter !== 'Wszystkie') {
         tasksToDisplay = tasksToDisplay.filter(t => (t.room || 'Inne') === currentRoomFilter);
     }
     
-    let scoredTasks = tasksToDisplay.map(t => {
+    let scored = tasksToDisplay.map(t => {
         const last = allHomeLogs.find(l => l.activity_name === t.name);
-        return { t, last, score: calculatePriority(t, last?.created_at), room: t.room || 'Inne' };
+        return { t, last, score: calculatePriority(t, last?.created_at) };
     }).sort((a,b) => {
         if (b.score !== a.score) return b.score - a.score;
         return a.t.name.localeCompare(b.t.name);
     });
 
-    if (scoredTasks.length === 0) { 
-        list.innerHTML = filterHeaderHtml + `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym widoku.</p>`; 
+    if (scored.length === 0) { 
+        list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym widoku.</p>`; 
         return; 
     }
 
-    // Grupowanie Zadań po Pokoju
-    const groupedTasks = {};
-    scoredTasks.forEach(item => {
-        if (!groupedTasks[item.room]) groupedTasks[item.room] = [];
-        groupedTasks[item.room].push(item);
-    });
+    list.innerHTML = scored.map(item => {
+        const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
+        const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
+        
+        // Pigułkę "Pomieszczenie" dodajemy do nazwy tylko, gdy przeglądamy "Cały dom"
+        const roomBadge = currentRoomFilter === 'Wszystkie' ? `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${item.t.room || 'Inne'}</span>` : '';
 
-    // Sortowanie pokoi (Alfabetycznie, ale "Inne" na szarym końcu)
-    const sortedRooms = Object.keys(groupedTasks).sort((a, b) => {
-        if (a === 'Inne') return 1;
-        if (b === 'Inne') return -1;
-        return a.localeCompare(b);
-    });
-
-    let finalHtml = filterHeaderHtml;
-
-    // Generowanie HTML-a dla każdej grupy pomieszczeń
-    sortedRooms.forEach(room => {
-        // Nagłówek kategorii dodajemy tylko jeśli patrzymy na CAŁY DOM (nie przy włączonym filtrze)
-        if (!currentRoomFilter) {
-            finalHtml += `<h2 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest mt-4 mb-2 pl-1">${room}</h2>`;
-        }
-
-        finalHtml += groupedTasks[room].map(item => {
-            const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
-            const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
-
-            return `
-                <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1">
-                    <div class="flex-1 cursor-pointer pr-4" onclick="showToast('${status.tooltip}')">
-                        <h3 class="font-medium text-neutral-100 text-sm flex items-center">${item.t.name} ${muteIcon}</h3>
-                        <p class="text-[11px] ${status.color} mt-1">${status.label}</p>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <button onclick="openAddLogModal('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#0f5223]/20 text-[#c4eed0] font-medium text-lg flex items-center justify-center pb-0.5 active:scale-90 transition-transform">+</button>
-                        <button onclick="openSettingsScreen('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#333537]/50 text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-sm">⚙️</button>
-                    </div>
-                </div>`;
-        }).join('');
-    });
-
-    list.innerHTML = finalHtml;
+        return `
+            <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1">
+                <div class="flex-1 cursor-pointer pr-4" onclick="showToast('${status.tooltip}')">
+                    <h3 class="font-medium text-neutral-100 text-sm flex items-center">${item.t.name} ${roomBadge} ${muteIcon}</h3>
+                    <p class="text-[11px] ${status.color} mt-1">${status.label}</p>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="openAddLogModal('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#0f5223]/20 text-[#c4eed0] font-medium text-lg flex items-center justify-center pb-0.5 active:scale-90 transition-transform">+</button>
+                    <button onclick="openSettingsScreen('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#333537]/50 text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-sm">⚙️</button>
+                </div>
+            </div>`;
+    }).join('');
 }
 
 // --- POMOCNICZE WYLICZENIA ---
@@ -155,7 +238,6 @@ async function openSettingsScreen(name) {
 
 function closeSettingsScreen() {
     goBack();
-    loadDashboard();
 }
 
 async function saveTaskSettings() {
