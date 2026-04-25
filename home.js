@@ -7,30 +7,6 @@ let allHomeTasks = [];
 let currentSettingsTaskName = '';
 let currentRoomFilter = null; 
 
-// --- FIX GLOBALNEJ NAWIGACJI (Dla wsparcia URL) ---
-window.goBack = function() {
-    const settingsOpen = !document.getElementById('settings-screen').classList.contains('hidden');
-    const healthSettingsOpen = !document.getElementById('health-settings-screen').classList.contains('hidden');
-    const editProfileOpen = !document.getElementById('edit-profile-screen').classList.contains('hidden');
-    
-    if (settingsOpen || healthSettingsOpen || editProfileOpen) {
-        document.getElementById('settings-screen').classList.add('hidden');
-        document.getElementById('health-settings-screen').classList.add('hidden');
-        document.getElementById('edit-profile-screen').classList.add('hidden');
-        
-        if (activeView === 'home') loadDashboard(); 
-        return; 
-    }
-
-    if (typeof currentRoomFilter !== 'undefined' && currentRoomFilter !== null) {
-        clearRoomFilter(); 
-        return; 
-    }
-
-    const prev = navHistory.pop();
-    switchView(prev || 'dashboard', false); // <--- ZMIANA: false, by zaktualizować URL w przeglądarce!
-};
-
 // --- FILTROWANIE ---
 function filterHomeByRoom(room) {
     currentRoomFilter = room;
@@ -48,11 +24,9 @@ async function loadDashboard() {
     const list = document.getElementById('dashboard-list');
     const backBtn = document.getElementById('home-back-btn');
     
-    // 1. ZMIANA UI NAGŁÓWKA W ZALEŻNOŚCI OD STANU
     if (currentRoomFilter) {
         if (backBtn) { backBtn.classList.remove('hidden'); backBtn.innerHTML = '←'; }
         const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
-        // Jeśli filtr to systemowe "Wszystkie", pokaż ten tekst, inaczej pokaż nazwę pokoju
         if (h1) h1.innerText = currentRoomFilter; 
         if (p) p.innerText = 'Lista zadań';
     } else {
@@ -61,7 +35,6 @@ async function loadDashboard() {
         if (h1) h1.innerText = 'Dom'; if (p) p.innerText = 'Wybierz pomieszczenie';
     }
 
-    // 2. POBIERANIE DANYCH
     const [tRes, lRes, rRes] = await Promise.all([
         supabaseClient.from('tasks').select('*'),
         supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false }),
@@ -73,17 +46,14 @@ async function loadDashboard() {
     const dbRooms = rRes.data || [];
     const today = new Date(); today.setHours(0,0,0,0);
 
-    // 3. WIDOK GŁÓWNY (SIATKA KAFELKÓW POMIESZCZEŃ)
     if (!currentRoomFilter) {
         let roomStats = {};
         
-        // Inicjalizacja pokoi z bazy
         dbRooms.forEach(r => roomStats[r.name] = { icon: r.icon, total: 0, overdue: 0 });
         if (!roomStats['Inne']) roomStats['Inne'] = { icon: '📦', total: 0, overdue: 0 };
         
         let totalOverdueAll = 0;
 
-        // Liczenie zadań
         allHomeTasks.forEach(task => {
             const rName = task.room || 'Inne';
             if (!roomStats[rName]) roomStats[rName] = { icon: '📦', total: 0, overdue: 0 };
@@ -110,7 +80,6 @@ async function loadDashboard() {
 
         let html = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">`;
         
-        // Zawsze pierwszy: Kafelek "Wszystkie"
         const allBadge = totalOverdueAll > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${totalOverdueAll}</div>` : '';
         html += `
             <div onclick="filterHomeByRoom('Wszystkie')" class="relative bg-[#004a77]/20 p-4 rounded-[24px] border border-[#004a77]/50 cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-28">
@@ -121,7 +90,6 @@ async function loadDashboard() {
             </div>
         `;
 
-        // Reszta Kafelków
         Object.entries(roomStats).sort((a,b) => {
             if(a[0] === 'Inne') return 1;
             if(b[0] === 'Inne') return -1;
@@ -143,7 +111,6 @@ async function loadDashboard() {
         return;
     }
 
-    // 4. WIDOK LISTY (Gdy włączony jest konkretny pokój lub "Wszystkie")
     let tasksToDisplay = allHomeTasks;
     if (currentRoomFilter !== 'Wszystkie') {
         tasksToDisplay = tasksToDisplay.filter(t => (t.room || 'Inne') === currentRoomFilter);
@@ -165,8 +132,6 @@ async function loadDashboard() {
     list.innerHTML = scored.map(item => {
         const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
         const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
-        
-        // Pigułkę "Pomieszczenie" dodajemy do nazwy tylko, gdy przeglądamy listę "Wszystkie"
         const roomBadge = currentRoomFilter === 'Wszystkie' ? `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${item.t.room || 'Inne'}</span>` : '';
 
         return `
@@ -183,7 +148,6 @@ async function loadDashboard() {
     }).join('');
 }
 
-// --- POMOCNICZE WYLICZENIA ---
 function getRelativeTime(d) {
     const now = new Date(); now.setHours(0,0,0,0);
     const target = new Date(d); target.setHours(0,0,0,0);
@@ -215,7 +179,6 @@ function calculatePriority(task, lastDate) {
     return diff / task.interval_days;
 }
 
-// --- USTAWIENIA ZADANIA DOMOWEGO ---
 async function openSettingsScreen(name) {
     currentSettingsTaskName = decodeURIComponent(name);
     const task = allHomeTasks.find(t => t.name === currentSettingsTaskName);
@@ -267,7 +230,6 @@ async function deleteCurrentTask() {
     }
 }
 
-// --- HISTORIA I LOGI ---
 function renderHistory() {
     const logs = allHomeLogs.filter(l => l.activity_name === currentSettingsTaskName);
     document.getElementById('settings-history-list').innerHTML = logs.map(l => `
@@ -288,7 +250,6 @@ async function deleteLog(id) {
     renderHistory();
 }
 
-// --- NOWE ZADANIE ---
 async function openNewTaskModal() { 
     if(typeof populateRoomsDropdown === 'function') {
         await populateRoomsDropdown('new-task-room');
@@ -310,7 +271,6 @@ async function saveNewTask() {
     closeNewTaskModal(); loadDashboard();
 }
 
-// --- LOGOWANIE WYKONANIA (+) ---
 function openAddLogModal(n) {
     const name = decodeURIComponent(n);
     document.getElementById('add-log-subtitle').innerText = name;
@@ -331,7 +291,6 @@ async function saveNewLog() {
     closeAddLogModal(); loadDashboard();
 }
 
-// --- EDYCJA WYKONANIA ---
 function openEditLogModal(id, date, notes) {
     document.getElementById('edit-log-id').value = id;
     document.getElementById('edit-log-date').value = date;
