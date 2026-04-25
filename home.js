@@ -119,13 +119,18 @@ function getRelativeTime(d) {
 }
 
 function getCompactStatus(lastDate, interval) {
-    if (!lastDate) return { color: 'text-neutral-500', label: 'Nigdy', tooltip: 'Brak wpisów.' };
-    if (!interval || interval <= 0) return { color: 'text-neutral-500', label: getRelativeTime(lastDate), tooltip: 'Brak harmonogramu.' };
+    if (!lastDate) return { color: 'text-neutral-500', label: 'Jeszcze nie było robione', tooltip: 'Brak wpisów.' };
+    
+    const relText = `Ostatnio ${getRelativeTime(lastDate)}`;
+    
+    if (!interval || interval <= 0) return { color: 'text-neutral-500', label: relText, tooltip: 'Brak harmonogramu.' };
+    
     const next = new Date(lastDate); next.setDate(next.getDate() + interval);
     const diff = Math.ceil((next - new Date().setHours(0,0,0,0)) / 86400000);
-    return diff < 0 ? { color: 'text-[#ffb4ab]', label: getRelativeTime(lastDate), tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` } 
-           : diff === 0 ? { color: 'text-[#ffb4ab]', label: getRelativeTime(lastDate), tooltip: 'Dzisiaj!' } 
-           : { color: 'text-[#c4eed0]', label: getRelativeTime(lastDate), tooltip: `Za ${diff} dni.` };
+    
+    return diff < 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` } 
+           : diff === 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: 'Dzisiaj!' } 
+           : { color: 'text-[#c4eed0]', label: relText, tooltip: `Za ${diff} dni.` };
 }
 
 function calculatePriority(task, lastDate) {
