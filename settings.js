@@ -5,7 +5,6 @@
 let appRooms = [];
 let appProfiles = [];
 
-// Główna funkcja wywoływana przy wejściu w zakładkę Ustawienia
 function initSettingsModule() {
     loadAppRooms();
     loadAppProfiles();
@@ -46,14 +45,11 @@ function openNewRoomModal() {
     document.getElementById('new-room-modal').classList.remove('hidden');
 }
 
-function closeNewRoomModal() {
-    document.getElementById('new-room-modal').classList.add('hidden');
-}
+function closeNewRoomModal() { document.getElementById('new-room-modal').classList.add('hidden'); }
 
 async function saveNewRoom() {
     const name = document.getElementById('new-room-name').value.trim();
     const icon = document.getElementById('new-room-icon').value.trim();
-    
     if (!name) return;
 
     const { error } = await supabaseClient.from('rooms').insert([{ name: name, icon: icon || '📦' }]);
@@ -82,9 +78,7 @@ async function populateRoomsDropdown(selectId, selectedValue = '') {
     if (!selectEl) return;
     if (appRooms.length === 0) await fetchRoomsFromDB();
 
-    selectEl.innerHTML = appRooms.map(r => `
-        <option value="${r.name}">${r.icon} ${r.name}</option>
-    `).join('');
+    selectEl.innerHTML = appRooms.map(r => `<option value="${r.name}">${r.icon} ${r.name}</option>`).join('');
 
     if (!appRooms.find(r => r.name === 'Inne')) {
         selectEl.innerHTML += `<option value="Inne">📦 Inne</option>`;
@@ -93,10 +87,40 @@ async function populateRoomsDropdown(selectId, selectedValue = '') {
     if (selectedValue) selectEl.value = selectedValue;
 }
 
+// --------------------------------------------------------
+// SEKCJA: DOMOWNICY (Wiek w miesiącach/latach)
+// --------------------------------------------------------
 
-// --------------------------------------------------------
-// SEKCJA: DOMOWNICY (Wiek, waga, wzrost)
-// --------------------------------------------------------
+function getAgeBadge(birthDateStr) {
+    if (!birthDateStr) return '';
+    const birthDate = new Date(birthDateStr);
+    const today = new Date();
+    
+    let totalMonths = (today.getFullYear() - birthDate.getFullYear()) * 12;
+    totalMonths -= birthDate.getMonth();
+    totalMonths += today.getMonth();
+    
+    if (today.getDate() < birthDate.getDate()) {
+        totalMonths--;
+    }
+    if (totalMonths < 0) totalMonths = 0;
+
+    let ageText = "";
+    if (totalMonths < 24) {
+        // Formatowanie dla miesięcy (0-23)
+        if (totalMonths === 1) ageText = "1 miesiąc";
+        else if ([2, 3, 4, 22, 23].includes(totalMonths)) ageText = `${totalMonths} miesiące`;
+        else ageText = `${totalMonths} miesięcy`;
+    } else {
+        // Formatowanie dla lat
+        const years = Math.floor(totalMonths / 12);
+        if (years === 1) ageText = "1 rok";
+        else if ([2, 3, 4].includes(years % 10) && ![12, 13, 14].includes(years % 100)) ageText = `${years} lata`;
+        else ageText = `${years} lat`;
+    }
+
+    return `<span class="bg-[#333537] text-neutral-300 text-[9px] px-2 py-0.5 rounded-md ml-2 uppercase tracking-widest">${ageText}</span>`;
+}
 
 async function loadAppProfiles() {
     const listEl = document.getElementById('settings-profiles-list');
@@ -109,25 +133,12 @@ async function loadAppProfiles() {
     }
 
     listEl.innerHTML = appProfiles.map(p => {
-        // Kalkulacja wieku
-        let ageText = '';
-        if (p.birth_date) {
-            const birthDate = new Date(p.birth_date);
-            const today = new Date();
-            let age = today.getFullYear() - birthDate.getFullYear();
-            const m = today.getMonth() - birthDate.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                age--;
-            }
-            ageText = `<span class="bg-[#333537] text-neutral-300 text-[9px] px-2 py-0.5 rounded-md ml-2 uppercase tracking-widest">${age} lat</span>`;
-        }
-
         return `
         <div class="flex justify-between items-center p-3 bg-[#131314] rounded-[20px] border border-[#333537]">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 bg-[#444746] text-neutral-200 rounded-full flex items-center justify-center font-bold">${p.name.charAt(0).toUpperCase()}</div>
                 <div>
-                    <span class="text-sm font-medium text-neutral-200 flex items-center">${p.name} ${ageText}</span>
+                    <span class="text-sm font-medium text-neutral-200 flex items-center">${p.name} ${getAgeBadge(p.birth_date)}</span>
                     <span class="text-[10px] text-neutral-500 mt-0.5 block">${p.height ? p.height + ' cm' : '-- cm'} • ${p.weight ? p.weight + ' kg' : '-- kg'}</span>
                 </div>
             </div>
@@ -148,13 +159,10 @@ function openEditProfileScreen(id) {
     document.getElementById('edit-profile-weight').value = profile.weight || '';
     
     document.getElementById('edit-profile-title').innerText = `Edytuj: ${profile.name}`;
-    
     goForward('edit-profile-screen');
 }
 
-function closeEditProfileScreen() {
-    goBack();
-}
+function closeEditProfileScreen() { goBack(); }
 
 async function saveProfileDetails() {
     const id = document.getElementById('edit-profile-id').value;
@@ -165,19 +173,11 @@ async function saveProfileDetails() {
 
     if(!name) return;
 
-    const updateData = { 
-        name: name, 
-        birth_date: birth, 
-        height: height, 
-        weight: weight 
-    };
-
-    await supabaseClient.from('profiles').update(updateData).eq('id', id);
+    await supabaseClient.from('profiles').update({ name, birth_date: birth, height, weight }).eq('id', id);
     
     showToast('Zapisano profil');
     closeEditProfileScreen();
     
-    // Odśwież widok Ustawień oraz zmuś moduł Zdrowia do zaczytania nowych nazw z bazy
     loadAppProfiles(); 
     if(typeof initHealthModule === 'function') initHealthModule();
 }
