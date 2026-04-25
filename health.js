@@ -14,26 +14,18 @@ async function initHealthModule() {
     const uid = window.currentUser.id;
     const { data: pData } = await supabaseClient.from('profiles').select('*').eq('user_id', uid).order('name');
     healthProfiles = pData || [];
-    
-    if (healthProfiles.length > 0 && !currentProfileId) {
-        currentProfileId = healthProfiles[0].id;
-    }
-    
-    if (currentProfileId) {
-        await refreshHealthData();
-    }
+    if (healthProfiles.length > 0 && !currentProfileId) currentProfileId = healthProfiles[0].id;
+    if (currentProfileId) await refreshHealthData();
     renderHealthUI();
 }
 
 async function refreshHealthData() {
     if (!currentProfileId) return;
     const uid = window.currentUser.id;
-    
     const [tRes, lRes] = await Promise.all([
         supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId).eq('user_id', uid),
         supabaseClient.from('health_logs').select('*').eq('user_id', uid).order('start_date', { ascending: false })
     ]);
-    
     healthTasks = tRes.data || [];
     healthLogs = lRes.data || [];
 }
@@ -46,7 +38,6 @@ function renderHealthUI() {
     if (profile) {
         nameTitle.innerText = profile.name;
         headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
-        // Dynamiczny kolor avatara
         const colors = ['bg-rose-600', 'bg-blue-600', 'bg-emerald-600', 'bg-amber-600', 'bg-purple-600'];
         headerAvatar.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 ${colors[profile.id % colors.length]}`;
     } else {
@@ -87,10 +78,19 @@ function renderCalendar() {
             const isToday = new Date().toISOString().split('T')[0] === dateStr;
             const hasLogs = dayLogs.length > 0;
             
+            // Poprawa UX: Widoczne kolorowe kafelki zamiast kropek
+            let dayClass = 'hover:bg-[#333537] text-neutral-300';
+            if (isToday && hasLogs) {
+                dayClass = 'bg-[#ffb4ab] text-[#3c1414] font-bold border-2 border-rose-500';
+            } else if (isToday) {
+                dayClass = 'bg-[#ffb4ab] text-[#3c1414] font-bold';
+            } else if (hasLogs) {
+                dayClass = 'bg-rose-900/60 text-rose-200 border border-rose-700 font-bold';
+            }
+            
             html += `
-                <div onclick="openDayDetails('${dateStr}')" class="aspect-square flex flex-col items-center justify-center rounded-xl cursor-pointer transition-all active:scale-90 ${isToday ? 'bg-[#ffb4ab] text-[#3c1414] font-bold' : 'hover:bg-[#333537] text-neutral-300'}">
+                <div onclick="openDayDetails('${dateStr}')" class="aspect-square flex items-center justify-center rounded-xl cursor-pointer transition-all active:scale-90 ${dayClass}">
                     <span class="text-xs">${d}</span>
-                    ${hasLogs ? `<div class="w-1 h-1 bg-rose-500 rounded-full mt-0.5"></div>` : ''}
                 </div>`;
         }
         html += `</div>`;
@@ -105,9 +105,33 @@ function changeCalendarMonth(offset) {
     renderCalendar();
 }
 
-function toggleCalendarMode() {
-    // Na razie tylko widok miesiąca, ale tu można dodać widok roku
-    showToast("Widok miesiąca");
+function toggleCalendarMode() { window.showToast("Widok miesiąca"); }
+
+// --- POMOCNICY DO OBLICZANIA DNI (UX) ---
+function getHealthStatusString(task, activeLog, taskLogs) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    
+    if (task.task_type === 'duration') {
+        if (activeLog) {
+            const start = new Date(activeLog.start_date); start.setHours(0,0,0,0);
+            const diff = Math.floor((today - start) / 86400000);
+            if (diff === 0) return '<span class="text-rose-400 font-medium">Dziś się zaczął</span>';
+            if (diff === 1) return '<span class="text-rose-400 font-medium">Od wczoraj</span>';
+            return `<span class="text-rose-400 font-medium">Od ${diff} dni</span>`;
+        }
+        return 'Brak aktywnych';
+    } else {
+        if (task.interval_days > 0) return `Co ${task.interval_days} dni`;
+        
+        const lastLog = taskLogs[0]; 
+        if (!lastLog) return 'Jeszcze nie było robione';
+        
+        const last = new Date(lastLog.start_date); last.setHours(0,0,0,0);
+        const diff = Math.floor((today - last) / 86400000);
+        if (diff === 0) return 'Ostatni raz: dzisiaj';
+        if (diff === 1) return 'Ostatni raz: wczoraj';
+        return `Ostatni raz: ${diff} dni temu`;
+    }
 }
 
 // --- LISTA ZADAŃ (Leki/Objawy) ---
@@ -119,81 +143,52 @@ function renderHealthTasks() {
     }
 
     list.innerHTML = healthTasks.map(task => {
-        const activeLog = healthLogs.find(l => l.health_task_id === task.id && l.end_date === null);
-        const isActionable = task.task_type === 'duration';
+        const tLogs = healthLogs.filter(l => l.health_task_id === task.id);
+        const activeLog = tLogs.find(l => l.end_date === null);
+        const statusStr = getHealthStatusString(task, activeLog, tLogs);
 
         return `
             <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1">
                 <div class="flex-1 cursor-pointer" onclick="openHealthSettingsScreen(${task.id})">
                     <h3 class="font-medium text-neutral-100 text-sm">${task.name}</h3>
-                    <p class="text-[11px] text-neutral-500 mt-0.5">${task.task_type === 'cyclical' ? `Co ${task.interval_days} dni` : (activeLog ? '<span class="text-rose-400">W trakcie...</span>' : 'Brak aktywnych')}</p>
+                    <p class="text-[11px] text-neutral-500 mt-0.5">${statusStr}</p>
                 </div>
                 <div class="flex items-center gap-1.5">
                     ${activeLog 
                         ? `<button onclick="closeHealthLog(${activeLog.id})" class="px-3 py-2 rounded-full bg-rose-900/30 text-rose-300 text-[10px] font-bold uppercase tracking-wider">Zakończ</button>`
-                        : `<button onclick="startHealthLog(${task.id}, '${task.task_type}')" class="w-10 h-10 rounded-full bg-[#3c1414] text-[#ffb4ab] font-medium text-lg flex items-center justify-center active:scale-90">+</button>`
+                        : `<button onclick="startHealthLog(${task.id}, '${task.task_type}')" class="w-10 h-10 rounded-full bg-[#3c1414] text-[#ffb4ab] font-medium text-lg flex items-center justify-center active:scale-90 pb-0.5">+</button>`
                     }
                 </div>
             </div>`;
     }).join('');
 }
 
-// --- AKCJE ---
+// --- AKCJE I MODALE (Bez zmian, zawarte dla kompletności) ---
 async function startHealthLog(taskId, type) {
     const uid = window.currentUser.id;
     const now = new Date().toISOString();
-    
-    await supabaseClient.from('health_logs').insert([{
-        health_task_id: taskId,
-        start_date: now,
-        end_date: type === 'cyclical' ? now : null,
-        user_id: uid
-    }]);
-    
-    showToast(type === 'cyclical' ? "Zapisano przyjęcie" : "Rozpoczęto śledzenie");
-    await refreshHealthData();
-    renderHealthUI();
-    if(typeof loadDashboardOverview === 'function') loadDashboardOverview();
+    await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: now, end_date: type === 'cyclical' ? now : null, user_id: uid }]);
+    window.showToast(type === 'cyclical' ? "Zapisano przyjęcie" : "Rozpoczęto śledzenie");
+    await refreshHealthData(); renderHealthUI(); if(typeof loadDashboardOverview === 'function') loadDashboardOverview();
 }
 
 async function closeHealthLog(logId) {
-    await supabaseClient.from('health_logs').update({ 
-        end_date: new Date().toISOString() 
-    }).eq('id', logId).eq('user_id', window.currentUser.id);
-    
-    showToast("Zakończono");
-    await refreshHealthData();
-    renderHealthUI();
-    if(typeof loadDashboardOverview === 'function') loadDashboardOverview();
+    await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('user_id', window.currentUser.id);
+    window.showToast("Zakończono");
+    await refreshHealthData(); renderHealthUI(); if(typeof loadDashboardOverview === 'function') loadDashboardOverview();
 }
 
-// --- MODALE I USTAWIENIA ZDROWIA ---
-function openNewHealthTaskModal() {
-    document.getElementById('h-task-name').value = '';
-    document.getElementById('new-health-task-modal').classList.remove('hidden');
-}
+function openNewHealthTaskModal() { document.getElementById('h-task-name').value = ''; document.getElementById('new-health-task-modal').classList.remove('hidden'); }
 function closeNewHealthTaskModal() { document.getElementById('new-health-task-modal').classList.add('hidden'); }
-
-function toggleHealthInterval() {
-    const type = document.getElementById('h-task-type').value;
-    document.getElementById('h-task-interval-container').classList.toggle('hidden', type !== 'cyclical');
-}
+function toggleHealthInterval() { document.getElementById('h-task-interval-container').classList.toggle('hidden', document.getElementById('h-task-type').value !== 'cyclical'); }
 
 async function saveNewHealthTask() {
     const n = document.getElementById('h-task-name').value.trim();
     const type = document.getElementById('h-task-type').value;
     const interval = parseInt(document.getElementById('h-task-interval').value) || 0;
     if (!n || !currentProfileId) return;
-
-    await supabaseClient.from('health_tasks').insert([{ 
-        profile_id: currentProfileId, 
-        name: n, 
-        task_type: type, 
-        interval_days: type === 'cyclical' ? interval : 0,
-        user_id: window.currentUser.id 
-    }]);
-    closeNewHealthTaskModal();
-    initHealthModule();
+    await supabaseClient.from('health_tasks').insert([{ profile_id: currentProfileId, name: n, task_type: type, interval_days: type === 'cyclical' ? interval : 0, user_id: window.currentUser.id }]);
+    closeNewHealthTaskModal(); initHealthModule();
 }
 
 let currentHealthSettingsId = null;
@@ -204,12 +199,10 @@ async function openHealthSettingsScreen(taskId) {
     document.getElementById('set-h-task-name').value = task.name;
     document.getElementById('set-h-task-interval').value = task.interval_days;
     document.getElementById('set-h-task-interval-container').classList.toggle('hidden', task.task_type !== 'cyclical');
-    
-    renderHealthHistory();
-    goForward('health-settings-screen');
+    renderHealthHistory(); window.goForward('health-settings-screen');
 }
 
-function closeHealthSettingsScreen() { goBack(); }
+function closeHealthSettingsScreen() { window.goBack(); }
 
 function renderHealthHistory() {
     const logs = healthLogs.filter(l => l.health_task_id === currentHealthSettingsId);
@@ -226,19 +219,15 @@ function renderHealthHistory() {
 async function deleteHealthLog(id) {
     if(!confirm("Usunąć ten wpis?")) return;
     await supabaseClient.from('health_logs').delete().eq('id', id).eq('user_id', window.currentUser.id);
-    await refreshHealthData();
-    renderHealthHistory();
-    renderHealthUI();
+    await refreshHealthData(); renderHealthHistory(); renderHealthUI();
 }
 
 async function deleteHealthTask() {
     if(!confirm("Usunąć całą kartę tego leku/objawu wraz z historią?")) return;
     await supabaseClient.from('health_tasks').delete().eq('id', currentHealthSettingsId).eq('user_id', window.currentUser.id);
-    closeHealthSettingsScreen();
-    initHealthModule();
+    closeHealthSettingsScreen(); initHealthModule();
 }
 
-// --- SZCZEGÓŁY DNIA ---
 function openDayDetails(dateStr) {
     const modal = document.getElementById('day-details-modal');
     const list = document.getElementById('day-details-list');
@@ -255,24 +244,16 @@ function openDayDetails(dateStr) {
     } else {
         list.innerHTML = dayLogs.map(l => {
             const task = healthTasks.find(t => t.id === l.health_task_id) || { name: 'Usunięte zadanie' };
-            return `
-                <div class="p-3 bg-[#131314] rounded-xl border border-[#333537]">
-                    <p class="text-sm font-medium text-neutral-200">${task.name}</p>
-                    <p class="text-[10px] text-neutral-500 mt-0.5">${l.end_date ? 'Zdarzenie zakończone' : 'W trakcie...'}</p>
-                </div>`;
+            return `<div class="p-3 bg-[#131314] rounded-xl border border-[#333537]"><p class="text-sm font-medium text-neutral-200">${task.name}</p><p class="text-[10px] text-neutral-500 mt-0.5">${l.end_date ? 'Zdarzenie zakończone' : 'W trakcie...'}</p></div>`;
         }).join('');
     }
     modal.classList.remove('hidden');
 }
 
 function closeDayDetailsModal() { document.getElementById('day-details-modal').classList.add('hidden'); }
-
-// Przełącznik profili (avatar w rogu)
 function toggleProfileSwitcher() {
     const modal = document.getElementById('profile-switcher-modal');
-    const list = document.getElementById('switcher-profiles-list');
-    
-    list.innerHTML = healthProfiles.map(p => `
+    document.getElementById('switcher-profiles-list').innerHTML = healthProfiles.map(p => `
         <div onclick="selectHealthProfile(${p.id})" class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-[#333537] ${p.id === currentProfileId ? 'bg-[#333537] border border-[#a8c7fa]' : ''}">
             <div class="w-8 h-8 rounded-full bg-neutral-600 flex items-center justify-center text-xs font-bold">${p.name.charAt(0).toUpperCase()}</div>
             <span class="text-sm text-neutral-200">${p.name}</span>
@@ -280,11 +261,5 @@ function toggleProfileSwitcher() {
     `).join('');
     modal.classList.remove('hidden');
 }
-
-function selectHealthProfile(id) {
-    currentProfileId = id;
-    document.getElementById('profile-switcher-modal').classList.add('hidden');
-    initHealthModule();
-}
-
+function selectHealthProfile(id) { currentProfileId = id; closeProfileSwitcher(); initHealthModule(); }
 function closeProfileSwitcher() { document.getElementById('profile-switcher-modal').classList.add('hidden'); }
