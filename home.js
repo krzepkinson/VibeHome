@@ -7,39 +7,31 @@ let allHomeTasks = [];
 let currentSettingsTaskName = '';
 let currentRoomFilter = null; 
 
-// --- FILTROWANIE ---
 function filterHomeByRoom(room) {
     currentRoomFilter = room;
-    navHistory.push('dashboard'); // Zapisujemy w historii, skąd przyszliśmy
+    navHistory.push('dashboard'); 
     switchView('home'); 
 }
 
 function clearRoomFilter() {
     currentRoomFilter = null;
-    switchView('dashboard'); // Po wyczyszczeniu filtra wracamy na stronę główną
+    switchView('dashboard'); 
 }
 
-// --- ŁADOWANIE KOKPITU DOMU ---
 async function loadDashboard() {
     const list = document.getElementById('dashboard-list');
     const backBtn = document.getElementById('home-back-btn');
     
-    // Logika wyświetlania strzałki i nazwy pokoju na górze ekranu
+    let filterHeaderHtml = '';
+    
     if (currentRoomFilter) {
-        if (backBtn) {
-            backBtn.classList.remove('hidden');
-            backBtn.innerHTML = '←'; 
-        }
-        const h1 = document.querySelector('#view-home h1');
-        const p = document.querySelector('#view-home p');
-        if (h1) h1.innerText = currentRoomFilter;
-        if (p) p.innerText = 'Filtrowanie zadań';
+        if (backBtn) { backBtn.classList.remove('hidden'); backBtn.innerHTML = '←'; }
+        const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
+        if (h1) h1.innerText = currentRoomFilter; if (p) p.innerText = 'Filtrowanie zadań';
     } else {
         if (backBtn) backBtn.classList.add('hidden');
-        const h1 = document.querySelector('#view-home h1');
-        const p = document.querySelector('#view-home p');
-        if (h1) h1.innerText = 'Dom';
-        if (p) p.innerText = 'Zarządzanie przestrzenią';
+        const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
+        if (h1) h1.innerText = 'Dom'; if (p) p.innerText = 'Zarządzanie przestrzenią';
     }
 
     const [tRes, lRes] = await Promise.all([
@@ -49,42 +41,66 @@ async function loadDashboard() {
     allHomeTasks = tRes.data || []; 
     allHomeLogs = lRes.data || [];
     
-    // Filtrowanie zadań po pokoju, jeśli weszliśmy z Przeglądu
     let tasksToDisplay = allHomeTasks;
     if (currentRoomFilter) {
         tasksToDisplay = tasksToDisplay.filter(t => (t.room || 'Inne') === currentRoomFilter);
     }
     
-    let scored = tasksToDisplay.map(t => {
+    let scoredTasks = tasksToDisplay.map(t => {
         const last = allHomeLogs.find(l => l.activity_name === t.name);
-        return { t, last, score: calculatePriority(t, last?.created_at) };
+        return { t, last, score: calculatePriority(t, last?.created_at), room: t.room || 'Inne' };
     }).sort((a,b) => {
         if (b.score !== a.score) return b.score - a.score;
         return a.t.name.localeCompare(b.t.name);
     });
 
-    if (scored.length === 0) { 
-        list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym widoku.</p>`; 
+    if (scoredTasks.length === 0) { 
+        list.innerHTML = filterHeaderHtml + `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym widoku.</p>`; 
         return; 
     }
 
-    list.innerHTML = scored.map(item => {
-        const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
-        const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
-        const roomBadge = `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${item.t.room || 'Inne'}</span>`;
+    // Grupowanie Zadań po Pokoju
+    const groupedTasks = {};
+    scoredTasks.forEach(item => {
+        if (!groupedTasks[item.room]) groupedTasks[item.room] = [];
+        groupedTasks[item.room].push(item);
+    });
 
-        return `
-            <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1">
-                <div class="flex-1 cursor-pointer pr-4" onclick="showToast('${status.tooltip}')">
-                    <h3 class="font-medium text-neutral-100 text-sm flex items-center">${item.t.name} ${roomBadge} ${muteIcon}</h3>
-                    <p class="text-[11px] ${status.color} mt-1">${status.label}</p>
-                </div>
-                <div class="flex items-center gap-1.5">
-                    <button onclick="openAddLogModal('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#0f5223]/20 text-[#c4eed0] font-medium text-lg flex items-center justify-center pb-0.5 active:scale-90 transition-transform">+</button>
-                    <button onclick="openSettingsScreen('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#333537]/50 text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-sm">⚙️</button>
-                </div>
-            </div>`;
-    }).join('');
+    // Sortowanie pokoi (Alfabetycznie, ale "Inne" na szarym końcu)
+    const sortedRooms = Object.keys(groupedTasks).sort((a, b) => {
+        if (a === 'Inne') return 1;
+        if (b === 'Inne') return -1;
+        return a.localeCompare(b);
+    });
+
+    let finalHtml = filterHeaderHtml;
+
+    // Generowanie HTML-a dla każdej grupy pomieszczeń
+    sortedRooms.forEach(room => {
+        // Nagłówek kategorii dodajemy tylko jeśli patrzymy na CAŁY DOM (nie przy włączonym filtrze)
+        if (!currentRoomFilter) {
+            finalHtml += `<h2 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest mt-4 mb-2 pl-1">${room}</h2>`;
+        }
+
+        finalHtml += groupedTasks[room].map(item => {
+            const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
+            const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
+
+            return `
+                <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1">
+                    <div class="flex-1 cursor-pointer pr-4" onclick="showToast('${status.tooltip}')">
+                        <h3 class="font-medium text-neutral-100 text-sm flex items-center">${item.t.name} ${muteIcon}</h3>
+                        <p class="text-[11px] ${status.color} mt-1">${status.label}</p>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="openAddLogModal('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#0f5223]/20 text-[#c4eed0] font-medium text-lg flex items-center justify-center pb-0.5 active:scale-90 transition-transform">+</button>
+                        <button onclick="openSettingsScreen('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#333537]/50 text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-sm">⚙️</button>
+                    </div>
+                </div>`;
+        }).join('');
+    });
+
+    list.innerHTML = finalHtml;
 }
 
 // --- POMOCNICZE WYLICZENIA ---
@@ -129,13 +145,11 @@ async function openSettingsScreen(name) {
     document.getElementById('set-task-interval').value = task.interval_days;
     document.getElementById('set-task-push').checked = task.push_enabled !== false;
     
-    // Dynamicznie ładujemy dostępne opcje pokojów (funkcja z settings.js)
     if(typeof populateRoomsDropdown === 'function') {
         await populateRoomsDropdown('set-task-room', task.room || 'Inne');
     }
     
     renderHistory();
-    // Przechodzimy pięknie do środka z użyciem nawigacji wstecz!
     goForward('settings-screen');
 }
 
@@ -205,9 +219,7 @@ async function openNewTaskModal() {
     document.getElementById('new-task-modal').classList.remove('hidden'); 
 }
 
-function closeNewTaskModal() { 
-    document.getElementById('new-task-modal').classList.add('hidden'); 
-}
+function closeNewTaskModal() { document.getElementById('new-task-modal').classList.add('hidden'); }
 
 async function saveNewTask() {
     const n = document.getElementById('new-task-name').value.trim();
@@ -215,10 +227,8 @@ async function saveNewTask() {
     const r = document.getElementById('new-task-room').value || 'Inne';
     
     if (!n) return;
-    
     await supabaseClient.from('tasks').insert([{ name: n, interval_days: parseInt(i)||0, push_enabled: true, room: r }]);
-    closeNewTaskModal(); 
-    loadDashboard();
+    closeNewTaskModal(); loadDashboard();
 }
 
 // --- LOGOWANIE WYKONANIA (+) ---
@@ -231,9 +241,7 @@ function openAddLogModal(n) {
     document.getElementById('add-log-modal').classList.remove('hidden');
 }
 
-function closeAddLogModal() { 
-    document.getElementById('add-log-modal').classList.add('hidden'); 
-}
+function closeAddLogModal() { document.getElementById('add-log-modal').classList.add('hidden'); }
 
 async function saveNewLog() {
     const n = document.getElementById('add-log-name').value;
@@ -241,8 +249,7 @@ async function saveNewLog() {
     const nt = document.getElementById('add-log-notes').value;
     
     await supabaseClient.from('activity_logs').insert([{ activity_name: n, created_at: `${d}T12:00:00.000Z`, notes: nt }]);
-    closeAddLogModal(); 
-    loadDashboard();
+    closeAddLogModal(); loadDashboard();
 }
 
 // --- EDYCJA WYKONANIA ---
@@ -253,9 +260,7 @@ function openEditLogModal(id, date, notes) {
     document.getElementById('edit-log-modal').classList.remove('hidden');
 }
 
-function closeEditLogModal() { 
-    document.getElementById('edit-log-modal').classList.add('hidden'); 
-}
+function closeEditLogModal() { document.getElementById('edit-log-modal').classList.add('hidden'); }
 
 async function saveEditLog() {
     const id = document.getElementById('edit-log-id').value;
@@ -264,8 +269,6 @@ async function saveEditLog() {
     
     await supabaseClient.from('activity_logs').update({ created_at: `${d}T12:00:00.000Z`, notes: n }).eq('id', id);
     closeEditLogModal(); 
-    
     const res = await supabaseClient.from('activity_logs').select('*').order('created_at', { ascending: false });
-    allHomeLogs = res.data; 
-    renderHistory();
+    allHomeLogs = res.data; renderHistory();
 }
