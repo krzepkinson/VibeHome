@@ -306,12 +306,17 @@
             }
         });
 
-        // REJESTRACJA SERVICE WORKERA (Dla powiadomień)
+// REJESTRACJA SERVICE WORKERA (Dla powiadomień)
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js').then(reg => {
                 console.log('Service Worker gotowy!', reg);
             }).catch(err => console.error('Błąd SW', err));
         }
     </script>
+    
+    <script src="/dashboard.js"></script>
+    <script src="/home.js"></script>
+    <script src="/health.js"></script>
+    <script src="/settings.js"></script>
 </body>
 </html>
