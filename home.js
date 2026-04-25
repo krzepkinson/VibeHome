@@ -8,29 +8,25 @@ let currentSettingsTaskName = '';
 let currentRoomFilter = null; 
 
 // --- FIX GLOBALNEJ NAWIGACJI ---
-// Nadpisujemy goBack, żeby zachowywał się idealnie z nowymi kafelkami
 window.goBack = function() {
     const settingsOpen = !document.getElementById('settings-screen').classList.contains('hidden');
     const healthSettingsOpen = !document.getElementById('health-settings-screen').classList.contains('hidden');
     const editProfileOpen = !document.getElementById('edit-profile-screen').classList.contains('hidden');
     
-    // Jeśli zamykamy okno Ustawień, robimy to i przerywamy (by nie zabić filtra pokoju)
     if (settingsOpen || healthSettingsOpen || editProfileOpen) {
         document.getElementById('settings-screen').classList.add('hidden');
         document.getElementById('health-settings-screen').classList.add('hidden');
         document.getElementById('edit-profile-screen').classList.add('hidden');
         
-        if (activeView === 'home') loadDashboard(); // Odświeżamy listę pod spodem
+        if (activeView === 'home') loadDashboard(); 
         return; 
     }
 
-    // Jeśli jesteśmy na liście zadań w pokoju -> Wracamy do siatki kafelków
     if (typeof currentRoomFilter !== 'undefined' && currentRoomFilter !== null) {
         clearRoomFilter(); 
         return; 
     }
 
-    // Jeśli nic z powyższych, używamy historii dolnego paska
     const prev = navHistory.pop();
     switchView(prev || 'dashboard', true); 
 };
@@ -56,7 +52,8 @@ async function loadDashboard() {
     if (currentRoomFilter) {
         if (backBtn) { backBtn.classList.remove('hidden'); backBtn.innerHTML = '←'; }
         const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
-        if (h1) h1.innerText = currentRoomFilter === 'Wszystkie' ? 'Cały dom' : currentRoomFilter; 
+        // Jeśli filtr to systemowe "Wszystkie", pokaż ten tekst, inaczej pokaż nazwę pokoju
+        if (h1) h1.innerText = currentRoomFilter; 
         if (p) p.innerText = 'Lista zadań';
     } else {
         if (backBtn) backBtn.classList.add('hidden');
@@ -113,13 +110,13 @@ async function loadDashboard() {
 
         let html = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">`;
         
-        // Zawsze pierwszy: Kafelek "Cały dom"
+        // Zawsze pierwszy: Kafelek "Wszystkie"
         const allBadge = totalOverdueAll > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${totalOverdueAll}</div>` : '';
         html += `
             <div onclick="filterHomeByRoom('Wszystkie')" class="relative bg-[#004a77]/20 p-4 rounded-[24px] border border-[#004a77]/50 cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-28">
                 ${allBadge}
-                <div class="text-3xl mb-2 opacity-80">🏠</div>
-                <h3 class="text-xs font-medium text-[#c2e7ff]">Cały dom</h3>
+                <div class="text-3xl mb-2 opacity-80">🗂️</div>
+                <h3 class="text-xs font-medium text-[#c2e7ff]">Wszystkie</h3>
                 <p class="text-[9px] text-[#c2e7ff]/70 mt-1 uppercase tracking-widest">${allHomeTasks.length} zadań</p>
             </div>
         `;
@@ -146,7 +143,7 @@ async function loadDashboard() {
         return;
     }
 
-    // 4. WIDOK LISTY (Gdy włączony jest konkretny pokój)
+    // 4. WIDOK LISTY (Gdy włączony jest konkretny pokój lub "Wszystkie")
     let tasksToDisplay = allHomeTasks;
     if (currentRoomFilter !== 'Wszystkie') {
         tasksToDisplay = tasksToDisplay.filter(t => (t.room || 'Inne') === currentRoomFilter);
@@ -169,7 +166,7 @@ async function loadDashboard() {
         const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
         const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
         
-        // Pigułkę "Pomieszczenie" dodajemy do nazwy tylko, gdy przeglądamy "Cały dom"
+        // Pigułkę "Pomieszczenie" dodajemy do nazwy tylko, gdy przeglądamy listę "Wszystkie"
         const roomBadge = currentRoomFilter === 'Wszystkie' ? `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${item.t.room || 'Inne'}</span>` : '';
 
         return `
