@@ -7,14 +7,12 @@ let navHistory = [];
 
 window.switchView = function(view, skipHistory = false) {
     try {
-        // Zabezpieczenie: Jeśli nie ma użytkownika, zawsze pokazuj auth!
         if (!window.currentUser && view !== 'auth') {
             view = 'auth';
         }
         
         activeView = view;
         
-        // 1. Zarządzanie kolorami na dolnym pasku
         const navIds = ['dashboard', 'home', 'health', 'settings'];
         navIds.forEach(id => {
             const el = document.getElementById(`nav-${id}`);
@@ -26,7 +24,6 @@ window.switchView = function(view, skipHistory = false) {
             }
         });
 
-        // 2. Ukrywanie starych widoków
         document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
         
         const header = document.getElementById('global-nav-header');
@@ -34,13 +31,10 @@ window.switchView = function(view, skipHistory = false) {
         
         const bottomNav = document.getElementById('bottom-nav');
 
-        // 3. Widok Logowania (specjalne traktowanie)
         if (view === 'auth') {
             document.getElementById('view-auth').classList.remove('hidden');
             if (bottomNav) bottomNav.classList.add('hidden');
-        } 
-        // Reszta standardowych widoków
-        else {
+        } else {
             if (bottomNav) bottomNav.classList.remove('hidden');
             
             if (view === 'dashboard') { 
@@ -62,7 +56,6 @@ window.switchView = function(view, skipHistory = false) {
             }
         }
 
-        // 4. Magia podmiany URL
         if (!skipHistory && ['dashboard', 'home', 'health', 'settings', 'auth'].includes(view)) {
             window.history.pushState({ view: view }, '', `/${view}`);
         }
@@ -83,11 +76,20 @@ window.goForward = function(screenId) {
 };
 
 window.goBack = function() {
+    // 1. Zawsze bezpiecznie ukrywamy wszystkie pod-ekrany (np. ustawienia)
     ['settings-screen', 'health-settings-screen', 'edit-profile-screen'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
     
+    // 2. Jeśli wracamy z pod-ekranu (zapisana historia z funkcji goForward)
+    if (navHistory.length > 0) {
+        const prev = navHistory.pop();
+        window.switchView(prev || 'dashboard', false);
+        return; // Przerywamy tu, żeby nie popsuć innych rzeczy!
+    }
+
+    // 3. Jeśli jesteśmy na głównym widoku "Dom" i wyłączamy filtr pokoju
     if (typeof currentRoomFilter !== 'undefined' && currentRoomFilter !== null) {
         if(typeof clearRoomFilter === 'function') {
             clearRoomFilter(); 
@@ -95,25 +97,20 @@ window.goBack = function() {
         }
     }
 
-    const prev = navHistory.pop();
-    window.switchView(prev || 'dashboard', false); 
+    // 4. Jeśli zgubimy się całkowicie
+    window.switchView('dashboard', false); 
 };
 
-// --- START APLIKACJI Z ASYNCHRONICZNYM SPRAWDZANIEM SESJI ---
 window.addEventListener('DOMContentLoaded', async () => {
-    
-    // Najpierw sprawdzamy, czy mamy ciastko/token
     const isLoggedIn = await window.checkSession();
-    
     let path = window.location.pathname.replace('/', '') || 'dashboard';
     const validViews = ['dashboard', 'home', 'health', 'settings', 'auth'];
     let viewToLoad = validViews.includes(path) ? path : 'dashboard';
 
-    // Wymuszenie przekierowań
     if (!isLoggedIn) {
         viewToLoad = 'auth';
     } else if (viewToLoad === 'auth') {
-        viewToLoad = 'dashboard'; // Zalogowany nie musi widzieć ekranu logowania
+        viewToLoad = 'dashboard';
     }
 
     window.history.replaceState({ view: viewToLoad }, '', `/${viewToLoad}`);
