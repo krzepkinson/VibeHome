@@ -2,7 +2,7 @@
 // LOGIKA: ZDROWIE & PROFILE (health.js)
 // ==========================================
 
-console.log("Health module loaded (Auto-load & Avatar Menu)");
+console.log("Health module loaded (Fixed Back Button & Calendar Modal)");
 
 let profiles = [];
 let currentProfileId = null;
@@ -24,24 +24,19 @@ function getDurationText(startDateStr) {
     return `od ${diffDays} dni`;
 }
 
-// --- INICJALIZACJA ZDROWIA ---
 async function initHealthModule() {
     const { data, error } = await supabaseClient.from('profiles').select('*').order('name');
     profiles = data || [];
 
     if (profiles.length === 0) {
-        // Brak profili - wymuszamy dodanie pierwszego
         document.getElementById('health-tasks-list').innerHTML = `<p class="text-center text-neutral-500 py-10">Brak profili. Najpierw dodaj domownika klikając awatar w prawym górnym rogu.</p>`;
         document.getElementById('health-header-avatar').innerText = "?";
         document.getElementById('profile-name-title').innerText = "Witaj!";
         return;
     }
 
-    // Szukamy zapisanego w pamięci telefonu profilu
     const savedId = localStorage.getItem('homevibe_last_profile');
     let targetProfile = profiles.find(p => p.id == savedId);
-    
-    // Jeśli nie ma zapisanego, bierzemy pierwszego z brzegu
     if (!targetProfile) targetProfile = profiles[0];
 
     loadProfileData(targetProfile);
@@ -49,11 +44,10 @@ async function initHealthModule() {
 
 function loadProfileData(profile) {
     currentProfileId = profile.id;
-    localStorage.setItem('homevibe_last_profile', profile.id); // Zapamiętujemy na przyszłość
+    localStorage.setItem('homevibe_last_profile', profile.id);
     
     document.getElementById('profile-name-title').innerText = profile.name;
     
-    // Ustawiamy inicjał w prawym górnym rogu (Później podepniemy tu zdjęcie)
     const initial = profile.name.charAt(0).toUpperCase();
     document.getElementById('health-header-avatar').innerText = initial;
     
@@ -62,7 +56,6 @@ function loadProfileData(profile) {
     loadProfileDashboard();
 }
 
-// --- MENU AWATARA (SWITCHER) ---
 function toggleProfileSwitcher() {
     const modal = document.getElementById('profile-switcher-modal');
     if (modal.classList.contains('hidden')) {
@@ -79,11 +72,9 @@ function closeProfileSwitcher() {
 
 function renderProfileSwitcherList() {
     const listEl = document.getElementById('switcher-profiles-list');
-    
     listEl.innerHTML = profiles.map(p => {
         const isActive = p.id === currentProfileId;
         const bgClass = isActive ? 'bg-[#333537]' : 'bg-[#131314]';
-        
         return `
             <button onclick="switchActiveProfile(${p.id})" class="w-full flex items-center gap-3 p-3 rounded-[20px] ${bgClass} border border-[#333537] active:scale-95 transition-all">
                 <div class="w-10 h-10 rounded-full bg-[#444746] text-neutral-200 flex items-center justify-center font-bold">${p.name.charAt(0).toUpperCase()}</div>
@@ -100,7 +91,6 @@ function switchActiveProfile(id) {
     if (profile) loadProfileData(profile);
 }
 
-// --- DODAWANIE PROFILU ---
 function openNewProfileModal() { 
     closeProfileSwitcher();
     document.getElementById('new-profile-modal').classList.remove('hidden'); 
@@ -115,7 +105,6 @@ async function saveNewProfile() {
     closeNewProfileModal(); 
     
     if (data && data.length > 0) {
-        // Jeśli dodaliśmy z sukcesem, od razu przełączamy na nową osobę
         const { data: refreshedData } = await supabaseClient.from('profiles').select('*').order('name');
         profiles = refreshedData || [];
         const newProfile = profiles.find(p => p.id === data[0].id);
@@ -123,7 +112,6 @@ async function saveNewProfile() {
     }
 }
 
-// --- KALENDARZ LOGIKA (Pozostaje bez zmian funkcjonalnych) ---
 function toggleCalendarMode() { calendarMode = calendarMode === 'month' ? 'year' : 'month'; renderCalendar(); }
 function changeCalendarMonth(offset) { if (calendarMode === 'month') { currentCalDate.setMonth(currentCalDate.getMonth() + offset); } else { currentCalDate.setFullYear(currentCalDate.getFullYear() + offset); } renderCalendar(); }
 function zoomToMonth(monthIndex) { currentCalDate.setMonth(monthIndex); calendarMode = 'month'; renderCalendar(); }
@@ -173,6 +161,7 @@ function renderMonthlyView(container, year, month) {
         if (hasEvents) { cellClass += "bg-[#444746] text-neutral-100 cursor-pointer active:scale-90 font-medium"; } else { cellClass += "text-neutral-400 bg-transparent"; }
         if (isToday) { cellClass += " border border-neutral-300 text-neutral-100 font-medium"; if (!hasEvents) cellClass += " bg-[#333537]"; }
 
+        // Ważne: Wywołanie funkcji otwierającej modal kalendarza
         const onClickEvent = hasEvents ? `onclick="openDayDetails('${year}-${String(month+1).padStart(2, '0')}-${String(day).padStart(2, '0')}')"` : '';
         html += `<div class="flex justify-center items-center"><div ${onClickEvent} class="${cellClass}">${day}</div></div>`;
     }
@@ -201,12 +190,17 @@ function renderYearlyView(container, year) {
     html += `</div>`; container.innerHTML = html;
 }
 
+// --- FUNKCJA WYSWIETLAJACA SZCZEGÓŁY DNIA W KALENDARZU ---
 function openDayDetails(dateString) {
     const targetDate = new Date(dateString); targetDate.setHours(0,0,0,0);
-    let activeEvents = []; const today = new Date(); today.setHours(0,0,0,0);
+    let activeEvents = []; 
+    const today = new Date(); today.setHours(0,0,0,0);
+
     healthLogs.forEach(log => {
         const s = new Date(log.start_date); s.setHours(0,0,0,0);
         let e = log.end_date ? new Date(log.end_date) : today; e.setHours(0,0,0,0);
+        
+        // Sprawdzamy czy choroba trwała tego dnia
         if (targetDate >= s && targetDate <= e) {
             const task = healthTasks.find(t => t.id === log.health_task_id);
             if(task) activeEvents.push({ task, log });
@@ -215,16 +209,29 @@ function openDayDetails(dateString) {
 
     const listEl = document.getElementById('day-details-list');
     document.getElementById('day-details-date').innerText = targetDate.toLocaleDateString('pl-PL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    
     listEl.innerHTML = activeEvents.map(ev => {
-        const isDuration = ev.task.task_type === 'duration'; const icon = isDuration ? '⏱️' : '🔄';
-        return `<div class="bg-[#131314] p-4 rounded-[20px] border border-[#333537] mb-2"><h4 class="font-medium text-neutral-200 text-sm flex items-center gap-2 mb-1"><span>${icon}</span> ${ev.task.name}</h4>${ev.log.notes ? `<p class="text-xs text-neutral-400 mt-2 bg-[#1e1f20] p-2 rounded-lg">${ev.log.notes}</p>` : ''}</div>`;
+        const isDuration = ev.task.task_type === 'duration'; 
+        const icon = isDuration ? '⏱️' : '🔄';
+        return `
+            <div class="bg-[#131314] p-4 rounded-[20px] border border-[#333537] mb-2">
+                <h4 class="font-medium text-neutral-200 text-sm flex items-center gap-2 mb-1">
+                    <span>${icon}</span> ${ev.task.name}
+                </h4>
+                ${ev.log.notes ? `<p class="text-xs text-neutral-400 mt-2 bg-[#1e1f20] p-2 rounded-lg">${ev.log.notes}</p>` : ''}
+            </div>
+        `;
     }).join('');
+    
+    // Odkrywamy modal!
     document.getElementById('day-details-modal').classList.remove('hidden');
 }
 
-function closeDayDetailsModal() { document.getElementById('day-details-modal').classList.add('hidden'); }
+function closeDayDetailsModal() { 
+    document.getElementById('day-details-modal').classList.add('hidden'); 
+}
 
-// --- DASHBOARD KOKPITU ---
+// --- DASHBOARD KOKPITU ZDROWIA ---
 async function loadProfileDashboard() {
     const list = document.getElementById('health-tasks-list');
     const [tasksRes, logsRes] = await Promise.all([
@@ -293,7 +300,6 @@ async function loadProfileDashboard() {
     }).join('');
 }
 
-// Reszta helperów dla Zdrowia
 async function logHealthAction(taskId) { const today = new Date().toISOString(); await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: today, end_date: today }]); showToast('Zapisano!'); loadProfileDashboard(); }
 async function startDurationTask(taskId) { const today = new Date().toISOString(); await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: today }]); showToast('Stan rozpoczęty.'); loadProfileDashboard(); }
 async function stopDurationTask(logId) { const today = new Date().toISOString(); await supabaseClient.from('health_logs').update({ end_date: today }).eq('id', logId); showToast('Stan zakończony.'); loadProfileDashboard(); }
@@ -303,8 +309,33 @@ function closeNewHealthTaskModal() { document.getElementById('new-health-task-mo
 function toggleHealthInterval() { const type = document.getElementById('h-task-type').value; const container = document.getElementById('h-task-interval-container'); if (type === 'duration') container.classList.add('hidden'); else container.classList.remove('hidden'); }
 async function saveNewHealthTask() { const name = document.getElementById('h-task-name').value.trim(); const type = document.getElementById('h-task-type').value; const interval = document.getElementById('h-task-interval').value; if (!name) return; await supabaseClient.from('health_tasks').insert([{ profile_id: currentProfileId, name: name, task_type: type, interval_days: type === 'cyclical' ? (parseInt(interval) || 0) : 0 }]); closeNewHealthTaskModal(); loadProfileDashboard(); }
 
-function openHealthSettingsScreen(taskId) { currentSettingsHealthTaskId = taskId; const task = healthTasks.find(t => t.id === taskId); document.getElementById('h-settings-title').innerText = task.name; document.getElementById('set-h-task-name').value = task.name; const intervalContainer = document.getElementById('set-h-task-interval-container'); if (task.task_type === 'cyclical') { intervalContainer.classList.remove('hidden'); document.getElementById('set-h-task-interval').value = task.interval_days; } else { intervalContainer.classList.add('hidden'); } renderHealthHistory(); goForward('health-settings-screen'); }
-function closeHealthSettingsScreen() { goBack(); loadProfileDashboard(); }
+// --- USTAWIENIA ZDROWIA (Naprawa strzałki "Wstecz") ---
+function openHealthSettingsScreen(taskId) { 
+    currentSettingsHealthTaskId = taskId; 
+    const task = healthTasks.find(t => t.id === taskId); 
+    document.getElementById('h-settings-title').innerText = task.name; 
+    document.getElementById('set-h-task-name').value = task.name; 
+    const intervalContainer = document.getElementById('set-h-task-interval-container'); 
+    
+    if (task.task_type === 'cyclical') { 
+        intervalContainer.classList.remove('hidden'); 
+        document.getElementById('set-h-task-interval').value = task.interval_days; 
+    } else { 
+        intervalContainer.classList.add('hidden'); 
+    } 
+    
+    renderHealthHistory(); 
+    
+    // Używamy globalnego API nawigacji, by strzałka w lewym górnym rogu działała prawidłowo!
+    goForward('health-settings-screen'); 
+}
+
+function closeHealthSettingsScreen() { 
+    // Używamy globalnego API do wracania
+    goBack(); 
+    loadProfileDashboard(); 
+}
+
 async function saveHealthTaskSettings() { const name = document.getElementById('set-h-task-name').value.trim(); const interval = parseInt(document.getElementById('set-h-task-interval').value) || 0; if (!name) return; const task = healthTasks.find(t => t.id === currentSettingsHealthTaskId); let updateData = { name: name }; if (task.task_type === 'cyclical') updateData.interval_days = interval; await supabaseClient.from('health_tasks').update(updateData).eq('id', currentSettingsHealthTaskId); showToast('Zapisano zmiany'); const res = await supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId); healthTasks = res.data; document.getElementById('h-settings-title').innerText = name; }
 async function deleteHealthTask() { if(!confirm("Trwale usunąć to zdarzenie z profilu?")) return; await supabaseClient.from('health_tasks').delete().eq('id', currentSettingsHealthTaskId); closeHealthSettingsScreen(); }
 
