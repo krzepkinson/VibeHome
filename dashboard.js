@@ -30,6 +30,7 @@ async function loadDashboardOverview() {
 
     let overviewHtml = "";
     let hasAnyAlerts = false;
+    let totalAlertsCount = 0; // Licznik do powiadomień systemowych
 
     // SEKCJA 1: AKTYWNE STANY
     let activeHealthAlerts = [];
@@ -44,6 +45,7 @@ async function loadDashboardOverview() {
             const durationText = diffDays === 0 ? "od dzisiaj" : (diffDays === 1 ? "od wczoraj" : `od ${diffDays} dni`);
             
             activeHealthAlerts.push({ profileName: profile ? profile.name : 'Ktoś', taskName: task.name, durationText: durationText });
+            totalAlertsCount++;
         }
     });
 
@@ -79,6 +81,7 @@ async function loadDashboardOverview() {
             if (diff <= 0) {
                 const profile = profiles.find(p => p.id === task.profile_id);
                 overdueHealthCyclical.push({ profileName: profile ? profile.name : 'Ktoś', taskName: task.name, daysDiff: diff, lastDate: last });
+                totalAlertsCount++;
             }
         }
     });
@@ -106,6 +109,9 @@ async function loadDashboardOverview() {
     let roomOverdueCounts = {};
 
     homeTasks.filter(t => t.interval_days > 0).forEach(task => {
+        // Sprawdzamy czy zadanie w ogóle ma włączone powiadomienia (push_enabled)
+        if(task.push_enabled === false) return; 
+
         const lastLog = homeLogs.find(l => l.activity_name === task.name);
         const roomName = task.room || 'Inne';
         if (roomOverdueCounts[roomName] === undefined) roomOverdueCounts[roomName] = 0;
@@ -121,6 +127,7 @@ async function loadDashboardOverview() {
     });
 
     const totalOverdueHome = Object.values(roomOverdueCounts).reduce((a, b) => a + b, 0);
+    totalAlertsCount += totalOverdueHome;
 
     if (totalOverdueHome > 0) {
         hasAnyAlerts = true;
@@ -129,7 +136,6 @@ async function loadDashboardOverview() {
         Object.entries(roomOverdueCounts).forEach(([room, count]) => {
             if (count > 0) {
                 const icon = roomIconsMap[room] || '📦';
-                // ZMIANA: Zamiast switchView('home'), wywołujemy nową funkcję filterHomeByRoom z home.js
                 roomsGridHtml += `
                     <div onclick="filterHomeByRoom('${room}')" class="relative bg-[#1e1f20] p-4 rounded-[24px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center">
                         <div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
@@ -162,4 +168,27 @@ async function loadDashboardOverview() {
     }
 
     listEl.innerHTML = overviewHtml;
+
+    // WYZWALANIE POWIADOMIENIA SYSTEMOWEGO
+    triggerLocalNotification(totalAlertsCount);
+}
+
+// Funkcja wysyłająca powiadomienie
+function triggerLocalNotification(alertsCount) {
+    if (!("Notification" in window) || Notification.permission !== "granted" || alertsCount === 0) return;
+
+    const todayStr = new Date().toDateString();
+    const lastNotified = localStorage.getItem('homevibe_last_notified');
+
+    // Wysyłamy tylko jeśli dzisiaj jeszcze nie wysyłaliśmy powiadomienia
+    if (lastNotified !== todayStr) {
+        navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification('HomeVibe: Masz zaległości!', {
+                body: `Masz ${alertsCount} zadań, które wymagają Twojej uwagi. Czas się z nimi rozprawić! 💪`,
+                icon: '/icon.png',
+                vibrate: [200, 100, 200]
+            });
+            localStorage.setItem('homevibe_last_notified', todayStr);
+        });
+    }
 }
