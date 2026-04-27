@@ -104,7 +104,7 @@ window.goBack = function() {
 window.addEventListener('DOMContentLoaded', async () => {
     const isLoggedIn = await window.checkSession();
     let path = window.location.pathname.replace('/', '') || 'dashboard';
-    const validViews = ['dashboard', 'home', 'health', 'settings', 'auth'];
+    const validViews = ['dashboard', 'home', 'health', 'settings', 'auth', 'todo'];
     let viewToLoad = validViews.includes(path) ? path : 'dashboard';
 
     if (!isLoggedIn) {
@@ -118,6 +118,10 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(err => console.error('Błąd SW', err));
+        else if (view === 'todo') {
+    document.getElementById('view-todo').classList.remove('hidden');
+    if(typeof initTodoModule === 'function') initTodoModule();
+}
     }
 });
 
