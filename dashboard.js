@@ -2,7 +2,7 @@
 // LOGIKA: PRZEGLĄD (dashboard.js)
 // ==========================================
 
-wwindow.loadDashboardOverview = async function() {
+window.loadDashboardOverview = async function() {
     const listEl = document.getElementById('dashboard-overview-list');
     listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Ładowanie przeglądu...</p>`;
 
@@ -107,45 +107,5 @@ wwindow.loadDashboardOverview = async function() {
 window.quickCompleteTodoDashboard = async function(id) {
     await supabaseClient.from('todos').update({ is_completed: true }).eq('id', id).eq('user_id', window.currentUser.id);
     window.showToast('Zadanie odhaczone! ✔️');
-    window.loadDashboardOverview();
-};
-    // ====================================================
-    // 3. STAN ZERO
-    // ====================================================
-    if (html === '') {
-        html = `
-        <div class="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
-            <div class="text-5xl mb-4">✨</div>
-            <h3 class="text-neutral-200 font-medium mb-2">Wszystko gotowe!</h3>
-            <p class="text-neutral-500 text-xs leading-relaxed">Nie masz żadnych zaległych zadań w domu<br>ani zaplanowanych akcji zdrowotnych.</p>
-        </div>`;
-    }
-
-    listEl.innerHTML = html;
-};
-
-// --- FUNKCJE SZYBKICH AKCJI ---
-window.quickLogTaskDashboard = async function(activityNameEncoded) {
-    const activityName = decodeURIComponent(activityNameEncoded);
-    const d = new Date().toISOString().split('T')[0];
-    await supabaseClient.from('activity_logs').insert([{
-        activity_name: activityName, created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id
-    }]);
-    window.showToast('Zrobione! ✔️');
-    window.loadDashboardOverview(); 
-};
-
-window.quickLogHealthDashboard = async function(taskId) {
-    const now = new Date().toISOString();
-    await supabaseClient.from('health_logs').insert([{
-        health_task_id: taskId, start_date: now, end_date: now, user_id: window.currentUser.id
-    }]);
-    window.showToast('Zaakceptowano! ✔️');
-    window.loadDashboardOverview();
-};
-
-window.quickEndHealthDashboard = async function(logId) {
-    await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('user_id', window.currentUser.id);
-    window.showToast('Zdarzenie zakończone! ✔️');
     window.loadDashboardOverview();
 };
