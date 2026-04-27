@@ -58,15 +58,20 @@
             </div>
         </div>
 
-        <div id="view-dashboard" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
-            <header class="mb-6 mt-2">
-                <div>
-                    <h1 class="text-2xl font-medium text-neutral-100 tracking-wide">Dzień dobry!</h1>
-                    <p class="text-sm text-neutral-400">Oto Twój dzisiejszy przegląd</p>
-                </div>
-            </header>
-            <div id="dashboard-overview-list" class="flex flex-col space-y-4"></div>
-        </div>
+<div id="view-dashboard" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
+    <header class="mb-4 mt-2">
+        <h1 class="text-2xl font-medium text-neutral-100 tracking-wide">Dzień dobry!</h1>
+       
+    </header>
+
+    <div class="flex p-1 bg-[#1e1f20] rounded-2xl mb-6 border border-[#333537]">
+        <button onclick="switchDashboardTab('todo')" id="tab-todo" class="flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all">📝 Zadania</button>
+        <button onclick="switchDashboardTab('home')" id="tab-home" class="flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all">🔥 Dom</button>
+        <button onclick="switchDashboardTab('health')" id="tab-health" class="flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all">❤️ Zdrowie</button>
+    </div>
+
+    <div id="dashboard-overview-list" class="flex flex-col space-y-4"></div>
+</div>
 
         <div id="view-home" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
             <header class="mb-6 flex justify-between items-center mt-2">
