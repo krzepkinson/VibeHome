@@ -13,12 +13,12 @@ window.switchView = function(view, skipHistory = false) {
         
         activeView = view;
         
-        const navIds = ['dashboard', 'home', 'health', 'settings'];
+        const navIds = ['dashboard', 'home', 'health', 'settings', 'todo'];
         navIds.forEach(id => {
             const el = document.getElementById(`nav-${id}`);
             if (!el) return;
             if (view === id || (view === 'profile' && id === 'health')) {
-                el.className = `flex flex-col items-center justify-center w-full h-full text-[${id === 'dashboard' ? '#c4eed0' : id === 'home' ? '#a8c7fa' : id === 'settings' ? '#e3e3e3' : '#ffb4ab'}] transition-colors`;
+                el.className = `flex flex-col items-center justify-center w-full h-full text-[${id === 'dashboard' ? '#c4eed0' : id === 'home' ? '#a8c7fa' : id === 'settings' ? '#e3e3e3' : id === 'todo' ? '#a8c7fa' : '#ffb4ab'}] transition-colors`;
             } else {
                 el.className = 'flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors';
             }
@@ -50,13 +50,17 @@ window.switchView = function(view, skipHistory = false) {
                 if(typeof initHealthModule === 'function') initHealthModule(); 
                 view = 'health'; 
             } 
+            else if (view === 'todo') { 
+                document.getElementById('view-todo').classList.remove('hidden'); 
+                if(typeof initTodoModule === 'function') initTodoModule(); 
+            }
             else if (view === 'settings') { 
                 document.getElementById('view-settings-main').classList.remove('hidden'); 
                 if(typeof initSettingsModule === 'function') initSettingsModule(); 
             }
         }
 
-        if (!skipHistory && ['dashboard', 'home', 'health', 'settings', 'auth'].includes(view)) {
+        if (!skipHistory && ['dashboard', 'home', 'health', 'settings', 'auth', 'todo'].includes(view)) {
             window.history.pushState({ view: view }, '', `/${view}`);
         }
     } catch (e) {
@@ -76,20 +80,17 @@ window.goForward = function(screenId) {
 };
 
 window.goBack = function() {
-    // 1. Zawsze bezpiecznie ukrywamy wszystkie pod-ekrany (np. ustawienia)
     ['settings-screen', 'health-settings-screen', 'edit-profile-screen'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
     
-    // 2. Jeśli wracamy z pod-ekranu (zapisana historia z funkcji goForward)
     if (navHistory.length > 0) {
         const prev = navHistory.pop();
         window.switchView(prev || 'dashboard', false);
-        return; // Przerywamy tu, żeby nie popsuć innych rzeczy!
+        return; 
     }
 
-    // 3. Jeśli jesteśmy na głównym widoku "Dom" i wyłączamy filtr pokoju
     if (typeof currentRoomFilter !== 'undefined' && currentRoomFilter !== null) {
         if(typeof clearRoomFilter === 'function') {
             clearRoomFilter(); 
@@ -97,7 +98,6 @@ window.goBack = function() {
         }
     }
 
-    // 4. Jeśli zgubimy się całkowicie
     window.switchView('dashboard', false); 
 };
 
@@ -118,10 +118,6 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(err => console.error('Błąd SW', err));
-        else if (view === 'todo') {
-    document.getElementById('view-todo').classList.remove('hidden');
-    if(typeof initTodoModule === 'function') initTodoModule();
-}
     }
 });
 
