@@ -1,14 +1,34 @@
 // ==========================================
-// LOGIKA: PRZEGLĄD (dashboard.js)
+// LOGIKA: PRZEGLĄD Z ZAKŁADKAMI (dashboard.js)
 // ==========================================
+
+window.activeDashboardTab = 'todo'; // Domyślna zakładka
+
+window.switchDashboardTab = function(tab) {
+    window.activeDashboardTab = tab;
+    
+    // Wizualna aktualizacja przycisków
+    const tabs = ['todo', 'home', 'health'];
+    tabs.forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        if (!btn) return;
+        if (t === tab) {
+            btn.className = "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider rounded-xl bg-[#333537] text-[#a8c7fa] shadow-sm transition-all";
+        } else {
+            btn.className = "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider rounded-xl text-neutral-500 transition-all";
+        }
+    });
+
+    window.loadDashboardOverview();
+};
 
 window.loadDashboardOverview = async function() {
     const listEl = document.getElementById('dashboard-overview-list');
-    listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Ładowanie przeglądu...</p>`;
+    listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Analiza Twoich spraw...</p>`;
 
     const uid = window.currentUser.id;
 
-    // POBIERAMY DANE
+    // Pobieramy dane (zawsze komplet, żeby odznaki na zakładkach mogły działać w przyszłości)
     const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes] = await Promise.all([
         supabaseClient.from('tasks').select('*').eq('user_id', uid),
         supabaseClient.from('activity_logs').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
@@ -26,96 +46,109 @@ window.loadDashboardOverview = async function() {
     const today = new Date(); today.setHours(0,0,0,0);
     let html = '';
 
-    // 1. NAJPILNIEJSZE DOMOWE
-    let scoredTasks = tasks.filter(t => t.interval_days && t.interval_days > 0).map(t => {
-        const lastLog = logs.find(l => l.activity_name === t.name);
-        let daysOverdue = 0;
-        if (!lastLog) daysOverdue = 999;
-        else {
-            const nextD = new Date(lastLog.created_at); nextD.setHours(0,0,0,0);
-            nextD.setDate(nextD.getDate() + t.interval_days);
-            daysOverdue = Math.floor((today - nextD) / 86400000); 
+    // Inicjalizacja wizualna zakładek (jeśli to pierwsze ładowanie)
+    if (document.getElementById('tab-todo') && !document.getElementById('tab-todo').classList.contains('bg-[#333537]')) {
+        window.switchDashboardTab(window.activeDashboardTab);
+        return; 
+    }
+
+    // ====================================================
+    // RENDEROWANIE W ZALEŻNOŚCI OD ZAKŁADKI
+    // ====================================================
+
+    if (window.activeDashboardTab === 'todo') {
+        // ZAKŁADKA: ZADANIA TO-DO
+        if (todos.length > 0) {
+            html += todos.map(todo => `
+                <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#a8c7fa] shadow-sm animate-fade-in">
+                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('todo')">
+                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${todo.title}</h3>
+                        <p class="text-[10px] text-neutral-500 mt-0.5">Dodano: ${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
+                    </div>
+                    <button onclick="window.quickCompleteTodoDashboard(${todo.id})" class="w-9 h-9 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
+                </div>`).join('');
+        } else {
+            html = renderEmptyState("Wszystkie zadania załatwione!");
         }
-        return { t, daysOverdue };
-    }).filter(item => item.daysOverdue >= 0); 
-    scoredTasks.sort((a,b) => b.daysOverdue - a.daysOverdue);
-    const top3Home = scoredTasks.slice(0, 3);
+    } 
+    else if (window.activeDashboardTab === 'home') {
+        // ZAKŁADKA: DOM (Najpilniejsze)
+        let overdueHome = tasks.filter(t => {
+            if (!t.interval_days) return false;
+            const lastLog = logs.find(l => l.activity_name === t.name);
+            if (!lastLog) return true;
+            const next = new Date(lastLog.created_at); next.setHours(0,0,0,0);
+            next.setDate(next.getDate() + t.interval_days);
+            return next <= today;
+        });
 
-    if (top3Home.length > 0) {
-        html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2 mt-2">🔥 Dom - Najpilniejsze</h3>`;
-        html += top3Home.map(item => `
-            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#ffb4ab] shadow-sm">
-                <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('home')">
-                    <h3 class="font-medium text-neutral-100 text-sm leading-tight">${item.t.name}</h3>
-                    <p class="text-[10px] text-[#ffb4ab] mt-0.5">${item.daysOverdue === 999 ? 'Jeszcze nie było robione' : 'Czas na dziś'}</p>
-                </div>
-                <button onclick="window.quickLogTaskDashboard('${encodeURIComponent(item.t.name)}')" class="w-9 h-9 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
-            </div>`).join('');
-    }
+        if (overdueHome.length > 0) {
+            html += overdueHome.map(t => `
+                <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#ffb4ab] shadow-sm animate-fade-in">
+                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('home')">
+                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${t.name}</h3>
+                        <p class="text-[10px] text-[#ffb4ab] mt-0.5">Czas na odświeżenie</p>
+                    </div>
+                    <button onclick="window.quickLogTaskDashboard('${encodeURIComponent(t.name)}')" class="w-9 h-9 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
+                </div>`).join('');
+        } else {
+            html = renderEmptyState("Dom lśni czystością!");
+        }
+    } 
+    else if (window.activeDashboardTab === 'health') {
+        // ZAKŁADKA: ZDROWIE
+        const dueHealth = hTasks.filter(ht => {
+            if (ht.task_type !== 'cyclical' || !ht.interval_days) return false;
+            const lastLog = hLogs.find(l => l.health_task_id === ht.id);
+            if (!lastLog) return true;
+            const next = new Date(lastLog.start_date); next.setHours(0,0,0,0);
+            next.setDate(next.getDate() + ht.interval_days);
+            return next <= today;
+        });
+        const activeDuration = hTasks.filter(ht => ht.task_type === 'duration' && hLogs.some(l => l.health_task_id === ht.id && l.end_date === null));
 
-    // 2. NAJSTARSZE ZADANIA TO-DO
-    const top3Todos = todos.slice(0, 3);
-    if (top3Todos.length > 0) {
-        html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2 mt-5">📝 Zadania do załatwienia</h3>`;
-        html += top3Todos.map(todo => `
-            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#a8c7fa] shadow-sm">
-                <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('todo')">
-                    <h3 class="font-medium text-neutral-100 text-sm leading-tight">${todo.title}</h3>
-                    <p class="text-[10px] text-neutral-500 mt-0.5">Dodano: ${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
-                </div>
-                <button onclick="window.quickCompleteTodoDashboard(${todo.id})" class="w-9 h-9 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
-            </div>`).join('');
-    }
-
-    // 3. ZDROWIE
-    const dueHealth = hTasks.filter(ht => {
-        if (ht.task_type !== 'cyclical' || !ht.interval_days) return false;
-        const lastLog = hLogs.find(l => l.health_task_id === ht.id);
-        if (!lastLog) return true;
-        const next = new Date(lastLog.start_date); next.setHours(0,0,0,0);
-        next.setDate(next.getDate() + ht.interval_days);
-        return next <= today;
-    });
-
-    const activeDuration = hTasks.filter(ht => ht.task_type === 'duration' && hLogs.some(l => l.health_task_id === ht.id && l.end_date === null));
-
-    if (dueHealth.length > 0 || activeDuration.length > 0) {
-        html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2 mt-5">❤️ Zdrowie - Pod lupą</h3>`;
-        html += dueHealth.map(ht => `
-            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#8c1d18] shadow-sm">
-                <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
-                    <h3 class="font-medium text-neutral-100 text-sm leading-tight">${ht.name}</h3>
-                    <p class="text-[10px] text-[#ffb4ab] mt-0.5">Czas na dawkę</p>
-                </div>
-                <button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-9 h-9 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
-            </div>`).join('');
-        
-        html += activeDuration.map(ht => {
-            const aLog = hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
-            return `<div class="flex items-center justify-between p-3 bg-rose-900/10 rounded-[16px] border border-rose-900/40 mb-1.5 border-l-4 border-l-rose-500 shadow-sm"><div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')"><h3 class="font-medium text-neutral-100 text-sm leading-tight">${ht.name}</h3><p class="text-[10px] text-rose-400 mt-0.5">W trakcie...</p></div><button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 transition-transform shrink-0">Zakończ</button></div>`;
-        }).join('');
-    }
-
-    if (html === '') {
-        html = `<div class="flex flex-col items-center justify-center py-16 text-center"><div class="text-5xl mb-4">✨</div><h3 class="text-neutral-200 font-medium mb-2">Czysta karta!</h3><p class="text-neutral-500 text-xs">Wszystko zrobione i załatwione.</p></div>`;
+        if (dueHealth.length > 0 || activeDuration.length > 0) {
+            html += dueHealth.map(ht => `
+                <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
+                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
+                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${ht.name}</h3>
+                        <p class="text-[10px] text-[#ffb4ab] mt-0.5">Zaplanowana dawka</p>
+                    </div>
+                    <button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-9 h-9 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
+                </div>`).join('');
+            
+            html += activeDuration.map(ht => {
+                const aLog = hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
+                return `<div class="flex items-center justify-between p-3 bg-rose-900/10 rounded-[16px] border border-rose-900/40 mb-1.5 border-l-4 border-l-rose-500 shadow-sm animate-fade-in"><div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')"><h3 class="font-medium text-neutral-100 text-sm leading-tight">${ht.name}</h3><p class="text-[10px] text-rose-400 mt-0.5">Zdarzenie trwa...</p></div><button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button></div>`;
+            }).join('');
+        } else {
+            html = renderEmptyState("Wszyscy domownicy czują się świetnie!");
+        }
     }
 
     listEl.innerHTML = html;
 };
 
-// Nowa funkcja pomocnicza dla dashboardu
+function renderEmptyState(msg) {
+    return `
+    <div class="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+        <div class="text-5xl mb-4 opacity-50">✨</div>
+        <h3 class="text-neutral-200 font-medium text-sm mb-1">${msg}</h3>
+        <p class="text-neutral-500 text-[10px] uppercase tracking-widest">Wszystko pod kontrolą</p>
+    </div>`;
+}
+
+// --- FUNKCJE SZYBKICH AKCJI (Dashboard) ---
 window.quickCompleteTodoDashboard = async function(id) {
     await supabaseClient.from('todos').update({ is_completed: true }).eq('id', id).eq('user_id', window.currentUser.id);
     window.showToast('Zadanie odhaczone! ✔️');
     window.loadDashboardOverview();
 };
 
-// --- FUNKCJE SZYBKICH AKCJI ---
-window.quickLogTaskDashboard = async function(activityNameEncoded) {
-    const activityName = decodeURIComponent(activityNameEncoded);
+window.quickLogTaskDashboard = async function(name) {
     const d = new Date().toISOString().split('T')[0];
     await supabaseClient.from('activity_logs').insert([{
-        activity_name: activityName, created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id
+        activity_name: decodeURIComponent(name), created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id
     }]);
     window.showToast('Zrobione! ✔️');
     window.loadDashboardOverview(); 
@@ -123,15 +156,13 @@ window.quickLogTaskDashboard = async function(activityNameEncoded) {
 
 window.quickLogHealthDashboard = async function(taskId) {
     const now = new Date().toISOString();
-    await supabaseClient.from('health_logs').insert([{
-        health_task_id: taskId, start_date: now, end_date: now, user_id: window.currentUser.id
-    }]);
-    window.showToast('Zaakceptowano! ✔️');
+    await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: now, end_date: now, user_id: window.currentUser.id }]);
+    window.showToast('Zapisano! ✔️');
     window.loadDashboardOverview();
 };
 
 window.quickEndHealthDashboard = async function(logId) {
     await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('user_id', window.currentUser.id);
-    window.showToast('Zdarzenie zakończone! ✔️');
+    window.showToast('Zakończono! ✔️');
     window.loadDashboardOverview();
 };
