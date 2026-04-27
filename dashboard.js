@@ -8,7 +8,7 @@ window.loadDashboardOverview = async function() {
 
     const uid = window.currentUser.id;
 
-    // POBIERAMY DANE (Dodajemy 'todos')
+    // POBIERAMY DANE
     const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes] = await Promise.all([
         supabaseClient.from('tasks').select('*').eq('user_id', uid),
         supabaseClient.from('activity_logs').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
@@ -42,28 +42,28 @@ window.loadDashboardOverview = async function() {
     const top3Home = scoredTasks.slice(0, 3);
 
     if (top3Home.length > 0) {
-        html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-3 mt-2">🔥 Dom - Najpilniejsze</h3>`;
+        html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2 mt-2">🔥 Dom - Najpilniejsze</h3>`;
         html += top3Home.map(item => `
-            <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-2 border-l-4 border-l-[#ffb4ab]">
+            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#ffb4ab] shadow-sm">
                 <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('home')">
-                    <h3 class="font-medium text-neutral-100 text-sm">${item.t.name}</h3>
-                    <p class="text-[11px] text-[#ffb4ab] mt-1">${item.daysOverdue === 999 ? 'Jeszcze nie było robione' : 'Czas na dziś'}</p>
+                    <h3 class="font-medium text-neutral-100 text-sm leading-tight">${item.t.name}</h3>
+                    <p class="text-[10px] text-[#ffb4ab] mt-0.5">${item.daysOverdue === 999 ? 'Jeszcze nie było robione' : 'Czas na dziś'}</p>
                 </div>
-                <button onclick="window.quickLogTaskDashboard('${encodeURIComponent(item.t.name)}')" class="w-12 h-12 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-xl font-bold">✓</button>
+                <button onclick="window.quickLogTaskDashboard('${encodeURIComponent(item.t.name)}')" class="w-9 h-9 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
             </div>`).join('');
     }
 
-    // 2. NAJSTARSZE ZADANIA TO-DO (Integracja)
+    // 2. NAJSTARSZE ZADANIA TO-DO
     const top3Todos = todos.slice(0, 3);
     if (top3Todos.length > 0) {
-        html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-3 mt-6">📝 Zadania do załatwienia</h3>`;
+        html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2 mt-5">📝 Zadania do załatwienia</h3>`;
         html += top3Todos.map(todo => `
-            <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-2 border-l-4 border-l-[#a8c7fa]">
+            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#a8c7fa] shadow-sm">
                 <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('todo')">
-                    <h3 class="font-medium text-neutral-100 text-sm">${todo.title}</h3>
-                    <p class="text-[11px] text-neutral-500 mt-1">Dodano: ${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
+                    <h3 class="font-medium text-neutral-100 text-sm leading-tight">${todo.title}</h3>
+                    <p class="text-[10px] text-neutral-500 mt-0.5">Dodano: ${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
                 </div>
-                <button onclick="window.quickCompleteTodoDashboard(${todo.id})" class="w-12 h-12 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-xl font-bold">✓</button>
+                <button onclick="window.quickCompleteTodoDashboard(${todo.id})" class="w-9 h-9 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
             </div>`).join('');
     }
 
@@ -80,19 +80,19 @@ window.loadDashboardOverview = async function() {
     const activeDuration = hTasks.filter(ht => ht.task_type === 'duration' && hLogs.some(l => l.health_task_id === ht.id && l.end_date === null));
 
     if (dueHealth.length > 0 || activeDuration.length > 0) {
-        html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-3 mt-6">❤️ Zdrowie - Pod lupą</h3>`;
+        html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2 mt-5">❤️ Zdrowie - Pod lupą</h3>`;
         html += dueHealth.map(ht => `
-            <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-2 border-l-4 border-l-[#8c1d18]">
+            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#8c1d18] shadow-sm">
                 <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
-                    <h3 class="font-medium text-neutral-100 text-sm">${ht.name}</h3>
-                    <p class="text-[11px] text-[#ffb4ab] mt-1">Czas na dawkę</p>
+                    <h3 class="font-medium text-neutral-100 text-sm leading-tight">${ht.name}</h3>
+                    <p class="text-[10px] text-[#ffb4ab] mt-0.5">Czas na dawkę</p>
                 </div>
-                <button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-12 h-12 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-xl font-bold">✓</button>
+                <button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-9 h-9 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
             </div>`).join('');
         
         html += activeDuration.map(ht => {
             const aLog = hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
-            return `<div class="flex items-center justify-between p-4 bg-rose-900/10 rounded-[24px] border border-rose-900/40 mb-2 border-l-4 border-l-rose-500"><div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')"><h3 class="font-medium text-neutral-100 text-sm">${ht.name}</h3><p class="text-[11px] text-rose-400 mt-1">W trakcie...</p></div><button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-4 py-3 rounded-full bg-rose-900/40 text-rose-200 text-xs font-bold uppercase active:scale-90 transition-transform">Zakończ</button></div>`;
+            return `<div class="flex items-center justify-between p-3 bg-rose-900/10 rounded-[16px] border border-rose-900/40 mb-1.5 border-l-4 border-l-rose-500 shadow-sm"><div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')"><h3 class="font-medium text-neutral-100 text-sm leading-tight">${ht.name}</h3><p class="text-[10px] text-rose-400 mt-0.5">W trakcie...</p></div><button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 transition-transform shrink-0">Zakończ</button></div>`;
         }).join('');
     }
 
@@ -107,5 +107,31 @@ window.loadDashboardOverview = async function() {
 window.quickCompleteTodoDashboard = async function(id) {
     await supabaseClient.from('todos').update({ is_completed: true }).eq('id', id).eq('user_id', window.currentUser.id);
     window.showToast('Zadanie odhaczone! ✔️');
+    window.loadDashboardOverview();
+};
+
+// --- FUNKCJE SZYBKICH AKCJI ---
+window.quickLogTaskDashboard = async function(activityNameEncoded) {
+    const activityName = decodeURIComponent(activityNameEncoded);
+    const d = new Date().toISOString().split('T')[0];
+    await supabaseClient.from('activity_logs').insert([{
+        activity_name: activityName, created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id
+    }]);
+    window.showToast('Zrobione! ✔️');
+    window.loadDashboardOverview(); 
+};
+
+window.quickLogHealthDashboard = async function(taskId) {
+    const now = new Date().toISOString();
+    await supabaseClient.from('health_logs').insert([{
+        health_task_id: taskId, start_date: now, end_date: now, user_id: window.currentUser.id
+    }]);
+    window.showToast('Zaakceptowano! ✔️');
+    window.loadDashboardOverview();
+};
+
+window.quickEndHealthDashboard = async function(logId) {
+    await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('user_id', window.currentUser.id);
+    window.showToast('Zdarzenie zakończone! ✔️');
     window.loadDashboardOverview();
 };
