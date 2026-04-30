@@ -81,8 +81,8 @@ async function loadDashboard() {
         Object.entries(roomStats).sort((a,b) => (a[0] === 'Inne' ? 1 : b[0] === 'Inne' ? -1 : a[0].localeCompare(b[0]))).forEach(([roomName, stats]) => {
             const badge = stats.overdue > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${stats.overdue}</div>` : '';
             html += `
-                <div onclick="filterHomeByRoom('${roomName}')" class="relative bg-[#1e1f20] p-4 rounded-[24px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-28">
-                    ${badge}<div class="text-3xl mb-2 opacity-80">${stats.icon}</div><h3 class="text-xs font-medium text-neutral-200">${roomName}</h3>
+                <div onclick="filterHomeByRoom('${esc(roomName)}')" class="relative bg-[#1e1f20] p-4 rounded-[24px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-28">
+                    ${badge}<div class="text-3xl mb-2 opacity-80">${esc(stats.icon)}</div><h3 class="text-xs font-medium text-neutral-200">${esc(roomName)}</h3>
                     <p class="text-[9px] text-neutral-500 mt-1 uppercase tracking-widest">${stats.total} zadań</p>
                 </div>`;
         });
@@ -95,13 +95,13 @@ async function loadDashboard() {
 
     list.innerHTML = scored.length ? scored.map(item => {
         const status = getCompactStatus(item.last?.created_at, item.t.interval_days);
-        const roomBadge = currentRoomFilter === 'Wszystkie' ? `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${item.t.room || 'Inne'}</span>` : '';
+        const roomBadge = currentRoomFilter === 'Wszystkie' ? `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${esc(item.t.room || 'Inne')}</span>` : '';
         const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
 
         return `
             <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1">
-                <div class="flex-1 cursor-pointer pr-4" onclick="window.showToast('${status.tooltip}')">
-                    <h3 class="font-medium text-neutral-100 text-sm flex items-center">${item.t.name} ${roomBadge} ${muteIcon}</h3>
+                <div class="flex-1 cursor-pointer pr-4" onclick="window.showToast('${esc(status.tooltip)}')">
+                    <h3 class="font-medium text-neutral-100 text-sm flex items-center">${esc(item.t.name)} ${roomBadge} ${muteIcon}</h3>
                     <p class="text-[11px] ${status.color} mt-1">${status.label}</p>
                 </div>
                 <div class="flex items-center gap-1.5">
