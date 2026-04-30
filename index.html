@@ -138,36 +138,35 @@
                 </div>
             </header>
 
-            <div class="bg-[#1e1f20] p-5 rounded-[28px] border border-[#333537] mb-6">
-                <div class="flex justify-between items-center">
+            <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] mb-6 overflow-hidden">
+                <div class="p-5 border-b border-[#333537] flex justify-between items-center">
                     <div>
-                        <h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1">Powiadomienia w tle</h3>
-                        <p class="text-xs text-neutral-400 mt-1 pl-1" id="notif-status-text">Wymaga zgody</p>
+                        <h3 class="text-sm font-medium text-neutral-200">Powiadomienia w tle</h3>
+                        <p class="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-widest" id="notif-status-text">Wymaga zgody</p>
                     </div>
                     <button onclick="requestNotificationPermission()" id="notif-enable-btn" class="bg-[#004a77] text-[#c2e7ff] text-[10px] uppercase font-bold px-4 py-2 rounded-full hover:bg-[#005c94] active:scale-95 transition-all hidden">Włącz</button>
                 </div>
+
+                <div onclick="openRoomsSettings()" class="p-5 border-b border-[#333537] flex justify-between items-center cursor-pointer hover:bg-[#333537]/50 transition-colors active:bg-[#333537]">
+                    <div>
+                        <h3 class="text-sm font-medium text-neutral-200">Pomieszczenia</h3>
+                        <p class="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-widest">Zarządzaj pokojami w domu</p>
+                    </div>
+                    <span class="text-neutral-500 text-lg">→</span>
+                </div>
+
+                <div onclick="openProfilesSettings()" class="p-5 flex justify-between items-center cursor-pointer hover:bg-[#333537]/50 transition-colors active:bg-[#333537]">
+                    <div>
+                        <h3 class="text-sm font-medium text-neutral-200">Domownicy</h3>
+                        <p class="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-widest">Zarządzaj profilami zdrowia</p>
+                    </div>
+                    <span class="text-neutral-500 text-lg">→</span>
+                </div>
             </div>
 
-            <div class="bg-[#1e1f20] p-5 rounded-[28px] border border-[#333537] mb-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1">Pomieszczenia</h3>
-                    <button onclick="openNewRoomModal()" class="bg-[#333537] text-neutral-200 text-[10px] uppercase font-bold px-3 py-1.5 rounded-full hover:bg-[#444746] active:scale-95 transition-all">+ Dodaj</button>
-                </div>
-                <div id="settings-rooms-list" class="space-y-2"><p class="text-center text-neutral-500 text-xs py-4">Ładowanie...</p></div>
-            </div>
-
-            <div class="bg-[#1e1f20] p-5 rounded-[28px] border border-[#333537] mb-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1">Domownicy</h3>
-                    <button onclick="openNewProfileModal()" class="bg-[#333537] text-neutral-200 text-[10px] uppercase font-bold px-3 py-1.5 rounded-full hover:bg-[#444746] active:scale-95 transition-all">+ Dodaj</button>
-                </div>
-                <div id="settings-profiles-list" class="space-y-2"><p class="text-center text-neutral-500 text-xs py-4">Ładowanie...</p></div>
-            </div>
-            
-            <div class="bg-[#1e1f20] p-5 rounded-[28px] border border-[#333537] mb-6">
-                <h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-4">Konto</h3>
-                <button onclick="logoutUser()" class="w-full bg-[#3c1414] text-[#ffb4ab] font-medium py-3 rounded-[20px] border border-[#8c1d18]/30 text-sm active:scale-95 transition-transform">Wyloguj się</button>
-            </div>
+            <button onclick="logoutUser()" class="w-full bg-[#3c1414] text-[#ffb4ab] font-medium py-4 rounded-[24px] border border-[#8c1d18]/30 text-sm active:scale-95 transition-transform flex justify-center items-center gap-2">
+                <span class="text-lg">🚪</span> Wyloguj się
+            </button>
         </div>
     </main>
 
@@ -199,6 +198,28 @@
         </div>
         <div id="search-results-list" class="flex-1 overflow-y-auto p-4 sm:p-6">
             <div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Pobieranie danych...</p></div>
+        </div>
+    </div>
+
+    <div id="settings-rooms-screen" class="hidden fixed inset-0 bg-[#131314] z-50 overflow-y-auto flex flex-col transition-all duration-300 screen-view">
+        <div class="max-w-xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col pt-8">
+            <button onclick="window.goBack()" class="flex items-center text-neutral-400 text-sm font-medium mb-6 active:scale-95 w-fit hover:text-neutral-200 transition-colors"><span class="mr-2 text-lg">←</span> Wróć</button>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-medium text-neutral-100 tracking-wide">Pomieszczenia</h2>
+                <button onclick="openNewRoomModal()" class="bg-[#e3e3e3] text-[#131314] text-[10px] uppercase font-bold px-3 py-1.5 rounded-full active:scale-95 transition-all">+ Dodaj</button>
+            </div>
+            <div id="settings-rooms-list" class="space-y-2"><p class="text-center text-neutral-500 text-xs py-4">Ładowanie...</p></div>
+        </div>
+    </div>
+
+    <div id="settings-profiles-screen" class="hidden fixed inset-0 bg-[#131314] z-50 overflow-y-auto flex flex-col transition-all duration-300 screen-view">
+        <div class="max-w-xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col pt-8">
+            <button onclick="window.goBack()" class="flex items-center text-neutral-400 text-sm font-medium mb-6 active:scale-95 w-fit hover:text-neutral-200 transition-colors"><span class="mr-2 text-lg">←</span> Wróć</button>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-medium text-neutral-100 tracking-wide">Domownicy</h2>
+                <button onclick="openNewProfileModal()" class="bg-[#e3e3e3] text-[#131314] text-[10px] uppercase font-bold px-3 py-1.5 rounded-full active:scale-95 transition-all">+ Dodaj</button>
+            </div>
+            <div id="settings-profiles-list" class="space-y-2"><p class="text-center text-neutral-500 text-xs py-4">Ładowanie...</p></div>
         </div>
     </div>
 
