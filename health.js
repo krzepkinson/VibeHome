@@ -112,7 +112,7 @@ function renderHealthTasks() {
 
 window.startHealthLog = async function(taskId, type) {
     const now = new Date().toISOString();
-    await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: now, end_date: (type === 'cyclical' || type === 'one_time') ? now : null, user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
+    await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: now, end_date: (type === 'cyclical' || type === 'one_time') ? now : null, user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name }]);
     window.showToast("Zapisano!"); await refreshHealthData(); renderHealthUI(); if(typeof loadDashboardOverview === 'function') loadDashboardOverview();
 };
 
