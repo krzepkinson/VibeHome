@@ -38,18 +38,20 @@ async function loadTodosAndLists() {
         html += `<p class="text-center text-neutral-500 text-xs py-4">Brak zadań. Dodaj coś!</p>`;
     } else {
         html += todos.map(todo => {
-            let creatorBadge = `<div class="w-5 h-5 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[9px] flex items-center justify-center ml-2 shrink-0" title="Dodał(a): ${todo.creator_name || 'Kogoś'}">${(todo.creator_name || '?')[0].toUpperCase()}</div>`;
-            let completerBadge = todo.is_completed && todo.completer_name ? `<div class="w-5 h-5 rounded-full bg-[#0f5223]/30 border border-[#0f5223]/50 text-[#c4eed0] text-[9px] flex items-center justify-center ml-1 shrink-0" title="Zakończył(a): ${todo.completer_name}">${todo.completer_name[0].toUpperCase()}</div>` : '';
+            // ZMIANA: Tylko jedno kółeczko inicjału, otwierające nową listę!
+            let badge = todo.is_completed 
+                ? `<div onclick="event.stopPropagation(); window.openChangeUserModal('todos', ${todo.id}, '${window.esc(todo.completer_name || '')}')" class="w-5 h-5 rounded-full bg-[#0f5223]/30 border border-[#0f5223]/50 text-[#c4eed0] text-[9px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform" title="Wykonawca" data-user-name="${window.esc(todo.completer_name || '')}">${(todo.completer_name || '?')[0].toUpperCase()}</div>`
+                : `<div onclick="event.stopPropagation(); window.openChangeUserModal('todos_creator', ${todo.id}, '${window.esc(todo.creator_name || '')}')" class="w-5 h-5 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[9px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform" title="Autor" data-user-name="${window.esc(todo.creator_name || '')}">${(todo.creator_name || '?')[0].toUpperCase()}</div>`;
 
-            // ZMIANA: Rozdzielone kliknięcia. Kliknięcie obok/na tekst otwiera edycję!
+            // ZMIANA: Rozdzielone kliknięcia
             return `
             <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 ${todo.is_completed ? 'opacity-50' : ''}">
-                <div class="flex items-center gap-2 flex-1 cursor-pointer" onclick="openEditTodoModal(${todo.id}, '${window.esc(todo.title)}', '${window.esc(todo.completer_name || '')}', ${todo.is_completed})">
+                <div class="flex items-center gap-2 flex-1 cursor-pointer" onclick="openEditTodoModal(${todo.id}, '${window.esc(todo.title)}')">
                     <div onclick="event.stopPropagation(); toggleTodo(${todo.id}, ${todo.is_completed})" class="w-6 h-6 rounded-full border-2 ${todo.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
                         ${todo.is_completed ? '<span class="text-[#0f5223] text-xs">✓</span>' : ''}
                     </div>
                     <span class="text-sm truncate ${todo.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(todo.title)}</span>
-                    <div class="flex">${creatorBadge}${completerBadge}</div>
+                    <div class="flex">${badge}</div>
                 </div>
                 <button onclick="archiveTodo(${todo.id})" class="text-neutral-600 hover:text-[#ffb4ab] pl-3 text-sm shrink-0">🗑️</button>
             </div>`;
@@ -97,19 +99,9 @@ window.archiveChecklist = async function(id) {
     window.showToast("Lista zarchiwizowana!"); loadTodosAndLists();
 };
 
-// NOWOŚĆ: Edycja Zadania To-Do i jego Wykonawcy!
-window.openEditTodoModal = function(id, title, completer, isCompleted) {
+window.openEditTodoModal = function(id, title) {
     document.getElementById('edit-todo-id').value = id;
     document.getElementById('edit-todo-title').value = title;
-    
-    const completerContainer = document.getElementById('edit-todo-completer-container');
-    if (isCompleted) {
-        completerContainer.classList.remove('hidden');
-        document.getElementById('edit-todo-completer').value = completer || '';
-    } else {
-        completerContainer.classList.add('hidden');
-    }
-    
     document.getElementById('edit-todo-modal').classList.remove('hidden');
 }
 
@@ -118,20 +110,12 @@ window.closeEditTodoModal = function() { document.getElementById('edit-todo-moda
 window.saveEditedTodo = async function() {
     const id = document.getElementById('edit-todo-id').value;
     const title = document.getElementById('edit-todo-title').value.trim();
-    const completer = document.getElementById('edit-todo-completer').value.trim();
-    
     if(!title) return;
     
-    const updateData = { title: title };
-    if (!document.getElementById('edit-todo-completer-container').classList.contains('hidden')) {
-        updateData.completer_name = completer || null;
-    }
-
-    await supabaseClient.from('todos').update(updateData).eq('id', id).eq('household_id', window.currentUser.household_id);
+    await supabaseClient.from('todos').update({ title: title }).eq('id', id).eq('household_id', window.currentUser.household_id);
     window.closeEditTodoModal(); window.showToast("Zapisano zmiany!"); loadTodosAndLists();
 }
 
-// --- EKRAN CHECKLISTY ---
 window.openChecklistScreen = function(id, title) {
     currentChecklistId = id; document.getElementById('checklist-screen-title').innerText = title; loadChecklistItems(); window.goForward('checklist-screen');
 };
