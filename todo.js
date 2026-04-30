@@ -14,7 +14,6 @@ async function loadTodosAndLists() {
 
     const uid = window.currentUser.id;
 
-    // Pobieramy TYLKO niezarchiwizowane elementy
     const [todosRes, listsRes] = await Promise.all([
         supabaseClient.from('todos').select('*').eq('user_id', uid).eq('is_archived', false).order('is_completed', { ascending: true }).order('created_at', { ascending: false }),
         supabaseClient.from('checklists').select('*').eq('user_id', uid).eq('is_archived', false).order('created_at', { ascending: false })
@@ -25,36 +24,34 @@ async function loadTodosAndLists() {
 
     let html = '';
 
-    // SEKCJA 1: LISTY (CHECKLISTY)
     if (lists.length > 0) {
         html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2">Twoje Listy</h3>`;
         html += lists.map(list => `
-            <div onclick="openChecklistScreen(${list.id}, '${window.esc(list.title)}')" class="flex items-center justify-between p-4 bg-[#004a77]/20 rounded-[24px] border border-[#004a77]/50 mb-2 cursor-pointer active:scale-95 transition-transform shadow-sm">
+            <div onclick="openChecklistScreen(${list.id}, '${window.esc(list.title)}')" class="flex items-center justify-between p-3 bg-[#004a77]/20 rounded-[16px] border border-[#004a77]/50 mb-1.5 cursor-pointer active:scale-95 transition-transform shadow-sm">
                 <div class="flex items-center gap-3">
-                    <span class="text-xl">🗂️</span>
+                    <span class="text-lg">🗂️</span>
                     <span class="text-sm font-medium text-[#c2e7ff]">${window.esc(list.title)}</span>
                 </div>
-                <button onclick="event.stopPropagation(); archiveChecklist(${list.id})" class="text-neutral-500 hover:text-[#ffb4ab] px-2">🗑️</button>
+                <button onclick="event.stopPropagation(); archiveChecklist(${list.id})" class="text-neutral-500 hover:text-[#ffb4ab] px-2 text-sm">🗑️</button>
             </div>
         `).join('');
-        html += `<div class="h-4"></div>`; // Odstęp
+        html += `<div class="h-3"></div>`; 
     }
 
-    // SEKCJA 2: SZYBKIE ZADANIA
     html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2">Szybkie zadania</h3>`;
     
     if (todos.length === 0) {
         html += `<p class="text-center text-neutral-500 text-xs py-4">Brak zadań. Dodaj coś!</p>`;
     } else {
         html += todos.map(todo => `
-            <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-2 ${todo.is_completed ? 'opacity-50' : ''}">
+            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 ${todo.is_completed ? 'opacity-50' : ''}">
                 <div class="flex items-center gap-3 flex-1 cursor-pointer" onclick="toggleTodo(${todo.id}, ${todo.is_completed})">
-                    <div class="w-6 h-6 rounded-full border-2 ${todo.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors">
-                        ${todo.is_completed ? '<span class="text-[#0f5223] text-xs">✓</span>' : ''}
+                    <div class="w-5 h-5 rounded-full border-2 ${todo.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
+                        ${todo.is_completed ? '<span class="text-[#0f5223] text-[10px]">✓</span>' : ''}
                     </div>
                     <span class="text-sm ${todo.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(todo.title)}</span>
                 </div>
-                <button onclick="archiveTodo(${todo.id})" class="text-neutral-600 hover:text-[#ffb4ab] p-2">🗑️</button>
+                <button onclick="archiveTodo(${todo.id})" class="text-neutral-600 hover:text-[#ffb4ab] px-2 text-sm">🗑️</button>
             </div>
         `).join('');
     }
@@ -62,7 +59,6 @@ async function loadTodosAndLists() {
     listEl.innerHTML = html;
 }
 
-// --- MODALE NOWE ZADANIE / LISTA ---
 window.openNewTodoModal = function() {
     document.getElementById('new-todo-title').value = '';
     document.getElementById('new-todo-modal').classList.remove('hidden');
@@ -89,7 +85,6 @@ window.saveNewList = async function() {
     closeNewListModal(); window.showToast("Lista utworzona!"); loadTodosAndLists();
 };
 
-// --- AKCJE NA POJEDYNCZYCH ZADANIACH ---
 window.toggleTodo = async function(id, currentStatus) {
     await supabaseClient.from('todos').update({ is_completed: !currentStatus }).eq('id', id).eq('user_id', window.currentUser.id);
     loadTodosAndLists();
@@ -97,7 +92,6 @@ window.toggleTodo = async function(id, currentStatus) {
 
 window.archiveTodo = async function(id) {
     if (!confirm("Zarchiwizować to zadanie? Zniknie z głównej listy.")) return;
-    // Zmieniamy fizyczne usuwanie na miękkie!
     await supabaseClient.from('todos').update({ is_archived: true }).eq('id', id).eq('user_id', window.currentUser.id);
     window.showToast("Zarchiwizowano!"); loadTodosAndLists();
 };
@@ -108,7 +102,6 @@ window.archiveChecklist = async function(id) {
     window.showToast("Lista zarchiwizowana!"); loadTodosAndLists();
 };
 
-// --- EKRAN KONKRETNEJ CHECKLISTY ---
 window.openChecklistScreen = function(id, title) {
     currentChecklistId = id;
     document.getElementById('checklist-screen-title').innerText = title;
@@ -131,14 +124,14 @@ window.loadChecklistItems = async function() {
     }
 
     listEl.innerHTML = items.map(item => `
-        <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-2 ${item.is_completed ? 'opacity-50' : ''}">
+        <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 ${item.is_completed ? 'opacity-50' : ''}">
             <div class="flex items-center gap-3 flex-1 cursor-pointer" onclick="toggleChecklistItem(${item.id}, ${item.is_completed})">
-                <div class="w-6 h-6 rounded-full border-2 ${item.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors">
-                    ${item.is_completed ? '<span class="text-[#0f5223] text-xs">✓</span>' : ''}
+                <div class="w-5 h-5 rounded-full border-2 ${item.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
+                    ${item.is_completed ? '<span class="text-[#0f5223] text-[10px]">✓</span>' : ''}
                 </div>
                 <span class="text-sm ${item.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(item.content)}</span>
             </div>
-            <button onclick="deleteChecklistItem(${item.id})" class="text-neutral-600 hover:text-[#ffb4ab] p-2">✕</button>
+            <button onclick="deleteChecklistItem(${item.id})" class="text-neutral-600 hover:text-[#ffb4ab] px-2 text-sm">✕</button>
         </div>
     `).join('');
 };
@@ -148,7 +141,7 @@ window.saveChecklistItem = async function() {
     const content = input.value.trim();
     if (!content || !currentChecklistId) return;
 
-    input.value = ''; // Od razu czyścimy, żeby można było szybko wpisywać dalej
+    input.value = ''; 
     await supabaseClient.from('checklist_items').insert([{ checklist_id: currentChecklistId, user_id: window.currentUser.id, content: content, is_completed: false }]);
     loadChecklistItems();
 };
@@ -159,7 +152,6 @@ window.toggleChecklistItem = async function(id, currentStatus) {
 };
 
 window.deleteChecklistItem = async function(id) {
-    // To usuwamy fizycznie, bo to tylko mały pod-element checklisty
     await supabaseClient.from('checklist_items').delete().eq('id', id).eq('user_id', window.currentUser.id);
     loadChecklistItems();
 };
