@@ -25,15 +25,15 @@ window.loadDashboardOverview = async function() {
 
     listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Analiza Twoich spraw...</p>`;
 
-    const uid = window.currentUser.id;
+    const hid = window.currentUser.household_id; // ZMIANA: używamy ID Domu!
 
     const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes, profilesRes] = await Promise.all([
-        supabaseClient.from('tasks').select('*').eq('user_id', uid).eq('is_archived', false),
-        supabaseClient.from('activity_logs').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
-        supabaseClient.from('health_tasks').select('*').eq('user_id', uid).eq('is_archived', false),
-        supabaseClient.from('health_logs').select('*').eq('user_id', uid).order('start_date', { ascending: false }),
-        supabaseClient.from('todos').select('*').eq('user_id', uid).eq('is_archived', false).order('created_at', { ascending: false }),
-        supabaseClient.from('profiles').select('*').eq('user_id', uid)
+        supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
+        supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }),
+        supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
+        supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }),
+        supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }),
+        supabaseClient.from('profiles').select('*').eq('household_id', hid)
     ]);
 
     const tasks = tasksRes.data || [];
@@ -74,14 +74,22 @@ window.loadDashboardOverview = async function() {
 
     if (window.activeDashboardTab === 'todo') {
         if (activeTodos.length > 0) {
-            html += activeTodos.map(todo => `
+            html += activeTodos.map(todo => {
+                // Inicjał Kto Dodał
+                let creatorBadge = `<div class="w-5 h-5 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[9px] flex items-center justify-center ml-2 shrink-0" title="Dodał(a): ${todo.creator_name || 'Kogoś'}">${(todo.creator_name || '?')[0].toUpperCase()}</div>`;
+                
+                return `
                 <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#a8c7fa] shadow-sm animate-fade-in">
-                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('todo')">
-                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(todo.title)}</h3>
-                        <p class="text-[10px] text-neutral-500 mt-0.5">Dodano: ${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
+                    <div class="flex-1 flex items-center cursor-pointer pr-2" onclick="window.switchView('todo')">
+                        <div>
+                            <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(todo.title)}</h3>
+                            <p class="text-[10px] text-neutral-500 mt-0.5">${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
+                        </div>
+                        ${creatorBadge}
                     </div>
                     <button onclick="window.quickCompleteTodoDashboard(${todo.id})" class="w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
-                </div>`).join('');
+                </div>`;
+            }).join('');
         } else {
             html = renderEmptyState("Wszystkie zadania załatwione!");
         }
@@ -155,15 +163,13 @@ window.loadDashboardOverview = async function() {
                 const profile = profiles.find(p => p.id === ht?.profile_id);
                 const profileStr = profile ? ` (${profile.name})` : '';
                 const d = l.end_date ? new Date(l.end_date) : new Date(l.start_date);
-                historyItems.push({ 
-                    title: (ht ? ht.name : 'Zdarzenie') + profileStr, 
-                    date: d, icon: '❤️', color: 'text-[#ffb4ab]', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50' 
-                });
+                historyItems.push({ title: (ht ? ht.name : 'Zdarzenie') + profileStr, date: d, icon: '❤️', color: 'text-[#ffb4ab]', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50' });
             }
         });
 
         allTodos.filter(t => t.is_completed).forEach(t => {
-            historyItems.push({ title: t.title, date: new Date(t.created_at), icon: '📝', color: 'text-[#a8c7fa]', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50' });
+            const compBadge = t.completer_name ? ` (odhaczył: ${t.completer_name})` : '';
+            historyItems.push({ title: t.title + compBadge, date: new Date(t.created_at), icon: '📝', color: 'text-[#a8c7fa]', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50' });
         });
 
         historyItems.sort((a, b) => b.date - a.date);
@@ -190,36 +196,27 @@ window.loadDashboardOverview = async function() {
 };
 
 function renderEmptyState(msg) {
-    return `
-    <div class="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-        <div class="text-5xl mb-4 opacity-50">✨</div>
-        <h3 class="text-neutral-200 font-medium text-sm mb-1">${msg}</h3>
-        <p class="text-neutral-500 text-[10px] uppercase tracking-widest">Wszystko pod kontrolą</p>
-    </div>`;
+    return `<div class="flex flex-col items-center justify-center py-20 text-center animate-fade-in"><div class="text-5xl mb-4 opacity-50">✨</div><h3 class="text-neutral-200 font-medium text-sm mb-1">${msg}</h3><p class="text-neutral-500 text-[10px] uppercase tracking-widest">Wszystko pod kontrolą</p></div>`;
 }
 
 window.quickCompleteTodoDashboard = async function(id) {
-    await supabaseClient.from('todos').update({ is_completed: true }).eq('id', id).eq('user_id', window.currentUser.id);
-    window.showToast('Zadanie odhaczone! ✔️');
-    window.loadDashboardOverview();
+    await supabaseClient.from('todos').update({ is_completed: true, completer_name: window.currentUser.name }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    window.showToast('Zadanie odhaczone! ✔️'); window.loadDashboardOverview();
 };
 
 window.quickLogTaskDashboard = async function(name) {
     const d = new Date().toISOString().split('T')[0];
-    await supabaseClient.from('activity_logs').insert([{ activity_name: decodeURIComponent(name), created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id }]);
-    window.showToast('Zrobione! ✔️');
-    window.loadDashboardOverview(); 
+    await supabaseClient.from('activity_logs').insert([{ activity_name: decodeURIComponent(name), created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
+    window.showToast('Zrobione! ✔️'); window.loadDashboardOverview(); 
 };
 
 window.quickLogHealthDashboard = async function(taskId) {
     const now = new Date().toISOString();
-    await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: now, end_date: now, user_id: window.currentUser.id }]);
-    window.showToast('Zapisano! ✔️');
-    window.loadDashboardOverview();
+    await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: now, end_date: now, user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
+    window.showToast('Zapisano! ✔️'); window.loadDashboardOverview();
 };
 
 window.quickEndHealthDashboard = async function(logId) {
-    await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('user_id', window.currentUser.id);
-    window.showToast('Zakończono! ✔️');
-    window.loadDashboardOverview();
+    await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('household_id', window.currentUser.household_id);
+    window.showToast('Zakończono! ✔️'); window.loadDashboardOverview();
 };
