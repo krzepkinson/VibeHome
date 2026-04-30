@@ -75,7 +75,7 @@ window.loadDashboardOverview = async function() {
     if (window.activeDashboardTab === 'todo') {
         if (activeTodos.length > 0) {
             html += activeTodos.map(todo => {
-                let creatorBadge = `<div class="w-5 h-5 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[9px] flex items-center justify-center ml-2 shrink-0" title="Dodał(a): ${todo.creator_name || 'Kogoś'}">${(todo.creator_name || '?')[0].toUpperCase()}</div>`;
+                let creatorBadge = `<div onclick="event.stopPropagation(); window.openChangeUserModal('todos_creator', ${todo.id}, '${window.esc(todo.creator_name || '')}')" class="w-5 h-5 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[9px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform" title="Dodał(a)" data-user-name="${window.esc(todo.creator_name || '')}">${(todo.creator_name || '?')[0].toUpperCase()}</div>`;
                 
                 return `
                 <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#a8c7fa] shadow-sm animate-fade-in">
@@ -152,7 +152,7 @@ window.loadDashboardOverview = async function() {
         logs.forEach(l => {
             const t = tasks.find(x => x.name === l.activity_name);
             if (!t || t.show_in_history !== false) {
-                historyItems.push({ title: l.activity_name, date: new Date(l.created_at), icon: '🏠', color: 'text-[#c4eed0]', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' });
+                historyItems.push({ table: 'activity_logs', id: l.id, title: l.activity_name, date: new Date(l.created_at), icon: '🏠', color: 'text-[#c4eed0]', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' });
             }
         });
 
@@ -162,12 +162,12 @@ window.loadDashboardOverview = async function() {
                 const profile = profiles.find(p => p.id === ht?.profile_id);
                 const profileStr = profile ? ` (${profile.name})` : '';
                 const d = l.end_date ? new Date(l.end_date) : new Date(l.start_date);
-                historyItems.push({ title: (ht ? ht.name : 'Zdarzenie') + profileStr, date: d, icon: '❤️', color: 'text-[#ffb4ab]', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' });
+                historyItems.push({ table: 'health_logs', id: l.id, title: (ht ? ht.name : 'Zdarzenie') + profileStr, date: d, icon: '❤️', color: 'text-[#ffb4ab]', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' });
             }
         });
 
         allTodos.filter(t => t.is_completed).forEach(t => {
-            historyItems.push({ title: t.title, date: new Date(t.created_at), icon: '📝', color: 'text-[#a8c7fa]', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' });
+            historyItems.push({ table: 'todos', id: t.id, title: t.title, date: new Date(t.created_at), icon: '📝', color: 'text-[#a8c7fa]', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' });
         });
 
         historyItems.sort((a, b) => b.date - a.date);
@@ -184,7 +184,9 @@ window.loadDashboardOverview = async function() {
                             <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4>
                             <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
                         </div>
-                        <div class="w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 ml-2" title="Wykonał(a): ${item.user}">${item.user[0].toUpperCase()}</div>
+                        <div onclick="event.stopPropagation(); window.openChangeUserModal('${item.table}', ${item.id}, '${window.esc(item.user)}')" class="w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 ml-2 cursor-pointer active:scale-90 transition-transform shadow-sm" title="Zmień wykonawcę" data-user-name="${window.esc(item.user)}">
+                            ${item.user[0].toUpperCase()}
+                        </div>
                     </div>
 
                 </div>
