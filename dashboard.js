@@ -220,4 +220,6 @@ window.quickLogHealthDashboard = async function(taskId) {
 };
 
 window.quickEndHealthDashboard = async function(logId) {
-    await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString(), user_name: window.currentUser.name }).eq('
+    await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString(), user_name: window.currentUser.name }).eq('id', logId).eq('household_id', window.currentUser.household_id);
+    window.showToast('Zakończono! ✔️'); window.loadDashboardOverview();
+};
