@@ -27,13 +27,13 @@ window.loadDashboardOverview = async function() {
 
     const uid = window.currentUser.id;
 
-    // Pobieramy dane + NOWOŚĆ: profile domowników
+    // TYLKO NIEZARCHIWIZOWANE
     const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes, profilesRes] = await Promise.all([
-        supabaseClient.from('tasks').select('*').eq('user_id', uid),
+        supabaseClient.from('tasks').select('*').eq('user_id', uid).eq('is_archived', false),
         supabaseClient.from('activity_logs').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
-        supabaseClient.from('health_tasks').select('*').eq('user_id', uid),
+        supabaseClient.from('health_tasks').select('*').eq('user_id', uid).eq('is_archived', false),
         supabaseClient.from('health_logs').select('*').eq('user_id', uid).order('start_date', { ascending: false }),
-        supabaseClient.from('todos').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+        supabaseClient.from('todos').select('*').eq('user_id', uid).eq('is_archived', false).order('created_at', { ascending: false }),
         supabaseClient.from('profiles').select('*').eq('user_id', uid)
     ]);
 
@@ -153,10 +153,8 @@ window.loadDashboardOverview = async function() {
         hLogs.forEach(l => {
             const ht = hTasks.find(x => x.id === l.health_task_id);
             if (!ht || ht.show_in_history !== false) {
-                // Szukamy imienia domownika przypisanego do zadania
                 const profile = profiles.find(p => p.id === ht?.profile_id);
                 const profileStr = profile ? ` (${profile.name})` : '';
-                
                 const d = l.end_date ? new Date(l.end_date) : new Date(l.start_date);
                 historyItems.push({ 
                     title: (ht ? ht.name : 'Zdarzenie') + profileStr, 
