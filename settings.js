@@ -21,7 +21,7 @@ window.openProfilesSettings = function() {
 };
 
 // --------------------------------------------------------
-// SEKCJA: POWIADOMIENIA
+// SEKCJA: POWIADOMIENIA (Server-Side Push)
 // --------------------------------------------------------
 function checkNotificationStatus() {
     const statusText = document.getElementById('notif-status-text');
@@ -37,34 +37,61 @@ function checkNotificationStatus() {
     if (Notification.permission === "granted") {
         statusText.innerText = "Status: Aktywne 🔔";
         statusText.classList.replace('text-neutral-500', 'text-[#c4eed0]');
-        btn.classList.add('hidden');
+        // Zmieniamy przycisk na "Odśwież", żeby móc wymusić zapis w bazie
+        btn.innerText = "Odśwież"; 
+        btn.classList.remove('hidden');
     } else if (Notification.permission === "denied") {
         statusText.innerText = "Status: Zablokowane 🔕";
         statusText.classList.replace('text-neutral-500', 'text-[#ffb4ab]');
         btn.classList.add('hidden');
     } else {
         statusText.innerText = "Status: Wymaga zgody";
+        btn.innerText = "Włącz";
         btn.classList.remove('hidden');
     }
 }
 
-window.requestNotificationPermission = function() {
+window.requestNotificationPermission = async function() {
     if (!("Notification" in window)) return;
     
-    Notification.requestPermission().then(permission => {
+    try {
+        const permission = await Notification.requestPermission();
         checkNotificationStatus();
+        
         if (permission === "granted") {
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.ready.then(registration => {
-                    registration.showNotification('HomeVibe', {
-                        body: 'Powiadomienia aktywne! 🎉',
-                        icon: '/icon.png',
-                        vibrate: [200, 100, 200]
-                    });
+            window.showToast("Generowanie tokena...");
+            
+            // Rejestracja Service Workera
+            const registration = await navigator.serviceWorker.ready;
+            
+            // Pobranie subskrypcji
+            let subscription = await registration.pushManager.getSubscription();
+            if (!subscription) {
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: window.urlB64ToUint8Array(CONFIG.VAPID_PUBLIC_KEY)
                 });
             }
+
+            // Rozbicie obiektu subskrypcji na części
+            const subData = JSON.parse(JSON.stringify(subscription));
+
+            // Zapis do Supabase
+            const { error } = await supabaseClient.from('push_subscriptions').upsert({
+                user_id: window.currentUser.id,
+                endpoint: subData.endpoint,
+                p256dh: subData.keys.p256dh,
+                auth: subData.keys.auth
+            }, { onConflict: 'user_id, endpoint' });
+
+            if (error) throw error;
+            
+            window.showToast("Gotowe! Urządzenie podłączone 🚀");
         }
-    });
+    } catch (error) {
+        console.error("Błąd subskrypcji:", error);
+        window.showToast("Błąd: " + error.message);
+    }
 };
 
 // --------------------------------------------------------
