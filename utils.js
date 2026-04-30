@@ -25,14 +25,34 @@ window.urlB64ToUint8Array = function(base64String) {
     return outputArray;
 };
 
+// NIEZAWODNE ODŚWIEŻANIE AKTYWNEGO WIDOKU
 window.refreshCurrentView = async function() {
+    const btn = document.activeElement; 
+    if (btn && btn.tagName === 'BUTTON' && btn.innerText.includes('↻')) {
+        btn.style.transform = 'rotate(180deg)';
+        btn.classList.add('opacity-50');
+    }
+    
     try {
-        const view = window.activeView;
-        if (view === 'dashboard') await window.loadDashboardOverview();
-        else if (view === 'home') await window.loadDashboard();
-        else if (view === 'todo') await window.loadTodosAndLists();
-        else if (view === 'health') await window.initHealthModule();
-    } catch(e) { console.error("Błąd odświeżania:", e); }
+        // Sprawdzamy fizycznie w dokumencie HTML, który ekran jest widoczny
+        if (document.getElementById('checklist-screen') && !document.getElementById('checklist-screen').classList.contains('hidden')) {
+            if (typeof window.loadChecklistItems === 'function') await window.loadChecklistItems();
+        } else if (document.getElementById('view-dashboard') && !document.getElementById('view-dashboard').classList.contains('hidden')) {
+            if (typeof window.loadDashboardOverview === 'function') await window.loadDashboardOverview();
+        } else if (document.getElementById('view-home') && !document.getElementById('view-home').classList.contains('hidden')) {
+            if (typeof window.loadDashboard === 'function') await window.loadDashboard();
+        } else if (document.getElementById('view-todo') && !document.getElementById('view-todo').classList.contains('hidden')) {
+            if (typeof window.loadTodosAndLists === 'function') await window.loadTodosAndLists();
+        } else if (document.getElementById('view-profile') && !document.getElementById('view-profile').classList.contains('hidden')) {
+            if (typeof window.initHealthModule === 'function') await window.initHealthModule();
+        }
+    } catch(e) { 
+        console.error("Błąd odświeżania:", e); 
+    } finally {
+        if (btn && btn.tagName === 'BUTTON' && btn.innerText.includes('↻')) {
+            setTimeout(() => { btn.style.transform = ''; btn.classList.remove('opacity-50'); }, 300);
+        }
+    }
 };
 
 window.openChangeUserModal = function(type, id, currentName) {
@@ -76,10 +96,12 @@ window.saveChangedUser = async function(newName) {
 
     const { error } = await supabaseClient.from(table).update({ [col]: newName }).eq('id', id).eq('household_id', window.currentUser.household_id);
 
-    if (error) { window.showToast("Błąd: " + error.message); } 
-    else {
+    if (error) { 
+        window.showToast("Błąd: " + error.message); 
+    } else {
         document.getElementById('change-user-modal').classList.add('hidden');
-        window.showToast("Zmieniono osobę!");
+        window.showToast("Zmieniono osobę! ✔️");
+        // Teraz odświeżenie zadziała bezbłędnie i wymusi przeładowanie danych
         await window.refreshCurrentView();
     }
 };
