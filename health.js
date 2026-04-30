@@ -2,12 +2,8 @@
 // LOGIKA: ZDROWIE (health.js)
 // ==========================================
 
-let healthProfiles = [];
-let healthTasks = [];
-let healthLogs = [];
-let currentProfileId = null;
-let currentMonth = new Date().getMonth();
-let currentYear = new Date().getFullYear();
+let healthProfiles = []; let healthTasks = []; let healthLogs = [];
+let currentProfileId = null; let currentMonth = new Date().getMonth(); let currentYear = new Date().getFullYear();
 let calendarViewMode = 'month'; 
 
 window.initHealthModule = async function() {
@@ -26,8 +22,7 @@ async function refreshHealthData() {
         supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId).eq('user_id', uid),
         supabaseClient.from('health_logs').select('*').eq('user_id', uid).order('start_date', { ascending: false })
     ]);
-    healthTasks = tRes.data || [];
-    healthLogs = lRes.data || [];
+    healthTasks = tRes.data || []; healthLogs = lRes.data || [];
 }
 
 function renderHealthUI() {
@@ -36,21 +31,18 @@ function renderHealthUI() {
     const nameTitle = document.getElementById('profile-name-title');
 
     if (profile) {
-        nameTitle.innerText = profile.name;
-        headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
+        nameTitle.innerText = profile.name; headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
         const colors = ['bg-rose-600', 'bg-blue-600', 'bg-emerald-600', 'bg-amber-600', 'bg-purple-600'];
         headerAvatar.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 ${colors[profile.id % colors.length]}`;
     } else {
         nameTitle.innerText = "Brak profilu"; headerAvatar.innerText = "?";
     }
 
-    renderCalendar();
-    renderHealthTasks();
+    renderCalendar(); renderHealthTasks();
 }
 
 function renderCalendar() {
-    const container = document.getElementById('calendar-container');
-    const title = document.getElementById('calendar-title');
+    const container = document.getElementById('calendar-container'); const title = document.getElementById('calendar-title');
     const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
     title.innerText = `${monthNames[currentMonth]} ${currentYear}`;
     
@@ -63,14 +55,12 @@ function renderCalendar() {
     for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         
-        // Zdarzenia trwające i cykliczne w logach
         const dayLogs = healthLogs.filter(l => {
             const start = l.start_date.split('T')[0];
             const end = l.end_date ? l.end_date.split('T')[0] : new Date().toISOString().split('T')[0];
             return dateStr >= start && dateStr <= end;
         });
 
-        // Jednorazowe z health_tasks
         const oneTimeEvents = healthTasks.filter(t => t.task_type === 'one_time' && t.event_date === dateStr);
         
         const isToday = new Date().toISOString().split('T')[0] === dateStr;
@@ -88,8 +78,7 @@ function renderCalendar() {
 
 window.changeCalendarMonth = function(offset) {
     currentMonth += offset;
-    if (currentMonth < 0) { currentMonth = 11; currentYear--; }
-    else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+    if (currentMonth < 0) { currentMonth = 11; currentYear--; } else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
     renderCalendar();
 }
 
@@ -97,7 +86,6 @@ window.toggleCalendarMode = function() { window.showToast("Widok miesiąca"); }
 
 function getHealthStatusString(task, activeLog, taskLogs) {
     const today = new Date(); today.setHours(0,0,0,0);
-    
     if (task.task_type === 'duration') {
         if (activeLog) {
             const start = new Date(activeLog.start_date); start.setHours(0,0,0,0);
@@ -108,7 +96,7 @@ function getHealthStatusString(task, activeLog, taskLogs) {
         }
         return 'Brak aktywnych';
     } else if (task.task_type === 'one_time') {
-        const isDone = taskLogs.length > 0; // Log oznacza wykonanie
+        const isDone = taskLogs.length > 0; 
         if (isDone) return '<span class="text-neutral-500">Zrealizowane</span>';
         if (!task.event_date) return 'Brak daty';
         const evDate = new Date(task.event_date);
@@ -127,17 +115,13 @@ function getHealthStatusString(task, activeLog, taskLogs) {
 
 function renderHealthTasks() {
     const list = document.getElementById('health-tasks-list');
-    if (healthTasks.length === 0) {
-        list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak przypisanych leków lub zdarzeń.</p>`;
-        return;
-    }
+    if (healthTasks.length === 0) { list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak przypisanych leków lub zdarzeń.</p>`; return; }
 
     list.innerHTML = healthTasks.map(task => {
         const tLogs = healthLogs.filter(l => l.health_task_id === task.id);
         const activeLog = tLogs.find(l => l.end_date === null);
         const statusStr = getHealthStatusString(task, activeLog, tLogs);
 
-        // Zmiana ikonki akcji zależnie od typu
         let actionBtn = '';
         if (task.task_type === 'one_time') {
             const isDone = tLogs.length > 0;
@@ -162,17 +146,14 @@ function renderHealthTasks() {
 }
 
 window.startHealthLog = async function(taskId, type) {
-    const uid = window.currentUser.id;
-    const now = new Date().toISOString();
+    const uid = window.currentUser.id; const now = new Date().toISOString();
     await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: now, end_date: (type === 'cyclical' || type === 'one_time') ? now : null, user_id: uid }]);
-    window.showToast("Zapisano!");
-    await refreshHealthData(); renderHealthUI(); if(typeof loadDashboardOverview === 'function') loadDashboardOverview();
+    window.showToast("Zapisano!"); await refreshHealthData(); renderHealthUI(); if(typeof loadDashboardOverview === 'function') loadDashboardOverview();
 }
 
 window.closeHealthLog = async function(logId) {
     await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('user_id', window.currentUser.id);
-    window.showToast("Zakończono");
-    await refreshHealthData(); renderHealthUI(); if(typeof loadDashboardOverview === 'function') loadDashboardOverview();
+    window.showToast("Zakończono"); await refreshHealthData(); renderHealthUI(); if(typeof loadDashboardOverview === 'function') loadDashboardOverview();
 }
 
 window.openNewHealthTaskModal = function() { 
@@ -192,8 +173,8 @@ window.toggleHealthInterval = function() {
 window.saveNewHealthTask = async function() {
     const n = document.getElementById('h-task-name').value.trim();
     const type = document.getElementById('h-task-type').value;
-    
     let interval = 0; let remind = 0; let evDate = null;
+    
     if (type === 'cyclical') {
         interval = parseInt(document.getElementById('h-task-interval').value) || 0;
         remind = parseInt(document.getElementById('h-task-remind').value) || 0;
@@ -204,7 +185,7 @@ window.saveNewHealthTask = async function() {
 
     if (!n || !currentProfileId) return;
     await supabaseClient.from('health_tasks').insert([{ 
-        profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, remind_days_before: remind, event_date: evDate, user_id: window.currentUser.id 
+        profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, remind_days_before: remind, event_date: evDate, show_in_history: true, user_id: window.currentUser.id 
     }]);
     closeNewHealthTaskModal(); window.initHealthModule();
 }
@@ -226,6 +207,8 @@ window.openHealthSettingsScreen = async function(taskId) {
         document.getElementById('set-h-task-date').value = task.event_date || '';
         document.getElementById('set-h-task-remind-date').value = task.remind_days_before || 0;
     }
+    
+    document.getElementById('set-h-task-history').checked = task.show_in_history !== false; // Nowość
 
     renderHealthHistory(); window.goForward('health-settings-screen');
 }
@@ -235,8 +218,9 @@ window.closeHealthSettingsScreen = function() { window.goBack(); }
 window.saveHealthTaskSettings = async function() {
     const task = healthTasks.find(t => t.id === currentHealthSettingsId);
     const n = document.getElementById('set-h-task-name').value.trim();
+    const showHist = document.getElementById('set-h-task-history').checked; // Nowość
     
-    let updateData = { name: n };
+    let updateData = { name: n, show_in_history: showHist };
     if (task.task_type === 'cyclical') {
         updateData.interval_days = parseInt(document.getElementById('set-h-task-interval').value) || 0;
         updateData.remind_days_before = parseInt(document.getElementById('set-h-task-remind').value) || 0;
@@ -246,8 +230,7 @@ window.saveHealthTaskSettings = async function() {
     }
 
     await supabaseClient.from('health_tasks').update(updateData).eq('id', currentHealthSettingsId).eq('user_id', window.currentUser.id);
-    window.showToast("Zapisano!");
-    window.initHealthModule();
+    window.showToast("Zapisano!"); window.initHealthModule();
 }
 
 function renderHealthHistory() {
@@ -275,13 +258,11 @@ window.deleteHealthTask = async function() {
 }
 
 window.openDayDetails = function(dateStr) {
-    const modal = document.getElementById('day-details-modal');
-    const list = document.getElementById('day-details-list');
+    const modal = document.getElementById('day-details-modal'); const list = document.getElementById('day-details-list');
     document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
     
     const dayLogs = healthLogs.filter(l => {
-        const start = l.start_date.split('T')[0];
-        const end = l.end_date ? l.end_date.split('T')[0] : new Date().toISOString().split('T')[0];
+        const start = l.start_date.split('T')[0]; const end = l.end_date ? l.end_date.split('T')[0] : new Date().toISOString().split('T')[0];
         return dateStr >= start && dateStr <= end;
     });
 
@@ -295,7 +276,6 @@ window.openDayDetails = function(dateStr) {
             const isDone = healthLogs.some(l => l.health_task_id === t.id);
             itemsHtml += `<div class="p-3 bg-[#1e1f20] rounded-xl border border-[#004a77]/30 mb-2"><p class="text-sm font-medium text-[#c2e7ff]">📅 ${window.esc(t.name)}</p><p class="text-[10px] text-neutral-500 mt-0.5">${isDone ? 'Zrealizowane' : 'Do zrobienia'}</p></div>`;
         });
-
         dayLogs.forEach(l => {
             const task = healthTasks.find(t => t.id === l.health_task_id) || { name: 'Usunięte zadanie' };
             itemsHtml += `<div class="p-3 bg-[#131314] rounded-xl border border-[#333537] mb-2"><p class="text-sm font-medium text-neutral-200">${window.esc(task.name)}</p><p class="text-[10px] text-neutral-500 mt-0.5">${l.end_date ? 'Zdarzenie zakończone' : 'W trakcie...'}</p></div>`;
