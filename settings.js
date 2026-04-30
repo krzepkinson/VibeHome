@@ -11,7 +11,6 @@ window.initSettingsModule = function() {
     checkNotificationStatus(); 
 };
 
-// --- NAWIGACJA USTAWIEŃ ---
 window.openRoomsSettings = function() {
     window.goForward('settings-rooms-screen');
 };
@@ -20,9 +19,6 @@ window.openProfilesSettings = function() {
     window.goForward('settings-profiles-screen');
 };
 
-// --------------------------------------------------------
-// SEKCJA: POWIADOMIENIA (Server-Side Push)
-// --------------------------------------------------------
 function checkNotificationStatus() {
     const statusText = document.getElementById('notif-status-text');
     const btn = document.getElementById('notif-enable-btn');
@@ -87,9 +83,6 @@ window.requestNotificationPermission = async function() {
     }
 };
 
-// --------------------------------------------------------
-// SEKCJA: POMIESZCZENIA
-// --------------------------------------------------------
 async function fetchRoomsFromDB() {
     const uid = window.currentUser.id;
     const { data } = await supabaseClient.from('rooms').select('*').eq('user_id', uid).order('name');
@@ -107,7 +100,7 @@ window.loadAppRooms = async function() {
     }
 
     listEl.innerHTML = appRooms.map(room => `
-        <div class="flex justify-between items-center p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537]">
+        <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
             <div class="flex items-center gap-3">
                 <span class="text-xl">${window.esc(room.icon || '📦')}</span>
                 <span class="text-sm font-medium text-neutral-200">${window.esc(room.name)}</span>
@@ -191,9 +184,6 @@ window.populateRoomsDropdown = async function(selectId, selectedValue = '') {
     if (selectedValue) selectEl.value = selectedValue;
 };
 
-// --------------------------------------------------------
-// SEKCJA: DOMOWNICY
-// --------------------------------------------------------
 function getAgeBadge(birthDateStr) {
     if (!birthDateStr) return '';
     const birthDate = new Date(birthDateStr);
@@ -232,15 +222,15 @@ window.loadAppProfiles = async function() {
         const colors = ['bg-rose-600', 'bg-blue-600', 'bg-emerald-600', 'bg-amber-600', 'bg-purple-600'];
         const avatarColor = colors[p.id % colors.length];
         return `
-        <div class="flex justify-between items-center p-3 bg-[#1e1f20] rounded-[20px] border border-[#333537]">
+        <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 ${avatarColor} text-white rounded-full flex items-center justify-center font-bold shadow-md border-2 border-[#131314]">${window.esc(p.name.charAt(0).toUpperCase())}</div>
+                <div class="w-8 h-8 ${avatarColor} text-white rounded-full flex items-center justify-center font-bold shadow-md border-2 border-[#131314]">${window.esc(p.name.charAt(0).toUpperCase())}</div>
                 <div>
                     <span class="text-sm font-medium text-neutral-200 flex items-center">${window.esc(p.name)} ${getAgeBadge(p.birth_date)}</span>
                     <span class="text-[10px] text-neutral-500 mt-0.5 block">${p.height ? window.esc(p.height) + ' cm' : '-- cm'} • ${p.weight ? window.esc(p.weight) + ' kg' : '-- kg'}</span>
                 </div>
             </div>
-            <button onclick="openEditProfileScreen(${p.id})" class="w-10 h-10 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">⚙️</button>
+            <button onclick="openEditProfileScreen(${p.id})" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">⚙️</button>
         </div>`;
     }).join('');
 };
@@ -286,9 +276,6 @@ window.saveProfileDetails = async function() {
     if(typeof initHealthModule === 'function') initHealthModule();
 };
 
-// --------------------------------------------------------
-// SEKCJA: USTAWIENIA ZADAŃ DOMOWYCH
-// --------------------------------------------------------
 window.currentEditingHomeTask = '';
 
 window.openSettingsScreen = async function(name) {
@@ -333,7 +320,6 @@ window.saveTaskSettings = async function() {
     if(typeof loadDashboard === 'function') loadDashboard();
 };
 
-// ZMIANA: Miękkie usuwanie dla Domu
 window.deleteCurrentTask = async function() {
     if(confirm("Zarchiwizować czynność? Zniknie z głównych widoków.")) { 
         await supabaseClient.from('tasks').update({ is_archived: true }).eq('name', window.currentEditingHomeTask).eq('user_id', window.currentUser.id); 
@@ -342,9 +328,6 @@ window.deleteCurrentTask = async function() {
     }
 };
 
-// --------------------------------------------------------
-// SEKCJA: ARCHIWUM GŁÓWNE
-// --------------------------------------------------------
 window.openArchiveScreen = function() {
     window.goForward('archive-screen');
     window.loadArchiveData();
@@ -374,17 +357,17 @@ window.loadArchiveData = async function() {
     }
 
     listEl.innerHTML = items.map(item => `
-        <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-2 animate-fade-in">
+        <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1.5 animate-fade-in">
             <div class="flex items-center gap-3">
-                <span class="text-xl">${item.icon}</span>
+                <span class="text-lg">${item.icon}</span>
                 <div>
                     <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4>
-                    <p class="text-[10px] text-neutral-500 uppercase tracking-widest">${item.typeName}</p>
+                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest">${item.typeName}</p>
                 </div>
             </div>
-            <div class="flex gap-1">
-                <button onclick="window.restoreFromArchive('${item.type}', ${item.id})" class="px-3 py-1.5 rounded-full bg-[#0f5223]/20 text-[#c4eed0] text-[10px] font-bold uppercase tracking-wider active:scale-95 border border-[#0f5223]/50">Przywróć</button>
-                <button onclick="window.permanentlyDelete('${item.type}', ${item.id})" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-sm border border-transparent">🗑️</button>
+            <div class="flex gap-1 shrink-0">
+                <button onclick="window.restoreFromArchive('${item.type}', ${item.id})" class="px-3 py-1.5 rounded-full bg-[#0f5223]/20 text-[#c4eed0] text-[9px] font-bold uppercase tracking-wider active:scale-95 border border-[#0f5223]/50">Przywróć</button>
+                <button onclick="window.permanentlyDelete('${item.type}', ${item.id})" class="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-xs border border-transparent">🗑️</button>
             </div>
         </div>
     `).join('');
@@ -394,7 +377,6 @@ window.restoreFromArchive = async function(table, id) {
     await supabaseClient.from(table).update({ is_archived: false }).eq('id', id).eq('user_id', window.currentUser.id);
     window.showToast("Przywrócono!");
     window.loadArchiveData();
-    // Odświeżenie w tle na wypadek powrotu
     if(typeof loadDashboard === 'function') loadDashboard();
     if(typeof window.initHealthModule === 'function') window.initHealthModule();
 };
@@ -402,7 +384,6 @@ window.restoreFromArchive = async function(table, id) {
 window.permanentlyDelete = async function(table, id) {
     if (!confirm("Usunąć trwale? Tej operacji nie można cofnąć, usunie również historię wpisów!")) return;
     
-    // Jeśli to Dom, musimy usunąć też logi na podstawie nazwy zadania
     if (table === 'tasks') {
         const { data } = await supabaseClient.from('tasks').select('name').eq('id', id).single();
         if (data) await supabaseClient.from('activity_logs').delete().eq('activity_name', data.name).eq('user_id', window.currentUser.id);
