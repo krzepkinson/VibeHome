@@ -5,31 +5,32 @@
 let appRooms = []; let appProfiles = [];
 
 window.initSettingsModule = function() {
-    // NOWOŚĆ: Wyświetlanie Kodu Domu dla Rodziny
     const hidLabel = document.getElementById('household-id-label');
-    if (hidLabel && window.currentUser) {
-        hidLabel.innerText = window.currentUser.household_id;
-    }
-
+    if (hidLabel && window.currentUser) { hidLabel.innerText = window.currentUser.household_id; }
     loadAppRooms(); loadAppProfiles(); checkNotificationStatus(); 
 };
 
-// NOWOŚĆ: Funkcja do dołączania do domu Partnera
+// NOWOŚĆ: Zapis Twojego Imienia!
+window.saveUserName = async function() {
+    const name = document.getElementById('settings-user-name').value.trim();
+    if(!name) return;
+    await supabaseClient.auth.updateUser({ data: { name: name } });
+    window.currentUser.name = name;
+    window.showToast("Zapisano imię!");
+    
+    // Odświeżamy widoki, żeby inicjał od razu się podmienił
+    if (typeof window.loadDashboardOverview === 'function') window.loadDashboardOverview();
+    if (typeof window.loadTodosAndLists === 'function') window.loadTodosAndLists();
+};
+
 window.joinHousehold = async function() {
     const code = prompt("Wpisz ID domu Twojego Partnera/Partnerki:");
     if (!code || code.trim() === '') return;
-    
     if (confirm("UWAGA: Dołączenie do innego domu sprawi, że stracisz dostęp do swoich obecnych, prywatnych zadań. Kontynuować?")) {
-        // Usuwamy stary przydział
         await supabaseClient.from('household_members').delete().eq('user_id', window.currentUser.id);
-        // Dodajemy do nowego
         const { error } = await supabaseClient.from('household_members').insert([{ household_id: code.trim(), user_id: window.currentUser.id }]);
-        
         if (error) { window.showToast("Błąd! Niepoprawny kod domu."); }
-        else {
-            window.showToast("Zsynchronizowano! Przeładuj aplikację.");
-            setTimeout(() => window.location.reload(), 2000);
-        }
+        else { window.showToast("Zsynchronizowano! Przeładuj aplikację."); setTimeout(() => window.location.reload(), 2000); }
     }
 }
 
