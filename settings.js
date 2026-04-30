@@ -2,182 +2,106 @@
 // LOGIKA: USTAWIENIA GŁÓWNE (settings.js)
 // ==========================================
 
-let appRooms = [];
-let appProfiles = [];
+let appRooms = []; let appProfiles = [];
 
 window.initSettingsModule = function() {
-    loadAppRooms();
-    loadAppProfiles();
-    checkNotificationStatus(); 
+    // NOWOŚĆ: Wyświetlanie Kodu Domu dla Rodziny
+    const hidLabel = document.getElementById('household-id-label');
+    if (hidLabel && window.currentUser) {
+        hidLabel.innerText = window.currentUser.household_id;
+    }
+
+    loadAppRooms(); loadAppProfiles(); checkNotificationStatus(); 
 };
 
-window.openRoomsSettings = function() {
-    window.goForward('settings-rooms-screen');
-};
+// NOWOŚĆ: Funkcja do dołączania do domu Partnera
+window.joinHousehold = async function() {
+    const code = prompt("Wpisz ID domu Twojego Partnera/Partnerki:");
+    if (!code || code.trim() === '') return;
+    
+    if (confirm("UWAGA: Dołączenie do innego domu sprawi, że stracisz dostęp do swoich obecnych, prywatnych zadań. Kontynuować?")) {
+        // Usuwamy stary przydział
+        await supabaseClient.from('household_members').delete().eq('user_id', window.currentUser.id);
+        // Dodajemy do nowego
+        const { error } = await supabaseClient.from('household_members').insert([{ household_id: code.trim(), user_id: window.currentUser.id }]);
+        
+        if (error) { window.showToast("Błąd! Niepoprawny kod domu."); }
+        else {
+            window.showToast("Zsynchronizowano! Przeładuj aplikację.");
+            setTimeout(() => window.location.reload(), 2000);
+        }
+    }
+}
 
-window.openProfilesSettings = function() {
-    window.goForward('settings-profiles-screen');
-};
+window.openRoomsSettings = function() { window.goForward('settings-rooms-screen'); };
+window.openProfilesSettings = function() { window.goForward('settings-profiles-screen'); };
 
 function checkNotificationStatus() {
-    const statusText = document.getElementById('notif-status-text');
-    const btn = document.getElementById('notif-enable-btn');
+    const statusText = document.getElementById('notif-status-text'); const btn = document.getElementById('notif-enable-btn');
     if (!statusText || !btn) return;
-
-    if (!("Notification" in window)) {
-        statusText.innerText = "Twoja przeglądarka nie wspiera powiadomień.";
-        btn.classList.add('hidden');
-        return;
-    }
-
-    if (Notification.permission === "granted") {
-        statusText.innerText = "Status: Aktywne 🔔";
-        statusText.classList.replace('text-neutral-500', 'text-[#c4eed0]');
-        btn.innerText = "Odśwież"; 
-        btn.classList.remove('hidden');
-    } else if (Notification.permission === "denied") {
-        statusText.innerText = "Status: Zablokowane 🔕";
-        statusText.classList.replace('text-neutral-500', 'text-[#ffb4ab]');
-        btn.classList.add('hidden');
-    } else {
-        statusText.innerText = "Status: Wymaga zgody";
-        btn.innerText = "Włącz";
-        btn.classList.remove('hidden');
-    }
+    if (!("Notification" in window)) { statusText.innerText = "Twoja przeglądarka nie wspiera powiadomień."; btn.classList.add('hidden'); return; }
+    if (Notification.permission === "granted") { statusText.innerText = "Status: Aktywne 🔔"; statusText.classList.replace('text-neutral-500', 'text-[#c4eed0]'); btn.innerText = "Odśwież"; btn.classList.remove('hidden'); }
+    else if (Notification.permission === "denied") { statusText.innerText = "Status: Zablokowane 🔕"; statusText.classList.replace('text-neutral-500', 'text-[#ffb4ab]'); btn.classList.add('hidden'); }
+    else { statusText.innerText = "Status: Wymaga zgody"; btn.innerText = "Włącz"; btn.classList.remove('hidden'); }
 }
 
 window.requestNotificationPermission = async function() {
     if (!("Notification" in window)) return;
-    
     try {
-        const permission = await Notification.requestPermission();
-        checkNotificationStatus();
-        
+        const permission = await Notification.requestPermission(); checkNotificationStatus();
         if (permission === "granted") {
             window.showToast("Generowanie tokena...");
-            
             const registration = await navigator.serviceWorker.ready;
             let subscription = await registration.pushManager.getSubscription();
-            if (!subscription) {
-                subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: window.urlB64ToUint8Array(CONFIG.VAPID_PUBLIC_KEY)
-                });
-            }
-
+            if (!subscription) { subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: window.urlB64ToUint8Array(CONFIG.VAPID_PUBLIC_KEY) }); }
             const subData = JSON.parse(JSON.stringify(subscription));
-
-            const { error } = await supabaseClient.from('push_subscriptions').upsert({
-                user_id: window.currentUser.id,
-                endpoint: subData.endpoint,
-                p256dh: subData.keys.p256dh,
-                auth: subData.keys.auth
-            }, { onConflict: 'user_id, endpoint' });
-
-            if (error) throw error;
-            window.showToast("Gotowe! Urządzenie podłączone 🚀");
+            const { error } = await supabaseClient.from('push_subscriptions').upsert({ user_id: window.currentUser.id, endpoint: subData.endpoint, p256dh: subData.keys.p256dh, auth: subData.keys.auth }, { onConflict: 'user_id, endpoint' });
+            if (error) throw error; window.showToast("Gotowe! Urządzenie podłączone 🚀");
         }
-    } catch (error) {
-        console.error("Błąd subskrypcji:", error);
-        window.showToast("Błąd: " + error.message);
-    }
+    } catch (error) { window.showToast("Błąd: " + error.message); }
 };
 
 async function fetchRoomsFromDB() {
-    const uid = window.currentUser.id;
-    const { data } = await supabaseClient.from('rooms').select('*').eq('user_id', uid).order('name');
-    appRooms = data || [];
-    return appRooms;
+    const { data } = await supabaseClient.from('rooms').select('*').eq('household_id', window.currentUser.household_id).order('name');
+    appRooms = data || []; return appRooms;
 }
 
 window.loadAppRooms = async function() {
-    const listEl = document.getElementById('settings-rooms-list');
-    await fetchRoomsFromDB();
-
-    if (appRooms.length === 0) {
-        listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak zdefiniowanych pomieszczeń.</p>`;
-        return;
-    }
-
-    listEl.innerHTML = appRooms.map(room => `
-        <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
-            <div class="flex items-center gap-3">
-                <span class="text-xl">${window.esc(room.icon || '📦')}</span>
-                <span class="text-sm font-medium text-neutral-200">${window.esc(room.name)}</span>
-            </div>
-            <div class="flex gap-1">
-                <button onclick="openEditRoomModal('${encodeURIComponent(room.name)}', '${room.icon}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">✏️</button>
-                <button onclick="deleteRoom('${encodeURIComponent(room.name)}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-sm">🗑️</button>
-            </div>
-        </div>
-    `).join('');
+    const listEl = document.getElementById('settings-rooms-list'); await fetchRoomsFromDB();
+    if (appRooms.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak zdefiniowanych pomieszczeń.</p>`; return; }
+    listEl.innerHTML = appRooms.map(room => `<div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5"><div class="flex items-center gap-3"><span class="text-xl">${window.esc(room.icon || '📦')}</span><span class="text-sm font-medium text-neutral-200">${window.esc(room.name)}</span></div><div class="flex gap-1"><button onclick="openEditRoomModal('${encodeURIComponent(room.name)}', '${room.icon}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">✏️</button><button onclick="deleteRoom('${encodeURIComponent(room.name)}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-sm">🗑️</button></div></div>`).join('');
 };
 
-window.openNewRoomModal = function() {
-    document.getElementById('new-room-name').value = '';
-    document.getElementById('new-room-icon').value = '🏠';
-    document.getElementById('new-room-modal').classList.remove('hidden');
-};
-
+window.openNewRoomModal = function() { document.getElementById('new-room-name').value = ''; document.getElementById('new-room-icon').value = '🏠'; document.getElementById('new-room-modal').classList.remove('hidden'); };
 window.closeNewRoomModal = function() { document.getElementById('new-room-modal').classList.add('hidden'); };
-
 window.saveNewRoom = async function() {
-    const name = document.getElementById('new-room-name').value.trim();
-    const icon = document.getElementById('new-room-icon').value.trim();
+    const name = document.getElementById('new-room-name').value.trim(); const icon = document.getElementById('new-room-icon').value.trim();
     if (!name) return;
-
-    const { error } = await supabaseClient.from('rooms').insert([{ 
-        name: name, icon: icon || '📦', user_id: window.currentUser.id 
-    }]);
-    
-    if (error) {
-        if (error.code === '23505') window.showToast('Pomieszczenie o tej nazwie już istnieje!');
-        else window.showToast('Błąd zapisu: ' + error.message);
-    } else {
-        closeNewRoomModal(); window.showToast('Dodano pomieszczenie!'); loadAppRooms();
-    }
+    const { error } = await supabaseClient.from('rooms').insert([{ name: name, icon: icon || '📦', user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
+    if (error) { if (error.code === '23505') window.showToast('Istnieje!'); else window.showToast('Błąd zapisu'); } else { closeNewRoomModal(); window.showToast('Dodano!'); loadAppRooms(); }
 };
 
 window.openEditRoomModal = function(encodedName, icon) {
-    const name = decodeURIComponent(encodedName);
-    document.getElementById('edit-room-old-name').value = name;
-    document.getElementById('edit-room-name').value = name;
-    document.getElementById('edit-room-icon').value = icon || '📦';
-    document.getElementById('edit-room-modal').classList.remove('hidden');
+    const name = decodeURIComponent(encodedName); document.getElementById('edit-room-old-name').value = name; document.getElementById('edit-room-name').value = name; document.getElementById('edit-room-icon').value = icon || '📦'; document.getElementById('edit-room-modal').classList.remove('hidden');
 };
-
 window.closeEditRoomModal = function() { document.getElementById('edit-room-modal').classList.add('hidden'); };
-
 window.saveEditRoom = async function() {
-    const oldName = document.getElementById('edit-room-old-name').value;
-    const newName = document.getElementById('edit-room-name').value.trim();
-    const newIcon = document.getElementById('edit-room-icon').value.trim() || '📦';
-    const uid = window.currentUser.id;
-
+    const oldName = document.getElementById('edit-room-old-name').value; const newName = document.getElementById('edit-room-name').value.trim(); const newIcon = document.getElementById('edit-room-icon').value.trim() || '📦';
     if (!newName) return;
-    const { error } = await supabaseClient.from('rooms').update({ name: newName, icon: newIcon }).eq('name', oldName).eq('user_id', uid);
-    
+    const { error } = await supabaseClient.from('rooms').update({ name: newName, icon: newIcon }).eq('name', oldName).eq('household_id', window.currentUser.household_id);
     if (error) { window.showToast('Błąd zapisu'); return; }
-
-    if (oldName !== newName) {
-        await supabaseClient.from('tasks').update({ room: newName }).eq('room', oldName).eq('user_id', uid);
-    }
-
-    closeEditRoomModal(); window.showToast('Zaktualizowano pomieszczenie!'); loadAppRooms();
-    if (typeof loadDashboard === 'function') loadDashboard();
+    if (oldName !== newName) { await supabaseClient.from('tasks').update({ room: newName }).eq('room', oldName).eq('household_id', window.currentUser.household_id); }
+    closeEditRoomModal(); window.showToast('Zaktualizowano pomieszczenie!'); loadAppRooms(); if (typeof loadDashboard === 'function') loadDashboard();
 };
 
 window.deleteRoom = async function(encodedName) {
-    const name = decodeURIComponent(encodedName);
-    if (!confirm(`Usunąć pomieszczenie "${name}"?`)) return;
-    await supabaseClient.from('rooms').delete().eq('name', name).eq('user_id', window.currentUser.id);
-    window.showToast('Usunięto pomieszczenie'); loadAppRooms();
-    if (typeof loadDashboard === 'function') loadDashboard();
+    const name = decodeURIComponent(encodedName); if (!confirm(`Usunąć pomieszczenie "${name}"?`)) return;
+    await supabaseClient.from('rooms').delete().eq('name', name).eq('household_id', window.currentUser.household_id);
+    window.showToast('Usunięto pomieszczenie'); loadAppRooms(); if (typeof loadDashboard === 'function') loadDashboard();
 };
 
 window.populateRoomsDropdown = async function(selectId, selectedValue = '') {
-    const selectEl = document.getElementById(selectId);
-    if (!selectEl) return;
+    const selectEl = document.getElementById(selectId); if (!selectEl) return;
     if (appRooms.length === 0) await fetchRoomsFromDB();
     selectEl.innerHTML = appRooms.map(r => `<option value="${window.esc(r.name)}">${window.esc(r.icon)} ${window.esc(r.name)}</option>`).join('');
     if (!appRooms.find(r => r.name === 'Inne')) selectEl.innerHTML += `<option value="Inne">📦 Inne</option>`;
@@ -185,164 +109,92 @@ window.populateRoomsDropdown = async function(selectId, selectedValue = '') {
 };
 
 function getAgeBadge(birthDateStr) {
-    if (!birthDateStr) return '';
-    const birthDate = new Date(birthDateStr);
-    const today = new Date();
-    let totalMonths = (today.getFullYear() - birthDate.getFullYear()) * 12;
-    totalMonths -= birthDate.getMonth(); totalMonths += today.getMonth();
-    if (today.getDate() < birthDate.getDate()) totalMonths--;
-    if (totalMonths < 0) totalMonths = 0;
-
+    if (!birthDateStr) return ''; const birthDate = new Date(birthDateStr); const today = new Date();
+    let totalMonths = (today.getFullYear() - birthDate.getFullYear()) * 12; totalMonths -= birthDate.getMonth(); totalMonths += today.getMonth();
+    if (today.getDate() < birthDate.getDate()) totalMonths--; if (totalMonths < 0) totalMonths = 0;
     let ageText = "";
-    if (totalMonths < 24) {
-        if (totalMonths === 1) ageText = "1 miesiąc";
-        else if ([2, 3, 4, 22, 23].includes(totalMonths)) ageText = `${totalMonths} miesiące`;
-        else ageText = `${totalMonths} miesięcy`;
-    } else {
-        const years = Math.floor(totalMonths / 12);
-        if (years === 1) ageText = "1 rok";
-        else if ([2, 3, 4].includes(years % 10) && ![12, 13, 14].includes(years % 100)) ageText = `${years} lata`;
-        else ageText = `${years} lat`;
-    }
+    if (totalMonths < 24) { if (totalMonths === 1) ageText = "1 miesiąc"; else if ([2, 3, 4, 22, 23].includes(totalMonths)) ageText = `${totalMonths} miesiące`; else ageText = `${totalMonths} miesięcy`; } 
+    else { const years = Math.floor(totalMonths / 12); if (years === 1) ageText = "1 rok"; else if ([2, 3, 4].includes(years % 10) && ![12, 13, 14].includes(years % 100)) ageText = `${years} lata`; else ageText = `${years} lat`; }
     return `<span class="bg-[#333537] text-neutral-300 text-[9px] px-2 py-0.5 rounded-md ml-2 uppercase tracking-widest">${ageText}</span>`;
 }
 
 window.loadAppProfiles = async function() {
     const listEl = document.getElementById('settings-profiles-list');
-    const uid = window.currentUser.id;
-    const { data } = await supabaseClient.from('profiles').select('*').eq('user_id', uid).order('name');
+    const { data } = await supabaseClient.from('profiles').select('*').eq('household_id', window.currentUser.household_id).order('name');
     appProfiles = data || [];
-
-    if (appProfiles.length === 0) {
-        listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak domowników.</p>`;
-        return;
-    }
-
+    if (appProfiles.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak domowników.</p>`; return; }
     listEl.innerHTML = appProfiles.map(p => {
-        const colors = ['bg-rose-600', 'bg-blue-600', 'bg-emerald-600', 'bg-amber-600', 'bg-purple-600'];
-        const avatarColor = colors[p.id % colors.length];
-        return `
-        <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 ${avatarColor} text-white rounded-full flex items-center justify-center font-bold shadow-md border-2 border-[#131314]">${window.esc(p.name.charAt(0).toUpperCase())}</div>
-                <div>
-                    <span class="text-sm font-medium text-neutral-200 flex items-center">${window.esc(p.name)} ${getAgeBadge(p.birth_date)}</span>
-                    <span class="text-[10px] text-neutral-500 mt-0.5 block">${p.height ? window.esc(p.height) + ' cm' : '-- cm'} • ${p.weight ? window.esc(p.weight) + ' kg' : '-- kg'}</span>
-                </div>
-            </div>
-            <button onclick="openEditProfileScreen(${p.id})" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">⚙️</button>
-        </div>`;
+        const colors = ['bg-rose-600', 'bg-blue-600', 'bg-emerald-600', 'bg-amber-600', 'bg-purple-600']; const avatarColor = colors[p.id % colors.length];
+        return `<div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5"><div class="flex items-center gap-3"><div class="w-8 h-8 ${avatarColor} text-white rounded-full flex items-center justify-center font-bold shadow-md border-2 border-[#131314]">${window.esc(p.name.charAt(0).toUpperCase())}</div><div><span class="text-sm font-medium text-neutral-200 flex items-center">${window.esc(p.name)} ${getAgeBadge(p.birth_date)}</span><span class="text-[10px] text-neutral-500 mt-0.5 block">${p.height ? window.esc(p.height) + ' cm' : '-- cm'} • ${p.weight ? window.esc(p.weight) + ' kg' : '-- kg'}</span></div></div><button onclick="openEditProfileScreen(${p.id})" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">⚙️</button></div>`;
     }).join('');
 };
 
-window.openNewProfileModal = function() {
-    document.getElementById('new-profile-name').value = '';
-    document.getElementById('new-profile-modal').classList.remove('hidden');
-};
-
+window.openNewProfileModal = function() { document.getElementById('new-profile-name').value = ''; document.getElementById('new-profile-modal').classList.remove('hidden'); };
 window.closeNewProfileModal = function() { document.getElementById('new-profile-modal').classList.add('hidden'); };
-
 window.saveNewProfile = async function() {
-    const name = document.getElementById('new-profile-name').value.trim();
-    if (!name) return;
-    await supabaseClient.from('profiles').insert([{ name: name, user_id: window.currentUser.id }]);
+    const name = document.getElementById('new-profile-name').value.trim(); if (!name) return;
+    await supabaseClient.from('profiles').insert([{ name: name, user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
     closeNewProfileModal(); window.showToast('Dodano domownika!'); loadAppProfiles();
 };
 
 window.openEditProfileScreen = function(id) {
-    const profile = appProfiles.find(p => p.id === id);
-    if(!profile) return;
-    document.getElementById('edit-profile-id').value = profile.id;
-    document.getElementById('edit-profile-name').value = profile.name;
-    document.getElementById('edit-profile-birth').value = profile.birth_date || '';
-    document.getElementById('edit-profile-height').value = profile.height || '';
-    document.getElementById('edit-profile-weight').value = profile.weight || '';
-    document.getElementById('edit-profile-title').innerText = `Edytuj: ${profile.name}`;
-    window.goForward('edit-profile-screen');
+    const profile = appProfiles.find(p => p.id === id); if(!profile) return;
+    document.getElementById('edit-profile-id').value = profile.id; document.getElementById('edit-profile-name').value = profile.name; document.getElementById('edit-profile-birth').value = profile.birth_date || ''; document.getElementById('edit-profile-height').value = profile.height || ''; document.getElementById('edit-profile-weight').value = profile.weight || ''; document.getElementById('edit-profile-title').innerText = `Edytuj: ${profile.name}`; window.goForward('edit-profile-screen');
 };
-
 window.closeEditProfileScreen = function() { window.goBack(); };
-
 window.saveProfileDetails = async function() {
-    const id = document.getElementById('edit-profile-id').value;
-    const name = document.getElementById('edit-profile-name').value.trim();
-    const birth = document.getElementById('edit-profile-birth').value || null;
-    const height = document.getElementById('edit-profile-height').value || null;
-    const weight = document.getElementById('edit-profile-weight').value || null;
+    const id = document.getElementById('edit-profile-id').value; const name = document.getElementById('edit-profile-name').value.trim(); const birth = document.getElementById('edit-profile-birth').value || null; const height = document.getElementById('edit-profile-height').value || null; const weight = document.getElementById('edit-profile-weight').value || null;
     if(!name) return;
-
-    await supabaseClient.from('profiles').update({ name: name, birth_date: birth, height: height, weight: weight }).eq('id', id).eq('user_id', window.currentUser.id);
-    window.showToast('Zapisano profil'); closeEditProfileScreen(); loadAppProfiles(); 
-    if(typeof initHealthModule === 'function') initHealthModule();
+    await supabaseClient.from('profiles').update({ name: name, birth_date: birth, height: height, weight: weight }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    window.showToast('Zapisano profil'); closeEditProfileScreen(); loadAppProfiles(); if(typeof initHealthModule === 'function') initHealthModule();
 };
 
 window.currentEditingHomeTask = '';
 
 window.openSettingsScreen = async function(name) {
     const currentSettingsTaskName = decodeURIComponent(name);
-    const { data } = await supabaseClient.from('tasks').select('*').eq('name', currentSettingsTaskName).eq('user_id', window.currentUser.id).single();
+    const { data } = await supabaseClient.from('tasks').select('*').eq('name', currentSettingsTaskName).eq('household_id', window.currentUser.household_id).single();
     if (!data) return;
     
-    document.getElementById('settings-title').innerText = data.name;
-    document.getElementById('set-task-name').value = data.name;
-    document.getElementById('set-task-interval').value = data.interval_days || 0;
-    document.getElementById('set-task-remind').value = data.remind_days_before || 0;
-    document.getElementById('set-task-push').checked = data.push_enabled !== false;
-    document.getElementById('set-task-history').checked = data.show_in_history !== false;
-    
+    document.getElementById('settings-title').innerText = data.name; document.getElementById('set-task-name').value = data.name; document.getElementById('set-task-interval').value = data.interval_days || 0; document.getElementById('set-task-remind').value = data.remind_days_before || 0; document.getElementById('set-task-push').checked = data.push_enabled !== false; document.getElementById('set-task-history').checked = data.show_in_history !== false;
     window.currentEditingHomeTask = data.name;
-
     if(typeof populateRoomsDropdown === 'function') await populateRoomsDropdown('set-task-room', data.room || 'Inne');
-    if(typeof renderHistory === 'function') renderHistory(); 
-    window.goForward('settings-screen');
+    if(typeof renderHistory === 'function') renderHistory(); window.goForward('settings-screen');
 };
 
 window.closeSettingsScreen = function() { window.goBack(); };
-
 window.saveTaskSettings = async function() {
-    const n = document.getElementById('set-task-name').value.trim();
-    const i = parseInt(document.getElementById('set-task-interval').value) || 0;
-    const remind = parseInt(document.getElementById('set-task-remind').value) || 0;
-    const r = document.getElementById('set-task-room').value; 
-    const pushEnabled = document.getElementById('set-task-push').checked;
-    const showHist = document.getElementById('set-task-history').checked;
-    const uid = window.currentUser.id;
+    const n = document.getElementById('set-task-name').value.trim(); const i = parseInt(document.getElementById('set-task-interval').value) || 0; const remind = parseInt(document.getElementById('set-task-remind').value) || 0; const r = document.getElementById('set-task-room').value; const pushEnabled = document.getElementById('set-task-push').checked; const showHist = document.getElementById('set-task-history').checked; const hid = window.currentUser.household_id;
 
     if (window.currentEditingHomeTask !== n) {
-        await supabaseClient.from('activity_logs').update({ activity_name: n }).eq('activity_name', window.currentEditingHomeTask).eq('user_id', uid);
-        await supabaseClient.from('tasks').insert([{ name: n, interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, show_in_history: showHist, room: r, user_id: uid }]);
-        await supabaseClient.from('tasks').delete().eq('name', window.currentEditingHomeTask).eq('user_id', uid);
+        await supabaseClient.from('activity_logs').update({ activity_name: n }).eq('activity_name', window.currentEditingHomeTask).eq('household_id', hid);
+        await supabaseClient.from('tasks').insert([{ name: n, interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, show_in_history: showHist, room: r, user_id: window.currentUser.id, household_id: hid }]);
+        await supabaseClient.from('tasks').delete().eq('name', window.currentEditingHomeTask).eq('household_id', hid);
         window.currentEditingHomeTask = n;
     } else {
-        await supabaseClient.from('tasks').update({ interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, show_in_history: showHist, room: r }).eq('name', window.currentEditingHomeTask).eq('user_id', uid);
+        await supabaseClient.from('tasks').update({ interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, show_in_history: showHist, room: r }).eq('name', window.currentEditingHomeTask).eq('household_id', hid);
     }
-    window.showToast("Zapisano!"); 
-    if(typeof loadDashboard === 'function') loadDashboard();
+    window.showToast("Zapisano!"); if(typeof loadDashboard === 'function') loadDashboard();
 };
 
 window.deleteCurrentTask = async function() {
     if(confirm("Zarchiwizować czynność? Zniknie z głównych widoków.")) { 
-        await supabaseClient.from('tasks').update({ is_archived: true }).eq('name', window.currentEditingHomeTask).eq('user_id', window.currentUser.id); 
-        window.closeSettingsScreen(); 
-        if(typeof loadDashboard === 'function') loadDashboard();
+        await supabaseClient.from('tasks').update({ is_archived: true }).eq('name', window.currentEditingHomeTask).eq('household_id', window.currentUser.household_id); 
+        window.closeSettingsScreen(); if(typeof loadDashboard === 'function') loadDashboard();
     }
 };
 
-window.openArchiveScreen = function() {
-    window.goForward('archive-screen');
-    window.loadArchiveData();
-};
+window.openArchiveScreen = function() { window.goForward('archive-screen'); window.loadArchiveData(); };
 
 window.loadArchiveData = async function() {
-    const listEl = document.getElementById('archive-list');
-    listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Pobieranie archiwum...</p>`;
-    const uid = window.currentUser.id;
+    const listEl = document.getElementById('archive-list'); listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Pobieranie archiwum...</p>`;
+    const hid = window.currentUser.household_id;
 
     const [tRes, htRes, todoRes, listRes] = await Promise.all([
-        supabaseClient.from('tasks').select('*').eq('user_id', uid).eq('is_archived', true),
-        supabaseClient.from('health_tasks').select('*').eq('user_id', uid).eq('is_archived', true),
-        supabaseClient.from('todos').select('*').eq('user_id', uid).eq('is_archived', true),
-        supabaseClient.from('checklists').select('*').eq('user_id', uid).eq('is_archived', true)
+        supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', true),
+        supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', true),
+        supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', true),
+        supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', true)
     ]);
 
     let items = [];
@@ -351,20 +203,11 @@ window.loadArchiveData = async function() {
     if (todoRes.data) todoRes.data.forEach(x => items.push({ id: x.id, title: x.title, type: 'todos', icon: '📝', typeName: 'Zadanie' }));
     if (listRes.data) listRes.data.forEach(x => items.push({ id: x.id, title: x.title, type: 'checklists', icon: '🗂️', typeName: 'Lista' }));
 
-    if (items.length === 0) {
-        listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Archiwum jest puste.</p>`;
-        return;
-    }
+    if (items.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Archiwum jest puste.</p>`; return; }
 
     listEl.innerHTML = items.map(item => `
         <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1.5 animate-fade-in">
-            <div class="flex items-center gap-3">
-                <span class="text-lg">${item.icon}</span>
-                <div>
-                    <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4>
-                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest">${item.typeName}</p>
-                </div>
-            </div>
+            <div class="flex items-center gap-3"><span class="text-lg">${item.icon}</span><div><h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4><p class="text-[9px] text-neutral-500 uppercase tracking-widest">${item.typeName}</p></div></div>
             <div class="flex gap-1 shrink-0">
                 <button onclick="window.restoreFromArchive('${item.type}', ${item.id})" class="px-3 py-1.5 rounded-full bg-[#0f5223]/20 text-[#c4eed0] text-[9px] font-bold uppercase tracking-wider active:scale-95 border border-[#0f5223]/50">Przywróć</button>
                 <button onclick="window.permanentlyDelete('${item.type}', ${item.id})" class="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-xs border border-transparent">🗑️</button>
@@ -374,22 +217,17 @@ window.loadArchiveData = async function() {
 };
 
 window.restoreFromArchive = async function(table, id) {
-    await supabaseClient.from(table).update({ is_archived: false }).eq('id', id).eq('user_id', window.currentUser.id);
-    window.showToast("Przywrócono!");
-    window.loadArchiveData();
-    if(typeof loadDashboard === 'function') loadDashboard();
-    if(typeof window.initHealthModule === 'function') window.initHealthModule();
+    await supabaseClient.from(table).update({ is_archived: false }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    window.showToast("Przywrócono!"); window.loadArchiveData();
+    if(typeof loadDashboard === 'function') loadDashboard(); if(typeof window.initHealthModule === 'function') window.initHealthModule();
 };
 
 window.permanentlyDelete = async function(table, id) {
     if (!confirm("Usunąć trwale? Tej operacji nie można cofnąć, usunie również historię wpisów!")) return;
-    
     if (table === 'tasks') {
         const { data } = await supabaseClient.from('tasks').select('name').eq('id', id).single();
-        if (data) await supabaseClient.from('activity_logs').delete().eq('activity_name', data.name).eq('user_id', window.currentUser.id);
+        if (data) await supabaseClient.from('activity_logs').delete().eq('activity_name', data.name).eq('household_id', window.currentUser.household_id);
     }
-    
-    await supabaseClient.from(table).delete().eq('id', id).eq('user_id', window.currentUser.id);
-    window.showToast("Trwale usunięto!");
-    window.loadArchiveData();
+    await supabaseClient.from(table).delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+    window.showToast("Trwale usunięto!"); window.loadArchiveData();
 };
