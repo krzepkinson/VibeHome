@@ -25,7 +25,7 @@ window.loadDashboardOverview = async function() {
 
     listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Analiza Twoich spraw...</p>`;
 
-    const hid = window.currentUser.household_id; // ZMIANA: używamy ID Domu!
+    const hid = window.currentUser.household_id; 
 
     const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes, profilesRes] = await Promise.all([
         supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
@@ -75,7 +75,6 @@ window.loadDashboardOverview = async function() {
     if (window.activeDashboardTab === 'todo') {
         if (activeTodos.length > 0) {
             html += activeTodos.map(todo => {
-                // Inicjał Kto Dodał
                 let creatorBadge = `<div class="w-5 h-5 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[9px] flex items-center justify-center ml-2 shrink-0" title="Dodał(a): ${todo.creator_name || 'Kogoś'}">${(todo.creator_name || '?')[0].toUpperCase()}</div>`;
                 
                 return `
@@ -153,7 +152,7 @@ window.loadDashboardOverview = async function() {
         logs.forEach(l => {
             const t = tasks.find(x => x.name === l.activity_name);
             if (!t || t.show_in_history !== false) {
-                historyItems.push({ title: l.activity_name, date: new Date(l.created_at), icon: '🏠', color: 'text-[#c4eed0]', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50' });
+                historyItems.push({ title: l.activity_name, date: new Date(l.created_at), icon: '🏠', color: 'text-[#c4eed0]', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' });
             }
         });
 
@@ -163,13 +162,12 @@ window.loadDashboardOverview = async function() {
                 const profile = profiles.find(p => p.id === ht?.profile_id);
                 const profileStr = profile ? ` (${profile.name})` : '';
                 const d = l.end_date ? new Date(l.end_date) : new Date(l.start_date);
-                historyItems.push({ title: (ht ? ht.name : 'Zdarzenie') + profileStr, date: d, icon: '❤️', color: 'text-[#ffb4ab]', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50' });
+                historyItems.push({ title: (ht ? ht.name : 'Zdarzenie') + profileStr, date: d, icon: '❤️', color: 'text-[#ffb4ab]', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' });
             }
         });
 
         allTodos.filter(t => t.is_completed).forEach(t => {
-            const compBadge = t.completer_name ? ` (odhaczył: ${t.completer_name})` : '';
-            historyItems.push({ title: t.title + compBadge, date: new Date(t.created_at), icon: '📝', color: 'text-[#a8c7fa]', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50' });
+            historyItems.push({ title: t.title, date: new Date(t.created_at), icon: '📝', color: 'text-[#a8c7fa]', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' });
         });
 
         historyItems.sort((a, b) => b.date - a.date);
@@ -180,10 +178,15 @@ window.loadDashboardOverview = async function() {
             html += topHistory.map(item => `
                 <div class="relative pl-5 animate-fade-in">
                     <div class="absolute -left-[13px] top-1.5 w-6 h-6 rounded-full ${item.bg} ${item.border} border flex items-center justify-center text-xs shadow-md">${item.icon}</div>
-                    <div class="bg-[#1e1f20] px-3 py-2 rounded-[12px] border border-[#333537] shadow-sm">
-                        <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4>
-                        <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
+                    
+                    <div class="bg-[#1e1f20] px-3 py-2 rounded-[12px] border border-[#333537] shadow-sm flex justify-between items-center">
+                        <div>
+                            <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4>
+                            <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
+                        </div>
+                        <div class="w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 ml-2" title="Wykonał(a): ${item.user}">${item.user[0].toUpperCase()}</div>
                     </div>
+
                 </div>
             `).join('');
             html += `</div>`;
@@ -206,17 +209,15 @@ window.quickCompleteTodoDashboard = async function(id) {
 
 window.quickLogTaskDashboard = async function(name) {
     const d = new Date().toISOString().split('T')[0];
-    await supabaseClient.from('activity_logs').insert([{ activity_name: decodeURIComponent(name), created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
+    await supabaseClient.from('activity_logs').insert([{ activity_name: decodeURIComponent(name), created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name }]);
     window.showToast('Zrobione! ✔️'); window.loadDashboardOverview(); 
 };
 
 window.quickLogHealthDashboard = async function(taskId) {
     const now = new Date().toISOString();
-    await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: now, end_date: now, user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
+    await supabaseClient.from('health_logs').insert([{ health_task_id: taskId, start_date: now, end_date: now, user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name }]);
     window.showToast('Zapisano! ✔️'); window.loadDashboardOverview();
 };
 
 window.quickEndHealthDashboard = async function(logId) {
-    await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('household_id', window.currentUser.household_id);
-    window.showToast('Zakończono! ✔️'); window.loadDashboardOverview();
-};
+    await supabaseClient.from('health_logs').update({ end_date: new Date().toISOString(), user_name: window.currentUser.name }).eq('
