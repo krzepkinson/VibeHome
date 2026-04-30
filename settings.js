@@ -37,7 +37,6 @@ function checkNotificationStatus() {
     if (Notification.permission === "granted") {
         statusText.innerText = "Status: Aktywne 🔔";
         statusText.classList.replace('text-neutral-500', 'text-[#c4eed0]');
-        // Zmieniamy przycisk na "Odśwież", żeby móc wymusić zapis w bazie
         btn.innerText = "Odśwież"; 
         btn.classList.remove('hidden');
     } else if (Notification.permission === "denied") {
@@ -61,10 +60,7 @@ window.requestNotificationPermission = async function() {
         if (permission === "granted") {
             window.showToast("Generowanie tokena...");
             
-            // Rejestracja Service Workera
             const registration = await navigator.serviceWorker.ready;
-            
-            // Pobranie subskrypcji
             let subscription = await registration.pushManager.getSubscription();
             if (!subscription) {
                 subscription = await registration.pushManager.subscribe({
@@ -73,10 +69,8 @@ window.requestNotificationPermission = async function() {
                 });
             }
 
-            // Rozbicie obiektu subskrypcji na części
             const subData = JSON.parse(JSON.stringify(subscription));
 
-            // Zapis do Supabase
             const { error } = await supabaseClient.from('push_subscriptions').upsert({
                 user_id: window.currentUser.id,
                 endpoint: subData.endpoint,
@@ -85,7 +79,6 @@ window.requestNotificationPermission = async function() {
             }, { onConflict: 'user_id, endpoint' });
 
             if (error) throw error;
-            
             window.showToast("Gotowe! Urządzenie podłączone 🚀");
         }
     } catch (error) {
@@ -291,4 +284,49 @@ window.saveProfileDetails = async function() {
     await supabaseClient.from('profiles').update({ name: name, birth_date: birth, height: height, weight: weight }).eq('id', id).eq('user_id', window.currentUser.id);
     window.showToast('Zapisano profil'); closeEditProfileScreen(); loadAppProfiles(); 
     if(typeof initHealthModule === 'function') initHealthModule();
+};
+
+// --------------------------------------------------------
+// SEKCJA: USTAWIENIA ZADAŃ DOMOWYCH
+// --------------------------------------------------------
+window.currentEditingHomeTask = '';
+
+window.openSettingsScreen = async function(name) {
+    const currentSettingsTaskName = decodeURIComponent(name);
+    const { data } = await supabaseClient.from('tasks').select('*').eq('name', currentSettingsTaskName).eq('user_id', window.currentUser.id).single();
+    if (!data) return;
+    
+    document.getElementById('settings-title').innerText = data.name;
+    document.getElementById('set-task-name').value = data.name;
+    document.getElementById('set-task-interval').value = data.interval_days || 0;
+    document.getElementById('set-task-remind').value = data.remind_days_before || 0;
+    document.getElementById('set-task-push').checked = data.push_enabled !== false;
+    
+    window.currentEditingHomeTask = data.name;
+
+    if(typeof populateRoomsDropdown === 'function') await populateRoomsDropdown('set-task-room', data.room || 'Inne');
+    if(typeof renderHistory === 'function') renderHistory(); 
+    window.goForward('settings-screen');
+};
+
+window.closeSettingsScreen = function() { window.goBack(); };
+
+window.saveTaskSettings = async function() {
+    const n = document.getElementById('set-task-name').value.trim();
+    const i = parseInt(document.getElementById('set-task-interval').value) || 0;
+    const remind = parseInt(document.getElementById('set-task-remind').value) || 0;
+    const r = document.getElementById('set-task-room').value; 
+    const pushEnabled = document.getElementById('set-task-push').checked;
+    const uid = window.currentUser.id;
+
+    if (window.currentEditingHomeTask !== n) {
+        await supabaseClient.from('activity_logs').update({ activity_name: n }).eq('activity_name', window.currentEditingHomeTask).eq('user_id', uid);
+        await supabaseClient.from('tasks').insert([{ name: n, interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, room: r, user_id: uid }]);
+        await supabaseClient.from('tasks').delete().eq('name', window.currentEditingHomeTask).eq('user_id', uid);
+        window.currentEditingHomeTask = n;
+    } else {
+        await supabaseClient.from('tasks').update({ interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, room: r }).eq('name', window.currentEditingHomeTask).eq('user_id', uid);
+    }
+    window.showToast("Zapisano!"); 
+    if(typeof loadDashboard === 'function') loadDashboard();
 };
