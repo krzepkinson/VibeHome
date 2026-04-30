@@ -80,7 +80,8 @@ window.goForward = function(screenId) {
 };
 
 window.goBack = function() {
-    ['settings-screen', 'health-settings-screen', 'edit-profile-screen'].forEach(id => {
+    // Dodano zamykanie nowych ekranów ustawień
+    ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
@@ -122,7 +123,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 window.addEventListener('popstate', (event) => {
-    ['settings-screen', 'health-settings-screen', 'edit-profile-screen'].forEach(id => {
+    ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
