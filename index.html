@@ -125,7 +125,16 @@
 
         <div id="view-settings-main" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
             <header class="mb-6 mt-2"><div><h1 class="text-xl font-medium text-neutral-100 tracking-wide">Ustawienia</h1><p class="text-xs text-neutral-400">Zarządzaj aplikacją</p></div></header>
+            
             <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] mb-6 overflow-hidden">
+                <div class="p-5 border-b border-[#333537] flex justify-between items-center">
+                    <div class="pr-4">
+                        <h3 class="text-sm font-medium text-neutral-200">Współdzielenie Domu</h3>
+                        <p class="text-[9px] text-neutral-500 mt-0.5 uppercase tracking-widest break-all" id="household-id-label">Ładowanie...</p>
+                    </div>
+                    <button onclick="joinHousehold()" class="shrink-0 px-3 py-1.5 rounded-full bg-[#333537] text-neutral-200 text-[10px] font-bold uppercase tracking-wider active:scale-95 transition-all">Dołącz</button>
+                </div>
+
                 <div class="p-5 border-b border-[#333537] flex justify-between items-center"><div><h3 class="text-sm font-medium text-neutral-200">Powiadomienia w tle</h3><p class="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-widest" id="notif-status-text">Wymaga zgody</p></div><button onclick="requestNotificationPermission()" id="notif-enable-btn" class="bg-[#004a77] text-[#c2e7ff] text-[10px] uppercase font-bold px-4 py-2 rounded-full hover:bg-[#005c94] active:scale-95 transition-all hidden">Włącz</button></div>
                 <div onclick="openRoomsSettings()" class="p-5 border-b border-[#333537] flex justify-between items-center cursor-pointer hover:bg-[#333537]/50 transition-colors active:bg-[#333537]"><div><h3 class="text-sm font-medium text-neutral-200">Pomieszczenia</h3><p class="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-widest">Zarządzaj pokojami w domu</p></div><span class="text-neutral-500 text-lg">→</span></div>
                 <div onclick="openProfilesSettings()" class="p-5 border-b border-[#333537] flex justify-between items-center cursor-pointer hover:bg-[#333537]/50 transition-colors active:bg-[#333537]"><div><h3 class="text-sm font-medium text-neutral-200">Domownicy</h3><p class="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-widest">Zarządzaj profilami zdrowia</p></div><span class="text-neutral-500 text-lg">→</span></div>
