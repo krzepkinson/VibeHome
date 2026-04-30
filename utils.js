@@ -1,34 +1,32 @@
 // ==========================================
-// NARZĘDZIA POMOCNICZE (utils.js)
+// FUNKCJE POMOCNICZE (utils.js)
 // ==========================================
 
-// 1. Funkcja zabezpieczająca tekst przed XSS (używaj wszędzie zamiast ${zmienna} w innerHTML)
 window.esc = function(str) {
-    if (str === null || str === undefined) return '';
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(String(str)));
-    return div.innerHTML;
+    if (!str) return '';
+    return str.toString().replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
 };
 
-// 2. Inicjalizacja bazy danych Supabase (dostępna globalnie dla wszystkich plików)
-const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
-
-// 2. Globalny system "dymków" (Toasts)
-let toastTimeout;
-
-window.showToast = function(msg) {
-    const toastEl = document.getElementById('toast'); 
-    if (!toastEl) return;
+window.showToast = function(message) {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.innerText = message;
+    toast.classList.remove('opacity-0', 'translate-y-10');
     
-    toastEl.innerText = msg; 
-    toastEl.classList.remove('opacity-0', 'translate-y-10');
-    
-    clearTimeout(toastTimeout); 
-    toastTimeout = setTimeout(() => {
-        toastEl.classList.add('opacity-0', 'translate-y-10');
+    if (window.toastTimeout) clearTimeout(window.toastTimeout);
+    window.toastTimeout = setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-10');
     }, 3000);
 };
-// 5. Konwerter klucza VAPID (dla powiadomień Push)
+
 window.urlB64ToUint8Array = function(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -39,22 +37,18 @@ window.urlB64ToUint8Array = function(base64String) {
     }
     return outputArray;
 };
-// 6. Globalne odświeżanie widoku (Synchronizacja)
+
 window.refreshCurrentView = async function() {
-    // Animacja wciśniętego przycisku
     const btn = document.activeElement; 
     if (btn && btn.tagName === 'BUTTON') {
         btn.style.transform = 'rotate(180deg)';
         btn.classList.add('opacity-50');
     }
-
     try {
-        // Sprawdzamy czy otwarty jest ekran konkretnej Checklisty
         const checklistScreen = document.getElementById('checklist-screen');
         if (checklistScreen && !checklistScreen.classList.contains('hidden')) {
             if (typeof window.loadChecklistItems === 'function') await window.loadChecklistItems();
         } else {
-            // Jeśli nie, odświeżamy aktywną zakładkę główną
             if (window.activeView === 'dashboard' && typeof window.loadDashboardOverview === 'function') {
                 await window.loadDashboardOverview();
             } else if (window.activeView === 'home' && typeof window.loadDashboard === 'function') {
@@ -78,4 +72,57 @@ window.refreshCurrentView = async function() {
             }, 300);
         }
     }
+};
+
+// NOWOŚĆ: Logika zmiany wykonawcy/autora
+window.openChangeUserModal = function(type, id, currentName) {
+    document.getElementById('change-user-type').value = type;
+    document.getElementById('change-user-id').value = id;
+
+    let names = new Set();
+    if (window.currentUser && window.currentUser.name) names.add(window.currentUser.name);
+
+    // Skanujemy ekran w poszukiwaniu wszystkich użytych imion
+    document.querySelectorAll('[data-user-name]').forEach(el => {
+        const n = el.getAttribute('data-user-name');
+        if (n && n !== '?' && n !== 'null' && n !== 'undefined') names.add(n);
+    });
+    
+    if (currentName && currentName !== '?' && currentName !== 'null' && currentName !== 'undefined') {
+        names.add(currentName);
+    }
+
+    const listEl = document.getElementById('change-user-list');
+    listEl.innerHTML = Array.from(names).map(name => `
+        <button onclick="window.saveChangedUser('${window.esc(name)}')" class="w-full text-left px-4 py-3 bg-[#1e1f20] hover:bg-[#333537] border border-[#333537] rounded-[16px] mb-2 text-neutral-200 active:scale-95 transition-colors">
+            <span class="font-medium">${window.esc(name)}</span>
+        </button>
+    `).join('');
+
+    document.getElementById('change-user-custom').value = '';
+    document.getElementById('change-user-modal').classList.remove('hidden');
+};
+
+window.saveChangedUser = async function(newName) {
+    if (!newName) newName = document.getElementById('change-user-custom').value.trim();
+    if (!newName) return;
+
+    const type = document.getElementById('change-user-type').value;
+    const id = document.getElementById('change-user-id').value;
+
+    let table = type;
+    let col = 'user_name';
+
+    if (type === 'todos') { table = 'todos'; col = 'completer_name'; }
+    else if (type === 'todos_creator') { table = 'todos'; col = 'creator_name'; }
+
+    await supabaseClient.from(table).update({ [col]: newName }).eq('id', id).eq('household_id', window.currentUser.household_id);
+
+    document.getElementById('change-user-modal').classList.add('hidden');
+    window.showToast("Zaktualizowano osobę! ✔️");
+    window.refreshCurrentView();
+};
+
+window.closeChangeUserModal = function() {
+    document.getElementById('change-user-modal').classList.add('hidden');
 };
