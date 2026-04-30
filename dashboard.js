@@ -27,12 +27,14 @@ window.loadDashboardOverview = async function() {
 
     const uid = window.currentUser.id;
 
-    const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes] = await Promise.all([
+    // Pobieramy dane + NOWOŚĆ: profile domowników
+    const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes, profilesRes] = await Promise.all([
         supabaseClient.from('tasks').select('*').eq('user_id', uid),
         supabaseClient.from('activity_logs').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
         supabaseClient.from('health_tasks').select('*').eq('user_id', uid),
         supabaseClient.from('health_logs').select('*').eq('user_id', uid).order('start_date', { ascending: false }),
-        supabaseClient.from('todos').select('*').eq('user_id', uid).order('created_at', { ascending: false })
+        supabaseClient.from('todos').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+        supabaseClient.from('profiles').select('*').eq('user_id', uid)
     ]);
 
     const tasks = tasksRes.data || [];
@@ -40,11 +42,11 @@ window.loadDashboardOverview = async function() {
     const hTasks = healthTasksRes.data || [];
     const hLogs = healthLogsRes.data || [];
     const allTodos = todoRes.data || [];
+    const profiles = profilesRes.data || [];
     const activeTodos = allTodos.filter(t => !t.is_completed);
 
     const today = new Date(); today.setHours(0,0,0,0);
     
-    // Obliczanie zaległości do Smart Push
     let homeOverdueCount = tasks.filter(t => {
         if (!t.interval_days) return false;
         const lastLog = logs.find(l => l.activity_name === t.name);
@@ -141,7 +143,6 @@ window.loadDashboardOverview = async function() {
     else if (window.activeDashboardTab === 'history') {
         let historyItems = [];
              
-        // Zdarzenia domowe
         logs.forEach(l => {
             const t = tasks.find(x => x.name === l.activity_name);
             if (!t || t.show_in_history !== false) {
@@ -149,21 +150,25 @@ window.loadDashboardOverview = async function() {
             }
         });
 
-        // Zdarzenia zdrowotne
         hLogs.forEach(l => {
             const ht = hTasks.find(x => x.id === l.health_task_id);
             if (!ht || ht.show_in_history !== false) {
+                // Szukamy imienia domownika przypisanego do zadania
+                const profile = profiles.find(p => p.id === ht?.profile_id);
+                const profileStr = profile ? ` (${profile.name})` : '';
+                
                 const d = l.end_date ? new Date(l.end_date) : new Date(l.start_date);
-                historyItems.push({ title: ht ? ht.name : 'Zdarzenie', date: d, icon: '❤️', color: 'text-[#ffb4ab]', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50' });
+                historyItems.push({ 
+                    title: (ht ? ht.name : 'Zdarzenie') + profileStr, 
+                    date: d, icon: '❤️', color: 'text-[#ffb4ab]', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50' 
+                });
             }
         });
 
-        // Zadania (To-Do)
         allTodos.filter(t => t.is_completed).forEach(t => {
             historyItems.push({ title: t.title, date: new Date(t.created_at), icon: '📝', color: 'text-[#a8c7fa]', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50' });
         });
 
-        // Sortowanie i limitowanie (ostatnie 30)
         historyItems.sort((a, b) => b.date - a.date);
         const topHistory = historyItems.slice(0, 30);
 
