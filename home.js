@@ -33,7 +33,6 @@ window.loadDashboard = async function() {
         if (h1) h1.innerText = 'Dom'; if (p) p.innerText = 'Wybierz pomieszczenie';
     }
 
-    // POBIERAMY TYLKO NIEZARCHIWIZOWANE ZADANIA
     const [tRes, lRes, rRes] = await Promise.all([
         supabaseClient.from('tasks').select('*').eq('user_id', uid).eq('is_archived', false),
         supabaseClient.from('activity_logs').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
@@ -71,17 +70,17 @@ window.loadDashboard = async function() {
         let html = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">`;
         const allBadge = totalOverdueAll > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${totalOverdueAll}</div>` : '';
         html += `
-            <div onclick="filterHomeByRoom('Wszystkie')" class="relative bg-[#004a77]/20 p-4 rounded-[24px] border border-[#004a77]/50 cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-28">
-                ${allBadge}<div class="text-3xl mb-2 opacity-80">🗂️</div><h3 class="text-xs font-medium text-[#c2e7ff]">Wszystkie</h3>
-                <p class="text-[9px] text-[#c2e7ff]/70 mt-1 uppercase tracking-widest">${allHomeTasks.length} zadań</p>
+            <div onclick="filterHomeByRoom('Wszystkie')" class="relative bg-[#004a77]/20 p-4 rounded-[20px] border border-[#004a77]/50 cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24">
+                ${allBadge}<div class="text-2xl mb-1 opacity-80">🗂️</div><h3 class="text-xs font-medium text-[#c2e7ff]">Wszystkie</h3>
+                <p class="text-[9px] text-[#c2e7ff]/70 mt-0.5 uppercase tracking-widest">${allHomeTasks.length} zadań</p>
             </div>`;
 
         Object.entries(roomStats).sort((a,b) => (a[0] === 'Inne' ? 1 : b[0] === 'Inne' ? -1 : a[0].localeCompare(b[0]))).forEach(([roomName, stats]) => {
             const badge = stats.overdue > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${stats.overdue}</div>` : '';
             html += `
-                <div onclick="filterHomeByRoom('${window.esc(roomName)}')" class="relative bg-[#1e1f20] p-4 rounded-[24px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-28">
-                    ${badge}<div class="text-3xl mb-2 opacity-80">${window.esc(stats.icon)}</div><h3 class="text-xs font-medium text-neutral-200">${window.esc(roomName)}</h3>
-                    <p class="text-[9px] text-neutral-500 mt-1 uppercase tracking-widest">${stats.total} zadań</p>
+                <div onclick="filterHomeByRoom('${window.esc(roomName)}')" class="relative bg-[#1e1f20] p-4 rounded-[20px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24">
+                    ${badge}<div class="text-2xl mb-1 opacity-80">${window.esc(stats.icon)}</div><h3 class="text-xs font-medium text-neutral-200">${window.esc(roomName)}</h3>
+                    <p class="text-[9px] text-neutral-500 mt-0.5 uppercase tracking-widest">${stats.total} zadań</p>
                 </div>`;
         });
         list.innerHTML = html + `</div>`;
@@ -97,14 +96,14 @@ window.loadDashboard = async function() {
         const muteIcon = item.t.push_enabled === false ? `<span title="Wyciszone" class="ml-2 text-neutral-600 text-xs">🔕</span>` : '';
 
         return `
-            <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1 shadow-sm">
-                <div class="flex-1 cursor-pointer pr-4" onclick="window.showToast('${window.esc(status.tooltip)}')">
+            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1 shadow-sm">
+                <div class="flex-1 cursor-pointer pr-2" onclick="window.showToast('${window.esc(status.tooltip)}')">
                     <h3 class="font-medium text-neutral-100 text-sm flex items-center">${window.esc(item.t.name)} ${roomBadge} ${muteIcon}</h3>
-                    <p class="text-[11px] ${status.color} mt-1">${status.label}</p>
+                    <p class="text-[10px] ${status.color} mt-0.5">${status.label}</p>
                 </div>
-                <div class="flex items-center gap-1.5">
-                    <button onclick="window.openAddLogModal('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#0f5223]/20 text-[#c4eed0] flex items-center justify-center active:scale-90 pb-0.5 text-lg border border-[#0f5223]/50">+</button>
-                    <button onclick="window.openSettingsScreen('${encodeURIComponent(item.t.name)}')" class="w-10 h-10 rounded-full bg-[#333537]/50 text-neutral-400 flex items-center justify-center active:scale-90 text-sm">⚙️</button>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button onclick="window.openAddLogModal('${encodeURIComponent(item.t.name)}')" class="w-8 h-8 rounded-full bg-[#0f5223]/20 text-[#c4eed0] flex items-center justify-center active:scale-90 pb-0.5 text-base border border-[#0f5223]/50">+</button>
+                    <button onclick="window.openSettingsScreen('${encodeURIComponent(item.t.name)}')" class="w-8 h-8 rounded-full bg-[#333537]/50 text-neutral-400 flex items-center justify-center active:scale-90 text-xs">⚙️</button>
                 </div>
             </div>`;
     }).join('') : `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań.</p>`;
@@ -151,11 +150,11 @@ window.saveNewLog = async function() {
 window.renderHistory = function() {
     const logs = allHomeLogs.filter(l => l.activity_name === window.currentEditingHomeTask);
     document.getElementById('settings-history-list').innerHTML = logs.map(l => `
-        <div class="bg-[#131314] p-3 rounded-[16px] flex justify-between items-center border border-[#333537] mb-2">
+        <div class="bg-[#131314] px-3 py-2 rounded-[12px] flex justify-between items-center border border-[#333537] mb-1.5">
             <p class="text-xs text-neutral-200">${new Date(l.created_at).toLocaleDateString('pl-PL')}</p>
             <div class="flex gap-1">
-                <button onclick="window.openEditLogModal(${l.id}, '${l.created_at.split('T')[0]}', '${encodeURIComponent(l.notes||'')}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">✏️</button>
-                <button onclick="window.deleteLog(${l.id})" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-sm">🗑️</button>
+                <button onclick="window.openEditLogModal(${l.id}, '${l.created_at.split('T')[0]}', '${encodeURIComponent(l.notes||'')}')" class="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-xs">✏️</button>
+                <button onclick="window.deleteLog(${l.id})" class="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-xs">🗑️</button>
             </div>
         </div>`).join('') || '<p class="text-neutral-500 text-xs py-4 text-center">Brak historii.</p>';
 };
