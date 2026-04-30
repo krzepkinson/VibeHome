@@ -23,7 +23,6 @@ async function refreshHealthData() {
     if (!currentProfileId) return;
     const uid = window.currentUser.id;
     const [tRes, lRes] = await Promise.all([
-        // ZMIANA: .eq('is_archived', false) ukrywa zarchiwizowane zadania
         supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId).eq('user_id', uid).eq('is_archived', false),
         supabaseClient.from('health_logs').select('*').eq('user_id', uid).order('start_date', { ascending: false })
     ]);
@@ -160,21 +159,21 @@ function renderHealthTasks() {
         if (task.task_type === 'one_time') {
             const isDone = tLogs.length > 0;
             if (!isDone) {
-                actionBtn = `<button onclick="startHealthLog(${task.id}, 'one_time')" class="w-10 h-10 rounded-full bg-[#0f5223]/20 text-[#c4eed0] font-medium text-lg flex items-center justify-center active:scale-90 border border-[#0f5223]/50">✓</button>`;
+                actionBtn = `<button onclick="startHealthLog(${task.id}, 'one_time')" class="w-8 h-8 rounded-full bg-[#0f5223]/20 text-[#c4eed0] font-bold text-base flex items-center justify-center active:scale-90 border border-[#0f5223]/50">✓</button>`;
             }
         } else {
             actionBtn = activeLog 
-                ? `<button onclick="closeHealthLog(${activeLog.id})" class="px-3 py-2 rounded-full bg-rose-900/30 text-rose-300 text-[10px] font-bold uppercase tracking-wider">Zakończ</button>`
-                : `<button onclick="startHealthLog(${task.id}, '${task.task_type}')" class="w-10 h-10 rounded-full bg-[#3c1414] text-[#ffb4ab] font-medium text-lg flex items-center justify-center active:scale-90 pb-0.5">+</button>`;
+                ? `<button onclick="closeHealthLog(${activeLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/30 text-rose-300 text-[9px] font-bold uppercase tracking-wider">Zakończ</button>`
+                : `<button onclick="startHealthLog(${task.id}, '${task.task_type}')" class="w-8 h-8 rounded-full bg-[#3c1414] text-[#ffb4ab] font-bold text-base flex items-center justify-center active:scale-90 pb-0.5">+</button>`;
         }
 
         return `
-            <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1 shadow-sm">
-                <div class="flex-1 cursor-pointer" onclick="window.openHealthSettingsScreen(${task.id})">
+            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1 shadow-sm">
+                <div class="flex-1 cursor-pointer pr-2" onclick="window.openHealthSettingsScreen(${task.id})">
                     <h3 class="font-medium text-neutral-100 text-sm">${window.esc(task.name)}</h3>
-                    <p class="text-[11px] text-neutral-500 mt-0.5">${statusStr}</p>
+                    <p class="text-[10px] text-neutral-500 mt-0.5">${statusStr}</p>
                 </div>
-                <div class="flex items-center gap-1.5">${actionBtn}</div>
+                <div class="flex items-center gap-1.5 shrink-0">${actionBtn}</div>
             </div>`;
     }).join('');
 }
@@ -278,10 +277,10 @@ window.saveHealthTaskSettings = async function() {
 function renderHealthHistory() {
     const logs = healthLogs.filter(l => l.health_task_id === currentHealthSettingsId);
     document.getElementById('h-settings-history-list').innerHTML = logs.map(l => `
-        <div class="bg-[#131314] p-3 rounded-[16px] flex justify-between items-center border border-[#333537] mb-2">
+        <div class="bg-[#131314] px-3 py-2 rounded-[12px] flex justify-between items-center border border-[#333537] mb-1.5">
             <div>
                 <p class="text-xs font-medium text-neutral-200">${new Date(l.start_date).toLocaleDateString('pl-PL')}</p>
-                <p class="text-[10px] text-neutral-500">${l.end_date ? 'do ' + new Date(l.end_date).toLocaleDateString('pl-PL') : 'trwa'}</p>
+                <p class="text-[9px] text-neutral-500">${l.end_date ? 'do ' + new Date(l.end_date).toLocaleDateString('pl-PL') : 'trwa'}</p>
             </div>
             <button onclick="window.deleteHealthLog(${l.id})" class="text-neutral-500 text-sm">🗑️</button>
         </div>`).join('') || '<p class="text-center py-4 text-neutral-500 text-xs">Brak wpisów.</p>';
@@ -295,7 +294,6 @@ window.deleteHealthLog = async function(id) {
     renderHealthUI();
 };
 
-// ZMIANA: Miękkie usuwanie w zdrowiu
 window.deleteHealthTask = async function() {
     if(!confirm("Zarchiwizować to zdarzenie? Zniknie z głównych widoków.")) return;
     await supabaseClient.from('health_tasks').update({ is_archived: true }).eq('id', currentHealthSettingsId).eq('user_id', window.currentUser.id);
@@ -323,7 +321,7 @@ window.openDayDetails = function(dateStr) {
         oneTimeEvents.forEach(t => {
             const isDone = healthLogs.some(l => l.health_task_id === t.id);
             itemsHtml += `
-                <div class="p-3 bg-[#1e1f20] rounded-xl border border-[#004a77]/30 mb-2">
+                <div class="px-3 py-2 bg-[#1e1f20] rounded-xl border border-[#004a77]/30 mb-1.5">
                     <p class="text-sm font-medium text-[#c2e7ff]">📅 ${window.esc(t.name)}</p>
                     <p class="text-[10px] text-neutral-500 mt-0.5">${isDone ? 'Zrealizowane' : 'Do zrobienia'}</p>
                 </div>`;
@@ -331,7 +329,7 @@ window.openDayDetails = function(dateStr) {
         dayLogs.forEach(l => {
             const task = healthTasks.find(t => t.id === l.health_task_id) || { name: 'Usunięte zadanie' };
             itemsHtml += `
-                <div class="p-3 bg-[#131314] rounded-xl border border-[#333537] mb-2">
+                <div class="px-3 py-2 bg-[#131314] rounded-xl border border-[#333537] mb-1.5">
                     <p class="text-sm font-medium text-neutral-200">${window.esc(task.name)}</p>
                     <p class="text-[10px] text-neutral-500 mt-0.5">${l.end_date ? 'Zdarzenie zakończone' : 'W trakcie...'}</p>
                 </div>`;
