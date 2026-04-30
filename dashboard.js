@@ -2,26 +2,24 @@
 // LOGIKA: PRZEGLĄD Z ZAKŁADKAMI (dashboard.js)
 // ==========================================
 
-window.activeDashboardTab = 'todo'; // Domyślna zakładka
+window.activeDashboardTab = 'todo'; 
 
 window.switchDashboardTab = function(tab) {
     window.activeDashboardTab = tab;
-    // Po kliknięciu od razu ładujemy widok (który sam zaktualizuje kolory)
     window.loadDashboardOverview();
 };
 
 window.loadDashboardOverview = async function() {
     const listEl = document.getElementById('dashboard-overview-list');
     
-    // Zaktualizuj wizualnie przyciski zakładek (jeśli istnieją na ekranie)
-    const tabs = ['todo', 'home', 'health'];
+    const tabs = ['todo', 'home', 'health', 'history'];
     tabs.forEach(t => {
         const btn = document.getElementById(`tab-${t}`);
         if (!btn) return;
         if (t === window.activeDashboardTab) {
-            btn.className = "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider rounded-xl bg-[#333537] text-[#a8c7fa] shadow-sm transition-all";
+            btn.className = "flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl bg-[#333537] text-[#a8c7fa] shadow-sm transition-all whitespace-nowrap";
         } else {
-            btn.className = "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider rounded-xl text-neutral-500 transition-all";
+            btn.className = "flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl text-neutral-500 transition-all whitespace-nowrap";
         }
     });
 
@@ -29,34 +27,56 @@ window.loadDashboardOverview = async function() {
 
     const uid = window.currentUser.id;
 
-    // Pobieramy komplet danych
     const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes] = await Promise.all([
         supabaseClient.from('tasks').select('*').eq('user_id', uid),
         supabaseClient.from('activity_logs').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
         supabaseClient.from('health_tasks').select('*').eq('user_id', uid),
         supabaseClient.from('health_logs').select('*').eq('user_id', uid).order('start_date', { ascending: false }),
-        supabaseClient.from('todos').select('*').eq('user_id', uid).eq('is_completed', false).order('created_at', { ascending: true })
+        supabaseClient.from('todos').select('*').eq('user_id', uid).order('created_at', { ascending: false })
     ]);
 
     const tasks = tasksRes.data || [];
     const logs = logsRes.data || [];
     const hTasks = healthTasksRes.data || [];
     const hLogs = healthLogsRes.data || [];
-    const todos = todoRes.data || [];
+    const allTodos = todoRes.data || [];
+    const activeTodos = allTodos.filter(t => !t.is_completed);
 
     const today = new Date(); today.setHours(0,0,0,0);
+    
+    // Obliczanie zaległości do Smart Push
+    let homeOverdueCount = tasks.filter(t => {
+        if (!t.interval_days) return false;
+        const lastLog = logs.find(l => l.activity_name === t.name);
+        if (!lastLog) return true;
+        const next = new Date(lastLog.created_at); next.setHours(0,0,0,0);
+        next.setDate(next.getDate() + t.interval_days);
+        return next <= today && t.push_enabled !== false;
+    }).length;
+
+    let healthDueCount = hTasks.filter(ht => {
+        if (ht.task_type === 'cyclical' && ht.interval_days) {
+            const lastLog = hLogs.find(l => l.health_task_id === ht.id);
+            if (!lastLog) return true;
+            const next = new Date(lastLog.start_date); next.setHours(0,0,0,0);
+            next.setDate(next.getDate() + ht.interval_days);
+            return next <= today;
+        }
+        return false;
+    }).length;
+
+    if (typeof window.triggerSmartNotification === 'function') {
+        window.triggerSmartNotification(homeOverdueCount, healthDueCount, activeTodos.length);
+    }
+
     let html = '';
 
-    // ====================================================
-    // RENDEROWANIE W ZALEŻNOŚCI OD ZAKŁADKI
-    // ====================================================
-
     if (window.activeDashboardTab === 'todo') {
-        if (todos.length > 0) {
-            html += todos.map(todo => `
+        if (activeTodos.length > 0) {
+            html += activeTodos.map(todo => `
                 <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#a8c7fa] shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('todo')">
-                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${todo.title}</h3>
+                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(todo.title)}</h3>
                         <p class="text-[10px] text-neutral-500 mt-0.5">Dodano: ${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
                     </div>
                     <button onclick="window.quickCompleteTodoDashboard(${todo.id})" class="w-9 h-9 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
@@ -79,7 +99,7 @@ window.loadDashboardOverview = async function() {
             html += overdueHome.map(t => `
                 <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#ffb4ab] shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('home')">
-                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${t.name}</h3>
+                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(t.name)}</h3>
                         <p class="text-[10px] text-[#ffb4ab] mt-0.5">Czas na odświeżenie</p>
                     </div>
                     <button onclick="window.quickLogTaskDashboard('${encodeURIComponent(t.name)}')" class="w-9 h-9 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
@@ -104,7 +124,7 @@ window.loadDashboardOverview = async function() {
             html += dueHealth.map(ht => `
                 <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
-                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${ht.name}</h3>
+                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
                         <p class="text-[10px] text-[#ffb4ab] mt-0.5">Zaplanowana dawka</p>
                     </div>
                     <button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-9 h-9 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-lg font-bold shrink-0">✓</button>
@@ -112,10 +132,55 @@ window.loadDashboardOverview = async function() {
             
             html += activeDuration.map(ht => {
                 const aLog = hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
-                return `<div class="flex items-center justify-between p-3 bg-rose-900/10 rounded-[16px] border border-rose-900/40 mb-1.5 border-l-4 border-l-rose-500 shadow-sm animate-fade-in"><div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')"><h3 class="font-medium text-neutral-100 text-sm leading-tight">${ht.name}</h3><p class="text-[10px] text-rose-400 mt-0.5">Zdarzenie trwa...</p></div><button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button></div>`;
+                return `<div class="flex items-center justify-between p-3 bg-rose-900/10 rounded-[16px] border border-rose-900/40 mb-1.5 border-l-4 border-l-rose-500 shadow-sm animate-fade-in"><div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')"><h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3><p class="text-[10px] text-rose-400 mt-0.5">Zdarzenie trwa...</p></div><button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button></div>`;
             }).join('');
         } else {
             html = renderEmptyState("Wszyscy domownicy czują się świetnie!");
+        }
+    }
+    else if (window.activeDashboardTab === 'history') {
+        let historyItems = [];
+             
+        // Zdarzenia domowe
+        logs.forEach(l => {
+            const t = tasks.find(x => x.name === l.activity_name);
+            if (!t || t.show_in_history !== false) {
+                historyItems.push({ title: l.activity_name, date: new Date(l.created_at), icon: '🏠', color: 'text-[#c4eed0]', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50' });
+            }
+        });
+
+        // Zdarzenia zdrowotne
+        hLogs.forEach(l => {
+            const ht = hTasks.find(x => x.id === l.health_task_id);
+            if (!ht || ht.show_in_history !== false) {
+                const d = l.end_date ? new Date(l.end_date) : new Date(l.start_date);
+                historyItems.push({ title: ht ? ht.name : 'Zdarzenie', date: d, icon: '❤️', color: 'text-[#ffb4ab]', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50' });
+            }
+        });
+
+        // Zadania (To-Do)
+        allTodos.filter(t => t.is_completed).forEach(t => {
+            historyItems.push({ title: t.title, date: new Date(t.created_at), icon: '📝', color: 'text-[#a8c7fa]', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50' });
+        });
+
+        // Sortowanie i limitowanie (ostatnie 30)
+        historyItems.sort((a, b) => b.date - a.date);
+        const topHistory = historyItems.slice(0, 30);
+
+        if (topHistory.length > 0) {
+            html += `<div class="relative border-l-2 border-[#333537] ml-4 mt-2 mb-6 space-y-6">`;
+            html += topHistory.map(item => `
+                <div class="relative pl-6 animate-fade-in">
+                    <div class="absolute -left-[17px] top-1 w-8 h-8 rounded-full ${item.bg} ${item.border} border flex items-center justify-center text-sm shadow-md">${item.icon}</div>
+                    <div class="bg-[#1e1f20] p-3 rounded-[16px] border border-[#333537] shadow-sm">
+                        <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4>
+                        <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
+                    </div>
+                </div>
+            `).join('');
+            html += `</div>`;
+        } else {
+            html = renderEmptyState("Oś czasu jest pusta.");
         }
     }
 
@@ -131,7 +196,6 @@ function renderEmptyState(msg) {
     </div>`;
 }
 
-// --- FUNKCJE SZYBKICH AKCJI (Dashboard) ---
 window.quickCompleteTodoDashboard = async function(id) {
     await supabaseClient.from('todos').update({ is_completed: true }).eq('id', id).eq('user_id', window.currentUser.id);
     window.showToast('Zadanie odhaczone! ✔️');
@@ -140,9 +204,7 @@ window.quickCompleteTodoDashboard = async function(id) {
 
 window.quickLogTaskDashboard = async function(name) {
     const d = new Date().toISOString().split('T')[0];
-    await supabaseClient.from('activity_logs').insert([{
-        activity_name: decodeURIComponent(name), created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id
-    }]);
+    await supabaseClient.from('activity_logs').insert([{ activity_name: decodeURIComponent(name), created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id }]);
     window.showToast('Zrobione! ✔️');
     window.loadDashboardOverview(); 
 };
