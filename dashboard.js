@@ -1,5 +1,5 @@
 // ==========================================
-// LOGIKA: PRZEGLĄD Z ZAKŁADKAMI (dashboard.js)
+// LOGIKA: PRZEGLĄD (dashboard.js)
 // ==========================================
 
 window.activeDashboardTab = 'todo'; 
@@ -11,6 +11,7 @@ window.switchDashboardTab = function(tab) {
 
 window.loadDashboardOverview = async function() {
     const listEl = document.getElementById('dashboard-overview-list');
+    if (!listEl) return;
     
     const tabs = ['todo', 'home', 'health', 'history'];
     tabs.forEach(t => {
@@ -23,7 +24,7 @@ window.loadDashboardOverview = async function() {
         }
     });
 
-    listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Analiza Twoich spraw...</p>`;
+    listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Synchronizacja...</p>`;
 
     const hid = window.currentUser.household_id; 
 
@@ -75,13 +76,14 @@ window.loadDashboardOverview = async function() {
     if (window.activeDashboardTab === 'todo') {
         if (activeTodos.length > 0) {
             html += activeTodos.map(todo => {
-                let creatorBadge = `<div onclick="event.stopPropagation(); window.openChangeUserModal('todos_creator', ${todo.id}, '${window.esc(todo.creator_name || '')}')" class="w-5 h-5 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[9px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform" title="Dodał(a)" data-user-name="${window.esc(todo.creator_name || '')}">${(todo.creator_name || '?')[0].toUpperCase()}</div>`;
+                let initial = (todo.creator_name || '?')[0].toUpperCase();
+                let creatorBadge = `<div onclick="event.stopPropagation(); window.openChangeUserModal('todos_creator', ${todo.id}, '${window.esc(todo.creator_name || '')}')" class="w-5 h-5 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[9px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform" title="Dodał(a)" data-user-name="${window.esc(todo.creator_name || '')}">${initial}</div>`;
                 
                 return `
                 <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#a8c7fa] shadow-sm animate-fade-in">
                     <div class="flex-1 flex items-center cursor-pointer pr-2" onclick="window.switchView('todo')">
-                        <div>
-                            <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(todo.title)}</h3>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-medium text-neutral-100 text-sm leading-tight truncate">${window.esc(todo.title)}</h3>
                             <p class="text-[10px] text-neutral-500 mt-0.5">${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
                         </div>
                         ${creatorBadge}
@@ -89,9 +91,7 @@ window.loadDashboardOverview = async function() {
                     <button onclick="window.quickCompleteTodoDashboard(${todo.id})" class="w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
                 </div>`;
             }).join('');
-        } else {
-            html = renderEmptyState("Wszystkie zadania załatwione!");
-        }
+        } else { html = renderEmptyState("Zadania załatwione!"); }
     } 
     else if (window.activeDashboardTab === 'home') {
         let overdueHome = tasks.filter(t => {
@@ -102,19 +102,9 @@ window.loadDashboardOverview = async function() {
             next.setDate(next.getDate() + t.interval_days);
             return next <= today;
         });
-
         if (overdueHome.length > 0) {
-            html += overdueHome.map(t => `
-                <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#ffb4ab] shadow-sm animate-fade-in">
-                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('home')">
-                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(t.name)}</h3>
-                        <p class="text-[10px] text-[#ffb4ab] mt-0.5">Czas na odświeżenie</p>
-                    </div>
-                    <button onclick="window.quickLogTaskDashboard('${encodeURIComponent(t.name)}')" class="w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
-                </div>`).join('');
-        } else {
-            html = renderEmptyState("Dom lśni czystością!");
-        }
+            html += overdueHome.map(t => `<div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#ffb4ab] shadow-sm animate-fade-in"><div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('home')"><h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(t.name)}</h3><p class="text-[10px] text-[#ffb4ab] mt-0.5">Czas na odświeżenie</p></div><button onclick="window.quickLogTaskDashboard('${encodeURIComponent(t.name)}')" class="w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button></div>`).join('');
+        } else { html = renderEmptyState("Dom lśni!"); }
     } 
     else if (window.activeDashboardTab === 'health') {
         const dueHealth = hTasks.filter(ht => {
@@ -125,49 +115,33 @@ window.loadDashboardOverview = async function() {
             next.setDate(next.getDate() + ht.interval_days);
             return next <= today;
         });
-        
         const activeDuration = hTasks.filter(ht => ht.task_type === 'duration' && hLogs.some(l => l.health_task_id === ht.id && l.end_date === null));
-
         if (dueHealth.length > 0 || activeDuration.length > 0) {
-            html += dueHealth.map(ht => `
-                <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
-                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
-                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
-                        <p class="text-[10px] text-[#ffb4ab] mt-0.5">Zaplanowana dawka</p>
-                    </div>
-                    <button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-8 h-8 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
-                </div>`).join('');
-            
+            html += dueHealth.map(ht => `<div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in"><div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')"><h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3><p class="text-[10px] text-[#ffb4ab] mt-0.5">Zaplanowana dawka</p></div><button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-8 h-8 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button></div>`).join('');
             html += activeDuration.map(ht => {
                 const aLog = hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
                 return `<div class="flex items-center justify-between px-3 py-2 bg-rose-900/10 rounded-[12px] border border-rose-900/40 mb-1 border-l-4 border-l-rose-500 shadow-sm animate-fade-in"><div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')"><h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3><p class="text-[10px] text-rose-400 mt-0.5">Zdarzenie trwa...</p></div><button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button></div>`;
             }).join('');
-        } else {
-            html = renderEmptyState("Wszyscy domownicy czują się świetnie!");
-        }
+        } else { html = renderEmptyState("Wszyscy zdrowi!"); }
     }
     else if (window.activeDashboardTab === 'history') {
         let historyItems = [];
-             
         logs.forEach(l => {
             const t = tasks.find(x => x.name === l.activity_name);
             if (!t || t.show_in_history !== false) {
-                historyItems.push({ table: 'activity_logs', id: l.id, title: l.activity_name, date: new Date(l.created_at), icon: '🏠', color: 'text-[#c4eed0]', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' });
+                historyItems.push({ table: 'activity_logs', id: l.id, title: l.activity_name, date: new Date(l.created_at), icon: '🏠', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' });
             }
         });
-
         hLogs.forEach(l => {
             const ht = hTasks.find(x => x.id === l.health_task_id);
             if (!ht || ht.show_in_history !== false) {
                 const profile = profiles.find(p => p.id === ht?.profile_id);
-                const profileStr = profile ? ` (${profile.name})` : '';
-                const d = l.end_date ? new Date(l.end_date) : new Date(l.start_date);
-                historyItems.push({ table: 'health_logs', id: l.id, title: (ht ? ht.name : 'Zdarzenie') + profileStr, date: d, icon: '❤️', color: 'text-[#ffb4ab]', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' });
+                const title = (ht ? ht.name : 'Zdarzenie') + (profile ? ` (${profile.name})` : '');
+                historyItems.push({ table: 'health_logs', id: l.id, title: title, date: l.end_date ? new Date(l.end_date) : new Date(l.start_date), icon: '❤️', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' });
             }
         });
-
         allTodos.filter(t => t.is_completed).forEach(t => {
-            historyItems.push({ table: 'todos', id: t.id, title: t.title, date: new Date(t.created_at), icon: '📝', color: 'text-[#a8c7fa]', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' });
+            historyItems.push({ table: 'todos', id: t.id, title: t.title, date: new Date(t.created_at), icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' });
         });
 
         historyItems.sort((a, b) => b.date - a.date);
@@ -175,28 +149,25 @@ window.loadDashboardOverview = async function() {
 
         if (topHistory.length > 0) {
             html += `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">`;
-            html += topHistory.map(item => `
+            html += topHistory.map(item => {
+                let initial = (item.user || '?')[0].toUpperCase();
+                return `
                 <div class="relative pl-5 animate-fade-in">
                     <div class="absolute -left-[13px] top-1.5 w-6 h-6 rounded-full ${item.bg} ${item.border} border flex items-center justify-center text-xs shadow-md">${item.icon}</div>
-                    
                     <div class="bg-[#1e1f20] px-3 py-2 rounded-[12px] border border-[#333537] shadow-sm flex justify-between items-center">
-                        <div>
-                            <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4>
+                        <div class="flex-1 min-w-0 pr-2">
+                            <h4 class="text-sm font-medium text-neutral-200 truncate">${window.esc(item.title)}</h4>
                             <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
                         </div>
-                        <div onclick="event.stopPropagation(); window.openChangeUserModal('${item.table}', ${item.id}, '${window.esc(item.user)}')" class="w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 ml-2 cursor-pointer active:scale-90 transition-transform shadow-sm" title="Zmień wykonawcę" data-user-name="${window.esc(item.user)}">
-                            ${item.user[0].toUpperCase()}
+                        <div onclick="event.stopPropagation(); window.openChangeUserModal('${item.table}', ${item.id}, '${window.esc(item.user)}')" class="w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 cursor-pointer active:scale-90 transition-transform" data-user-name="${window.esc(item.user)}">
+                            ${initial}
                         </div>
                     </div>
-
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
             html += `</div>`;
-        } else {
-            html = renderEmptyState("Oś czasu jest pusta.");
-        }
+        } else { html = renderEmptyState("Oś czasu jest pusta."); }
     }
-
     listEl.innerHTML = html;
 };
 
