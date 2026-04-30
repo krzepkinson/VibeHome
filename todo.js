@@ -33,7 +33,7 @@ async function loadTodos() {
                 <div class="w-6 h-6 rounded-full border-2 ${todo.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors">
                     ${todo.is_completed ? '<span class="text-[#0f5223] text-xs">✓</span>' : ''}
                 </div>
-                <span class="text-sm ${todo.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'}">${todo.title}</span>
+                <span class="text-sm ${todo.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'}">${esc(todo.title)}</span>
             </div>
             <button onclick="deleteTodo(${todo.id})" class="text-neutral-600 hover:text-[#ffb4ab] p-2">🗑️</button>
         </div>
