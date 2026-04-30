@@ -301,6 +301,7 @@ window.openSettingsScreen = async function(name) {
     document.getElementById('set-task-interval').value = data.interval_days || 0;
     document.getElementById('set-task-remind').value = data.remind_days_before || 0;
     document.getElementById('set-task-push').checked = data.push_enabled !== false;
+    document.getElementById('set-task-history').checked = data.show_in_history !== false;
     
     window.currentEditingHomeTask = data.name;
 
@@ -317,16 +318,97 @@ window.saveTaskSettings = async function() {
     const remind = parseInt(document.getElementById('set-task-remind').value) || 0;
     const r = document.getElementById('set-task-room').value; 
     const pushEnabled = document.getElementById('set-task-push').checked;
+    const showHist = document.getElementById('set-task-history').checked;
     const uid = window.currentUser.id;
 
     if (window.currentEditingHomeTask !== n) {
         await supabaseClient.from('activity_logs').update({ activity_name: n }).eq('activity_name', window.currentEditingHomeTask).eq('user_id', uid);
-        await supabaseClient.from('tasks').insert([{ name: n, interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, room: r, user_id: uid }]);
+        await supabaseClient.from('tasks').insert([{ name: n, interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, show_in_history: showHist, room: r, user_id: uid }]);
         await supabaseClient.from('tasks').delete().eq('name', window.currentEditingHomeTask).eq('user_id', uid);
         window.currentEditingHomeTask = n;
     } else {
-        await supabaseClient.from('tasks').update({ interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, room: r }).eq('name', window.currentEditingHomeTask).eq('user_id', uid);
+        await supabaseClient.from('tasks').update({ interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, show_in_history: showHist, room: r }).eq('name', window.currentEditingHomeTask).eq('user_id', uid);
     }
     window.showToast("Zapisano!"); 
     if(typeof loadDashboard === 'function') loadDashboard();
+};
+
+// ZMIANA: Miękkie usuwanie dla Domu
+window.deleteCurrentTask = async function() {
+    if(confirm("Zarchiwizować czynność? Zniknie z głównych widoków.")) { 
+        await supabaseClient.from('tasks').update({ is_archived: true }).eq('name', window.currentEditingHomeTask).eq('user_id', window.currentUser.id); 
+        window.closeSettingsScreen(); 
+        if(typeof loadDashboard === 'function') loadDashboard();
+    }
+};
+
+// --------------------------------------------------------
+// SEKCJA: ARCHIWUM GŁÓWNE
+// --------------------------------------------------------
+window.openArchiveScreen = function() {
+    window.goForward('archive-screen');
+    window.loadArchiveData();
+};
+
+window.loadArchiveData = async function() {
+    const listEl = document.getElementById('archive-list');
+    listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Pobieranie archiwum...</p>`;
+    const uid = window.currentUser.id;
+
+    const [tRes, htRes, todoRes, listRes] = await Promise.all([
+        supabaseClient.from('tasks').select('*').eq('user_id', uid).eq('is_archived', true),
+        supabaseClient.from('health_tasks').select('*').eq('user_id', uid).eq('is_archived', true),
+        supabaseClient.from('todos').select('*').eq('user_id', uid).eq('is_archived', true),
+        supabaseClient.from('checklists').select('*').eq('user_id', uid).eq('is_archived', true)
+    ]);
+
+    let items = [];
+    if (tRes.data) tRes.data.forEach(x => items.push({ id: x.id, title: x.name, type: 'tasks', icon: '🏠', typeName: 'Dom' }));
+    if (htRes.data) htRes.data.forEach(x => items.push({ id: x.id, title: x.name, type: 'health_tasks', icon: '❤️', typeName: 'Zdrowie' }));
+    if (todoRes.data) todoRes.data.forEach(x => items.push({ id: x.id, title: x.title, type: 'todos', icon: '📝', typeName: 'Zadanie' }));
+    if (listRes.data) listRes.data.forEach(x => items.push({ id: x.id, title: x.title, type: 'checklists', icon: '🗂️', typeName: 'Lista' }));
+
+    if (items.length === 0) {
+        listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Archiwum jest puste.</p>`;
+        return;
+    }
+
+    listEl.innerHTML = items.map(item => `
+        <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-2 animate-fade-in">
+            <div class="flex items-center gap-3">
+                <span class="text-xl">${item.icon}</span>
+                <div>
+                    <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4>
+                    <p class="text-[10px] text-neutral-500 uppercase tracking-widest">${item.typeName}</p>
+                </div>
+            </div>
+            <div class="flex gap-1">
+                <button onclick="window.restoreFromArchive('${item.type}', ${item.id})" class="px-3 py-1.5 rounded-full bg-[#0f5223]/20 text-[#c4eed0] text-[10px] font-bold uppercase tracking-wider active:scale-95 border border-[#0f5223]/50">Przywróć</button>
+                <button onclick="window.permanentlyDelete('${item.type}', ${item.id})" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] hover:text-[#ffb4ab] transition-colors text-sm border border-transparent">🗑️</button>
+            </div>
+        </div>
+    `).join('');
+};
+
+window.restoreFromArchive = async function(table, id) {
+    await supabaseClient.from(table).update({ is_archived: false }).eq('id', id).eq('user_id', window.currentUser.id);
+    window.showToast("Przywrócono!");
+    window.loadArchiveData();
+    // Odświeżenie w tle na wypadek powrotu
+    if(typeof loadDashboard === 'function') loadDashboard();
+    if(typeof window.initHealthModule === 'function') window.initHealthModule();
+};
+
+window.permanentlyDelete = async function(table, id) {
+    if (!confirm("Usunąć trwale? Tej operacji nie można cofnąć, usunie również historię wpisów!")) return;
+    
+    // Jeśli to Dom, musimy usunąć też logi na podstawie nazwy zadania
+    if (table === 'tasks') {
+        const { data } = await supabaseClient.from('tasks').select('name').eq('id', id).single();
+        if (data) await supabaseClient.from('activity_logs').delete().eq('activity_name', data.name).eq('user_id', window.currentUser.id);
+    }
+    
+    await supabaseClient.from(table).delete().eq('id', id).eq('user_id', window.currentUser.id);
+    window.showToast("Trwale usunięto!");
+    window.loadArchiveData();
 };
