@@ -80,8 +80,8 @@ async function loadAppRooms() {
     listEl.innerHTML = appRooms.map(room => `
         <div class="flex justify-between items-center p-3 bg-[#131314] rounded-[16px] border border-[#333537]">
             <div class="flex items-center gap-3">
-                <span class="text-xl">${room.icon || '📦'}</span>
-                <span class="text-sm font-medium text-neutral-200">${room.name}</span>
+                <span class="text-xl">${esc(room.icon || '📦')}</span>
+                <span class="text-sm font-medium text-neutral-200">${esc(room.name)}</span>
             </div>
             <div class="flex gap-1">
                 <button onclick="openEditRoomModal('${encodeURIComponent(room.name)}', '${room.icon}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">✏️</button>
@@ -174,7 +174,7 @@ async function populateRoomsDropdown(selectId, selectedValue = '') {
     if (!selectEl) return;
     if (appRooms.length === 0) await fetchRoomsFromDB();
 
-    selectEl.innerHTML = appRooms.map(r => `<option value="${r.name}">${r.icon} ${r.name}</option>`).join('');
+    selectEl.innerHTML = appRooms.map(r => `<option value="${esc(r.name)}">${esc(r.icon)} ${esc(r.name)}</option>`).join('');
 
     if (!appRooms.find(r => r.name === 'Inne')) {
         selectEl.innerHTML += `<option value="Inne">📦 Inne</option>`;
@@ -231,10 +231,10 @@ async function loadAppProfiles() {
         return `
         <div class="flex justify-between items-center p-3 bg-[#131314] rounded-[20px] border border-[#333537]">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 ${avatarColor} text-white rounded-full flex items-center justify-center font-bold shadow-md border-2 border-[#131314]">${p.name.charAt(0).toUpperCase()}</div>
+                <div class="w-10 h-10 ${avatarColor} text-white rounded-full flex items-center justify-center font-bold shadow-md border-2 border-[#131314]">${esc(p.name.charAt(0).toUpperCase())}</div>
                 <div>
-                    <span class="text-sm font-medium text-neutral-200 flex items-center">${p.name} ${getAgeBadge(p.birth_date)}</span>
-                    <span class="text-[10px] text-neutral-500 mt-0.5 block">${p.height ? p.height + ' cm' : '-- cm'} • ${p.weight ? p.weight + ' kg' : '-- kg'}</span>
+                    <span class="text-sm font-medium text-neutral-200 flex items-center">${esc(p.name)} ${getAgeBadge(p.birth_date)}</span>
+                    <span class="text-[10px] text-neutral-500 mt-0.5 block">${p.height ? esc(p.height) + ' cm' : '-- cm'} • ${p.weight ? esc(p.weight) + ' kg' : '-- kg'}</span>
                 </div>
             </div>
             <button onclick="openEditProfileScreen(${p.id})" class="w-10 h-10 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 transition-colors text-sm">⚙️</button>
