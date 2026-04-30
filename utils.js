@@ -2,7 +2,15 @@
 // NARZĘDZIA POMOCNICZE (utils.js)
 // ==========================================
 
-// 1. Inicjalizacja bazy danych Supabase (dostępna globalnie dla wszystkich plików)
+// 1. Funkcja zabezpieczająca tekst przed XSS (używaj wszędzie zamiast ${zmienna} w innerHTML)
+window.esc = function(str) {
+    if (str === null || str === undefined) return '';
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(String(str)));
+    return div.innerHTML;
+};
+
+// 2. Inicjalizacja bazy danych Supabase (dostępna globalnie dla wszystkich plików)
 const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 
 // 2. Globalny system "dymków" (Toasts)
