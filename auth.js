@@ -21,13 +21,11 @@ async function handleAuthAction() {
 
     try {
         if (isLoginMode) {
-            // Dodano window.
-            const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
             if (error) throw error;
             await finalizeLogin(data.user);
         } else {
-            // Dodano window.
-            const { data, error } = await window.supabaseClient.auth.signUp({ email, password });
+            const { data, error } = await supabaseClient.auth.signUp({ email, password });
             if (error) throw error;
             window.showToast('Konto utworzone! Logowanie...');
             await finalizeLogin(data.user);
@@ -46,20 +44,17 @@ async function finalizeLogin(user) {
     try {
         const userName = user.user_metadata?.name || user.email.split('@')[0];
 
-        // Dodano window.
-        let { data: members, error: memErr } = await window.supabaseClient.from('household_members').select('household_id').eq('user_id', user.id);
+        let { data: members, error: memErr } = await supabaseClient.from('household_members').select('household_id').eq('user_id', user.id);
         if (memErr) throw memErr;
 
         let hid = null;
         if (!members || members.length === 0) {
-            // Dodano window.
-            const { data: hh, error: hhErr } = await window.supabaseClient.from('households').insert([{ name: 'Nasz Dom' }]).select().single();
+            const { data: hh, error: hhErr } = await supabaseClient.from('households').insert([{ name: 'Nasz Dom' }]).select().single();
             if (hhErr) throw hhErr;
             
             hid = hh.id;
             
-            // Dodano window.
-            const { error: insertErr } = await window.supabaseClient.from('household_members').insert([{ household_id: hid, user_id: user.id }]);
+            const { error: insertErr } = await supabaseClient.from('household_members').insert([{ household_id: hid, user_id: user.id }]);
             if (insertErr) throw insertErr;
         } else {
             hid = members[0].household_id;
@@ -83,8 +78,7 @@ async function finalizeLogin(user) {
 
 window.checkSession = async function() {
     try {
-        // Dodano window.
-        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) {
             await finalizeLogin(session.user);
             return true;
@@ -96,8 +90,7 @@ window.checkSession = async function() {
 };
 
 window.logoutUser = async function() {
-    // Dodano window.
-    await window.supabaseClient.auth.signOut();
+    await supabaseClient.auth.signOut();
     window.currentUser = null;
     window.switchView('auth');
 };
