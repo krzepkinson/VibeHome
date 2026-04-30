@@ -39,3 +39,43 @@ window.urlB64ToUint8Array = function(base64String) {
     }
     return outputArray;
 };
+// 6. Globalne odświeżanie widoku (Synchronizacja)
+window.refreshCurrentView = async function() {
+    // Animacja wciśniętego przycisku
+    const btn = document.activeElement; 
+    if (btn && btn.tagName === 'BUTTON') {
+        btn.style.transform = 'rotate(180deg)';
+        btn.classList.add('opacity-50');
+    }
+
+    try {
+        // Sprawdzamy czy otwarty jest ekran konkretnej Checklisty
+        const checklistScreen = document.getElementById('checklist-screen');
+        if (checklistScreen && !checklistScreen.classList.contains('hidden')) {
+            if (typeof window.loadChecklistItems === 'function') await window.loadChecklistItems();
+        } else {
+            // Jeśli nie, odświeżamy aktywną zakładkę główną
+            if (window.activeView === 'dashboard' && typeof window.loadDashboardOverview === 'function') {
+                await window.loadDashboardOverview();
+            } else if (window.activeView === 'home' && typeof window.loadDashboard === 'function') {
+                await window.loadDashboard();
+            } else if (window.activeView === 'todo' && typeof window.loadTodosAndLists === 'function') {
+                await window.loadTodosAndLists();
+            } else if (window.activeView === 'health' && typeof window.refreshHealthData === 'function') {
+                await window.refreshHealthData();
+                if(typeof window.renderHealthUI === 'function') window.renderHealthUI();
+            }
+        }
+        window.showToast("Zsynchronizowano ↻");
+    } catch(e) {
+        console.error("Błąd synchronizacji:", e);
+        window.showToast("Błąd synchronizacji");
+    } finally {
+        if (btn && btn.tagName === 'BUTTON') {
+            setTimeout(() => {
+                btn.style.transform = '';
+                btn.classList.remove('opacity-50');
+            }, 300);
+        }
+    }
+};
