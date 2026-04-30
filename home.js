@@ -84,7 +84,7 @@ window.closeAddLogModal = function() { document.getElementById('add-log-modal').
 
 window.saveNewLog = async function() {
     const n = document.getElementById('add-log-name').value; const d = document.getElementById('add-log-date').value; const nt = document.getElementById('add-log-notes').value;
-    await supabaseClient.from('activity_logs').insert([{ activity_name: n, created_at: `${d}T12:00:00.000Z`, notes: nt, user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
+    await supabaseClient.from('activity_logs').insert([{ activity_name: n, created_at: `${d}T12:00:00.000Z`, notes: nt, user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name }]);
     window.closeAddLogModal(); loadDashboard();
 };
 
