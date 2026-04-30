@@ -152,10 +152,11 @@ function closeNewTaskModal() { document.getElementById('new-task-modal').classLi
 
 async function saveNewTask() {
     const n = document.getElementById('new-task-name').value.trim();
-    const i = document.getElementById('new-task-interval').value;
+    const i = parseInt(document.getElementById('new-task-interval').value) || 0;
+    const remind = parseInt(document.getElementById('new-task-remind').value) || 0;
     const r = document.getElementById('new-task-room').value || 'Inne';
     if (!n) return;
-    await supabaseClient.from('tasks').insert([{ name: n, interval_days: parseInt(i)||0, push_enabled: true, room: r, user_id: window.currentUser.id }]);
+    await supabaseClient.from('tasks').insert([{ name: n, interval_days: i, remind_days_before: remind, push_enabled: true, room: r, user_id: window.currentUser.id }]);
     closeNewTaskModal(); loadDashboard();
 }
 
