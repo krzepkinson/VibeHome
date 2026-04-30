@@ -36,14 +36,14 @@ async function handleAuthAction() {
 
 async function finalizeLogin(user) {
     if (!user) return;
-    const userName = user.email.split('@')[0]; // Pobieramy np. "adam" z "adam@mail.com"
+    
+    // ZMIANA: Pobieramy Imię z metadanych lub z maila
+    const userName = user.user_metadata?.name || user.email.split('@')[0];
 
-    // Sprawdzamy, czy użytkownik ma już przypisany dom
     let { data: members } = await supabaseClient.from('household_members').select('household_id').eq('user_id', user.id);
     
     let hid = null;
     if (!members || members.length === 0) {
-        // Jeśli nowy użytkownik - tworzymy dla niego nowy, pusty Dom
         const { data: hh } = await supabaseClient.from('households').insert([{ name: 'Nasz Dom' }]).select().single();
         hid = hh.id;
         await supabaseClient.from('household_members').insert([{ household_id: hid, user_id: user.id }]);
@@ -53,6 +53,10 @@ async function finalizeLogin(user) {
 
     window.currentUser = { id: user.id, email: user.email, name: userName, household_id: hid };
     
+    // Uzupełniamy pole "Twoje Imię" w ustawieniach
+    const nameInput = document.getElementById('settings-user-name');
+    if (nameInput) nameInput.value = userName;
+
     document.getElementById('auth-email').value = '';
     document.getElementById('auth-password').value = '';
     window.switchView('dashboard');
