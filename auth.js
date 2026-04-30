@@ -21,11 +21,13 @@ async function handleAuthAction() {
 
     try {
         if (isLoginMode) {
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            // Dodano window.
+            const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
             if (error) throw error;
             await finalizeLogin(data.user);
         } else {
-            const { data, error } = await supabaseClient.auth.signUp({ email, password });
+            // Dodano window.
+            const { data, error } = await window.supabaseClient.auth.signUp({ email, password });
             if (error) throw error;
             window.showToast('Konto utworzone! Logowanie...');
             await finalizeLogin(data.user);
@@ -34,7 +36,6 @@ async function handleAuthAction() {
         console.error("Błąd autoryzacji:", error);
         window.showToast('Błąd: ' + error.message);
     } finally {
-        // Zawsze przywracamy tekst przycisku na wypadek błędu
         document.getElementById('auth-action-btn').innerText = isLoginMode ? 'Zaloguj się' : 'Zarejestruj się';
     }
 }
@@ -45,19 +46,20 @@ async function finalizeLogin(user) {
     try {
         const userName = user.user_metadata?.name || user.email.split('@')[0];
 
-        let { data: members, error: memErr } = await supabaseClient.from('household_members').select('household_id').eq('user_id', user.id);
+        // Dodano window.
+        let { data: members, error: memErr } = await window.supabaseClient.from('household_members').select('household_id').eq('user_id', user.id);
         if (memErr) throw memErr;
 
         let hid = null;
         if (!members || members.length === 0) {
-            // Tworzymy nowy dom i odczytujemy wygenerowane ID
-            const { data: hh, error: hhErr } = await supabaseClient.from('households').insert([{ name: 'Nasz Dom' }]).select().single();
+            // Dodano window.
+            const { data: hh, error: hhErr } = await window.supabaseClient.from('households').insert([{ name: 'Nasz Dom' }]).select().single();
             if (hhErr) throw hhErr;
             
             hid = hh.id;
             
-            // Dopiero teraz przypisujemy użytkownika do nowo utworzonego domu
-            const { error: insertErr } = await supabaseClient.from('household_members').insert([{ household_id: hid, user_id: user.id }]);
+            // Dodano window.
+            const { error: insertErr } = await window.supabaseClient.from('household_members').insert([{ household_id: hid, user_id: user.id }]);
             if (insertErr) throw insertErr;
         } else {
             hid = members[0].household_id;
@@ -75,13 +77,14 @@ async function finalizeLogin(user) {
     } catch (error) {
         console.error("Błąd podczas konfiguracji domu:", error);
         window.showToast('Błąd ładowania konta: ' + error.message);
-        throw error; // Zrzucamy błąd wyżej, żeby przycisk się odblokował
+        throw error; 
     }
 }
 
 window.checkSession = async function() {
     try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
+        // Dodano window.
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
         if (session) {
             await finalizeLogin(session.user);
             return true;
@@ -93,7 +96,8 @@ window.checkSession = async function() {
 };
 
 window.logoutUser = async function() {
-    await supabaseClient.auth.signOut();
+    // Dodano window.
+    await window.supabaseClient.auth.signOut();
     window.currentUser = null;
     window.switchView('auth');
 };
