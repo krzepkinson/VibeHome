@@ -28,3 +28,14 @@ window.showToast = function(msg) {
         toastEl.classList.add('opacity-0', 'translate-y-10');
     }, 3000);
 };
+// 5. Konwerter klucza VAPID (dla powiadomień Push)
+window.urlB64ToUint8Array = function(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+};
