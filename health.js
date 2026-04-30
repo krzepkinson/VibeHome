@@ -23,7 +23,8 @@ async function refreshHealthData() {
     if (!currentProfileId) return;
     const uid = window.currentUser.id;
     const [tRes, lRes] = await Promise.all([
-        supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId).eq('user_id', uid),
+        // ZMIANA: .eq('is_archived', false) ukrywa zarchiwizowane zadania
+        supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId).eq('user_id', uid).eq('is_archived', false),
         supabaseClient.from('health_logs').select('*').eq('user_id', uid).order('start_date', { ascending: false })
     ]);
     healthTasks = tRes.data || []; 
@@ -221,7 +222,7 @@ window.saveNewHealthTask = async function() {
 
     if (!n || !currentProfileId) return;
     await supabaseClient.from('health_tasks').insert([{ 
-        profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, remind_days_before: remind, event_date: evDate, show_in_history: true, user_id: window.currentUser.id 
+        profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, remind_days_before: remind, event_date: evDate, show_in_history: true, is_archived: false, user_id: window.currentUser.id 
     }]);
     window.closeNewHealthTaskModal(); window.initHealthModule();
 };
@@ -294,9 +295,10 @@ window.deleteHealthLog = async function(id) {
     renderHealthUI();
 };
 
+// ZMIANA: Miękkie usuwanie w zdrowiu
 window.deleteHealthTask = async function() {
-    if(!confirm("Usunąć całą kartę tego zdarzenia wraz z historią?")) return;
-    await supabaseClient.from('health_tasks').delete().eq('id', currentHealthSettingsId).eq('user_id', window.currentUser.id);
+    if(!confirm("Zarchiwizować to zdarzenie? Zniknie z głównych widoków.")) return;
+    await supabaseClient.from('health_tasks').update({ is_archived: true }).eq('id', currentHealthSettingsId).eq('user_id', window.currentUser.id);
     window.closeHealthSettingsScreen(); 
     window.initHealthModule();
 };
