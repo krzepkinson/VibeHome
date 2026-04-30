@@ -150,7 +150,7 @@ function renderHealthTasks() {
         return `
             <div class="flex items-center justify-between p-4 bg-[#1e1f20] rounded-[24px] border border-[#333537] mb-1">
                 <div class="flex-1 cursor-pointer" onclick="openHealthSettingsScreen(${task.id})">
-                    <h3 class="font-medium text-neutral-100 text-sm">${task.name}</h3>
+                    <h3 class="font-medium text-neutral-100 text-sm">${esc(task.name)}</h3>
                     <p class="text-[11px] text-neutral-500 mt-0.5">${statusStr}</p>
                 </div>
                 <div class="flex items-center gap-1.5">
@@ -244,7 +244,7 @@ function openDayDetails(dateStr) {
     } else {
         list.innerHTML = dayLogs.map(l => {
             const task = healthTasks.find(t => t.id === l.health_task_id) || { name: 'Usunięte zadanie' };
-            return `<div class="p-3 bg-[#131314] rounded-xl border border-[#333537]"><p class="text-sm font-medium text-neutral-200">${task.name}</p><p class="text-[10px] text-neutral-500 mt-0.5">${l.end_date ? 'Zdarzenie zakończone' : 'W trakcie...'}</p></div>`;
+            return `<div class="p-3 bg-[#131314] rounded-xl border border-[#333537]"><p class="text-sm font-medium text-neutral-200">${esc(task.name)}</p><p class="text-[10px] text-neutral-500 mt-0.5">${l.end_date ? 'Zdarzenie zakończone' : 'W trakcie...'}</p></div>`;
         }).join('');
     }
     modal.classList.remove('hidden');
@@ -255,8 +255,8 @@ function toggleProfileSwitcher() {
     const modal = document.getElementById('profile-switcher-modal');
     document.getElementById('switcher-profiles-list').innerHTML = healthProfiles.map(p => `
         <div onclick="selectHealthProfile(${p.id})" class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-[#333537] ${p.id === currentProfileId ? 'bg-[#333537] border border-[#a8c7fa]' : ''}">
-            <div class="w-8 h-8 rounded-full bg-neutral-600 flex items-center justify-center text-xs font-bold">${p.name.charAt(0).toUpperCase()}</div>
-            <span class="text-sm text-neutral-200">${p.name}</span>
+            <div class="w-8 h-8 rounded-full bg-neutral-600 flex items-center justify-center text-xs font-bold">${esc(p.name.charAt(0).toUpperCase())}</div>
+            <span class="text-sm text-neutral-200">${esc(p.name)}</span>
         </div>
     `).join('');
     modal.classList.remove('hidden');
