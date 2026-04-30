@@ -20,11 +20,8 @@ window.showToast = function(message) {
     if (!toast) return;
     toast.innerText = message;
     toast.classList.remove('opacity-0', 'translate-y-10');
-    
     if (window.toastTimeout) clearTimeout(window.toastTimeout);
-    window.toastTimeout = setTimeout(() => {
-        toast.classList.add('opacity-0', 'translate-y-10');
-    }, 3000);
+    window.toastTimeout = setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-10'); }, 3000);
 };
 
 window.urlB64ToUint8Array = function(base64String) {
@@ -32,9 +29,7 @@ window.urlB64ToUint8Array = function(base64String) {
     const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
     const rawData = window.atob(base64);
     const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {
-        outputArray[i] = rawData.charCodeAt(i);
-    }
+    for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
     return outputArray;
 };
 
@@ -49,32 +44,27 @@ window.refreshCurrentView = async function() {
         if (checklistScreen && !checklistScreen.classList.contains('hidden')) {
             if (typeof window.loadChecklistItems === 'function') await window.loadChecklistItems();
         } else {
-            if (window.activeView === 'dashboard' && typeof window.loadDashboardOverview === 'function') {
+            // Używamy globalnego routera, by wiedzieć gdzie jesteśmy
+            const view = window.activeView;
+            if (view === 'dashboard' && typeof window.loadDashboardOverview === 'function') {
                 await window.loadDashboardOverview();
-            } else if (window.activeView === 'home' && typeof window.loadDashboard === 'function') {
+            } else if (view === 'home' && typeof window.loadDashboard === 'function') {
                 await window.loadDashboard();
-            } else if (window.activeView === 'todo' && typeof window.loadTodosAndLists === 'function') {
+            } else if (view === 'todo' && typeof window.loadTodosAndLists === 'function') {
                 await window.loadTodosAndLists();
-            } else if (window.activeView === 'health' && typeof window.refreshHealthData === 'function') {
-                await window.refreshHealthData();
-                if(typeof window.renderHealthUI === 'function') window.renderHealthUI();
+            } else if (view === 'health' && typeof window.initHealthModule === 'function') {
+                await window.initHealthModule();
             }
         }
-        window.showToast("Zsynchronizowano ↻");
     } catch(e) {
         console.error("Błąd synchronizacji:", e);
-        window.showToast("Błąd synchronizacji");
     } finally {
         if (btn && btn.tagName === 'BUTTON') {
-            setTimeout(() => {
-                btn.style.transform = '';
-                btn.classList.remove('opacity-50');
-            }, 300);
+            setTimeout(() => { btn.style.transform = ''; btn.classList.remove('opacity-50'); }, 300);
         }
     }
 };
 
-// NOWOŚĆ: Logika zmiany wykonawcy/autora
 window.openChangeUserModal = function(type, id, currentName) {
     document.getElementById('change-user-type').value = type;
     document.getElementById('change-user-id').value = id;
@@ -82,18 +72,16 @@ window.openChangeUserModal = function(type, id, currentName) {
     let names = new Set();
     if (window.currentUser && window.currentUser.name) names.add(window.currentUser.name);
 
-    // Skanujemy ekran w poszukiwaniu wszystkich użytych imion
+    // Skanowanie inicjałów obecnych na ekranie
     document.querySelectorAll('[data-user-name]').forEach(el => {
         const n = el.getAttribute('data-user-name');
         if (n && n !== '?' && n !== 'null' && n !== 'undefined') names.add(n);
     });
     
-    if (currentName && currentName !== '?' && currentName !== 'null' && currentName !== 'undefined') {
-        names.add(currentName);
-    }
+    if (currentName) names.add(currentName);
 
     const listEl = document.getElementById('change-user-list');
-    listEl.innerHTML = Array.from(names).map(name => `
+    listEl.innerHTML = Array.from(names).filter(n => n && n !== 'null').map(name => `
         <button onclick="window.saveChangedUser('${window.esc(name)}')" class="w-full text-left px-4 py-3 bg-[#1e1f20] hover:bg-[#333537] border border-[#333537] rounded-[16px] mb-2 text-neutral-200 active:scale-95 transition-colors">
             <span class="font-medium">${window.esc(name)}</span>
         </button>
@@ -108,19 +96,30 @@ window.saveChangedUser = async function(newName) {
     if (!newName) return;
 
     const type = document.getElementById('change-user-type').value;
-    const id = document.getElementById('change-user-id').value;
+    const idStr = document.getElementById('change-user-id').value;
+    const id = parseInt(idStr); // KLUCZOWA NAPRAWA: zamiana tekstu na liczbę
 
     let table = type;
     let col = 'user_name';
 
     if (type === 'todos') { table = 'todos'; col = 'completer_name'; }
     else if (type === 'todos_creator') { table = 'todos'; col = 'creator_name'; }
+    else if (type === 'activity_logs') { table = 'activity_logs'; col = 'user_name'; }
+    else if (type === 'health_logs') { table = 'health_logs'; col = 'user_name'; }
 
-    await supabaseClient.from(table).update({ [col]: newName }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    const { error } = await supabaseClient.from(table)
+        .update({ [col]: newName })
+        .eq('id', id)
+        .eq('household_id', window.currentUser.household_id);
 
-    document.getElementById('change-user-modal').classList.add('hidden');
-    window.showToast("Zaktualizowano osobę! ✔️");
-    window.refreshCurrentView();
+    if (error) {
+        window.showToast("Błąd zapisu: " + error.message);
+    } else {
+        document.getElementById('change-user-modal').classList.add('hidden');
+        window.showToast("Zaktualizowano osobę! ↻");
+        // Wywołujemy odświeżenie bez pokazywania dodatkowego toasta
+        await window.refreshCurrentView();
+    }
 };
 
 window.closeChangeUserModal = function() {
