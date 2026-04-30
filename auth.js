@@ -1,75 +1,74 @@
 // ==========================================
-// LOGIKA: AUTORYZACJA (auth.js)
+// SYSTEM LOGOWANIA (auth.js)
 // ==========================================
-
-window.currentUser = null;
-
-// Pobranie początkowej sesji
-window.checkSession = async function() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session) {
-        window.currentUser = session.user;
-        return true;
-    }
-    window.currentUser = null;
-    return false;
-};
-
-// Nasłuchiwanie zmian stanu (np. nagłe wylogowanie z innej karty)
-supabaseClient.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        window.currentUser = session.user;
-        if (activeView === 'auth') window.switchView('dashboard');
-    } else if (event === 'SIGNED_OUT') {
-        window.currentUser = null;
-        window.switchView('auth');
-    }
-});
 
 let isLoginMode = true;
 
-window.toggleAuthMode = function() {
+function toggleAuthMode() {
     isLoginMode = !isLoginMode;
     document.getElementById('auth-title').innerText = isLoginMode ? 'Witaj z powrotem' : 'Dołącz do nas';
-    document.getElementById('auth-subtitle').innerText = isLoginMode ? 'Zaloguj się, aby zarządzać domem.' : 'Utwórz nowe konto domowe.';
     document.getElementById('auth-action-btn').innerText = isLoginMode ? 'Zaloguj się' : 'Zarejestruj się';
     document.getElementById('auth-toggle-btn').innerHTML = isLoginMode ? 'Nie masz konta? <span class="text-[#a8c7fa]">Zarejestruj się</span>' : 'Masz już konto? <span class="text-[#a8c7fa]">Zaloguj się</span>';
-};
+}
 
-window.handleAuthAction = async function() {
+async function handleAuthAction() {
     const email = document.getElementById('auth-email').value.trim();
     const password = document.getElementById('auth-password').value;
-    const btn = document.getElementById('auth-action-btn');
 
-    if (!email || !password) {
-        showToast("Wpisz email i hasło!");
-        return;
-    }
-
-    btn.disabled = true;
-    const originalText = btn.innerText;
-    btn.innerText = "Przetwarzanie...";
+    if (!email || !password) { window.showToast('Wypełnij wszystkie pola!'); return; }
+    
+    document.getElementById('auth-action-btn').innerText = 'Przetwarzanie...';
 
     if (isLoginMode) {
-        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) showToast("Błąd: " + (error.message.includes('Invalid login') ? 'Błędny email lub hasło.' : error.message));
-        else {
-            showToast("Zalogowano pomyślnie!");
-            document.getElementById('auth-password').value = '';
-        }
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) { window.showToast('Błąd logowania: ' + error.message); }
+        else { await finalizeLogin(data.user); }
     } else {
-        const { error } = await supabaseClient.auth.signUp({ email, password });
-        if (error) showToast("Błąd rejestracji: " + error.message);
-        else {
-            showToast("Konto utworzone! Możesz się zalogować.");
-            toggleAuthMode(); 
+        const { data, error } = await supabaseClient.auth.signUp({ email, password });
+        if (error) { window.showToast('Błąd rejestracji: ' + error.message); }
+        else { 
+            window.showToast('Konto utworzone! Logowanie...');
+            await finalizeLogin(data.user);
         }
     }
+    document.getElementById('auth-action-btn').innerText = isLoginMode ? 'Zaloguj się' : 'Zarejestruj się';
+}
 
-    btn.disabled = false;
-    btn.innerText = originalText;
+async function finalizeLogin(user) {
+    if (!user) return;
+    const userName = user.email.split('@')[0]; // Pobieramy np. "adam" z "adam@mail.com"
+
+    // Sprawdzamy, czy użytkownik ma już przypisany dom
+    let { data: members } = await supabaseClient.from('household_members').select('household_id').eq('user_id', user.id);
+    
+    let hid = null;
+    if (!members || members.length === 0) {
+        // Jeśli nowy użytkownik - tworzymy dla niego nowy, pusty Dom
+        const { data: hh } = await supabaseClient.from('households').insert([{ name: 'Nasz Dom' }]).select().single();
+        hid = hh.id;
+        await supabaseClient.from('household_members').insert([{ household_id: hid, user_id: user.id }]);
+    } else {
+        hid = members[0].household_id;
+    }
+
+    window.currentUser = { id: user.id, email: user.email, name: userName, household_id: hid };
+    
+    document.getElementById('auth-email').value = '';
+    document.getElementById('auth-password').value = '';
+    window.switchView('dashboard');
+}
+
+window.checkSession = async function() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+        await finalizeLogin(session.user);
+        return true;
+    }
+    return false;
 };
 
 window.logoutUser = async function() {
     await supabaseClient.auth.signOut();
+    window.currentUser = null;
+    window.switchView('auth');
 };
