@@ -31,14 +31,19 @@ window.refreshCurrentView = async function() {
         const view = window.activeView;
         if (document.getElementById('checklist-screen') && !document.getElementById('checklist-screen').classList.contains('hidden')) {
             if (typeof window.loadChecklistItems === 'function') await window.loadChecklistItems();
-        } else if (view === 'dashboard') await window.loadDashboardOverview();
-        else if (view === 'home') await window.loadDashboard();
-        else if (view === 'todo') await window.loadTodosAndLists();
-        else if (view === 'health') await window.initHealthModule();
+        } else if (view === 'dashboard') {
+            if (typeof window.loadDashboardOverview === 'function') await window.loadDashboardOverview();
+        } else if (view === 'home') {
+            if (typeof window.loadDashboard === 'function') await window.loadDashboard();
+        } else if (view === 'todo') {
+            if (typeof window.loadTodosAndLists === 'function') await window.loadTodosAndLists();
+        } else if (view === 'health') {
+            if (typeof window.initHealthModule === 'function') await window.initHealthModule();
+        }
     } catch(e) { console.error("Błąd odświeżania:", e); }
 };
 
-// --- NOWOŚĆ: SYSTEM PANCERNYCH KOMUNIKATÓW ---
+// --- SYSTEM PANCERNYCH KOMUNIKATÓW ---
 
 window.customConfirm = function(message, onConfirm) {
     document.getElementById('confirm-message').innerText = message;
@@ -68,6 +73,7 @@ window.closeJoinHouseholdModal = function() {
 window.openChangeUserModal = function(type, id, currentName) {
     document.getElementById('change-user-type').value = type;
     document.getElementById('change-user-id').value = id;
+    
     let names = new Set();
     if (window.currentUser && window.currentUser.name) names.add(window.currentUser.name);
     document.querySelectorAll('[data-user-name]').forEach(el => {
@@ -75,30 +81,52 @@ window.openChangeUserModal = function(type, id, currentName) {
         if (n && n !== '?' && n !== 'Ja') names.add(n);
     });
     if (currentName && currentName !== 'Ja') names.add(currentName);
+    
     const listEl = document.getElementById('change-user-list');
     listEl.innerHTML = Array.from(names).map(name => `
         <button onclick="window.saveChangedUser('${window.esc(name)}')" class="w-full text-left px-4 py-3 bg-[#1e1f20] border border-[#333537] rounded-[16px] mb-2 text-neutral-200 active:scale-95 transition-colors">
             <span class="font-medium">${window.esc(name)}</span>
         </button>`).join('');
+        
     document.getElementById('change-user-custom').value = '';
-    document.getElementById('change-user-modal').classList.remove('hidden');
+    
+    // Otwieramy wszystkie znalezione instancje modala (w razie ukrytych duplikatów)
+    document.querySelectorAll('#change-user-modal').forEach(modal => {
+        modal.classList.remove('hidden');
+    });
 };
 
 window.saveChangedUser = async function(newName) {
+    if (!window.currentUser || !window.currentUser.household_id) {
+        window.showToast("Błąd krytyczny: Brak przypisanego domu!");
+        return;
+    }
+
     if (!newName) newName = document.getElementById('change-user-custom').value.trim();
     if (!newName) return;
+    
     const type = document.getElementById('change-user-type').value;
-    const id = document.getElementById('change-user-id').value;
+    const id = parseInt(document.getElementById('change-user-id').value);
+
     let table = type; let col = 'user_name';
     if (type === 'todos') { table = 'todos'; col = 'completer_name'; }
     else if (type === 'todos_creator') { table = 'todos'; col = 'creator_name'; }
     else if (type === 'activity_logs') { table = 'activity_logs'; col = 'user_name'; }
     else if (type === 'health_logs') { table = 'health_logs'; col = 'user_name'; }
-    const { error } = await supabaseClient.from(table).update({ [col]: newName }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    
+    const { error } = await window.supabaseClient.from(table).update({ [col]: newName }).eq('id', id).eq('household_id', window.currentUser.household_id);
     if (error) { window.showToast("Błąd: " + error.message); } 
     else {
-        document.getElementById('change-user-modal').classList.add('hidden');
+        window.closeChangeUserModal();
         window.showToast("Zmieniono osobę!");
         await window.refreshCurrentView();
     }
+};
+
+// ZGUBIONA FUNKCJA ZAMYKANIA:
+window.closeChangeUserModal = function() { 
+    // Zamykamy wszystkie klony, jeśli jakiekolwiek zostały
+    document.querySelectorAll('#change-user-modal').forEach(modal => {
+        modal.classList.add('hidden');
+    }); 
 };
