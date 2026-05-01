@@ -16,8 +16,17 @@ window.loadTodosAndLists = async function() {
     const hid = window.currentUser.household_id;
 
     const [todosRes, listsRes] = await Promise.all([
-        window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('is_completed', { ascending: true }).order('created_at', { ascending: false }),
-        window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false })
+        window.supabaseClient.from('todos')
+            .select('*')
+            .eq('household_id', hid)
+            .eq('is_archived', false)
+            .order('is_completed', { ascending: true })
+            .order('created_at', { ascending: false }),
+        window.supabaseClient.from('checklists')
+            .select('*')
+            .eq('household_id', hid)
+            .eq('is_archived', false)
+            .order('created_at', { ascending: false })
     ]);
 
     const todos = todosRes.data || []; 
@@ -67,48 +76,105 @@ window.loadTodosAndLists = async function() {
     listEl.innerHTML = html;
 };
 
-window.openNewTodoModal = function() { document.getElementById('new-todo-title').value = ''; document.getElementById('new-todo-modal').classList.remove('hidden'); };
-window.closeNewTodoModal = function() { document.getElementById('new-todo-modal').classList.add('hidden'); };
-window.openNewListModal = function() { document.getElementById('new-list-title').value = ''; document.getElementById('new-list-modal').classList.remove('hidden'); };
-window.closeNewListModal = function() { document.getElementById('new-list-modal').classList.add('hidden'); };
+window.openNewTodoModal = function() { 
+    document.getElementById('new-todo-title').value = ''; 
+    document.getElementById('new-todo-modal').classList.remove('hidden'); 
+};
+window.closeNewTodoModal = function() { 
+    document.getElementById('new-todo-modal').classList.add('hidden'); 
+};
+window.openNewListModal = function() { 
+    document.getElementById('new-list-title').value = ''; 
+    document.getElementById('new-list-modal').classList.remove('hidden'); 
+};
+window.closeNewListModal = function() { 
+    document.getElementById('new-list-modal').classList.add('hidden'); 
+};
 
 window.saveNewTodo = async function() {
     const title = document.getElementById('new-todo-title').value.trim(); 
     if (!title) return;
-    const { error } = await window.supabaseClient.from('todos').insert([{ title: title, user_id: window.currentUser.id, household_id: window.currentUser.household_id, is_completed: false, is_archived: false, creator_name: window.currentUser.name }]);
-    if (error) { window.showToast("Błąd: " + error.message); return; }
-    window.closeNewTodoModal(); window.showToast("Zadanie dodane!"); window.loadTodosAndLists();
+    const { error } = await window.supabaseClient.from('todos').insert([{ 
+        title: title, 
+        user_id: window.currentUser.id, 
+        household_id: window.currentUser.household_id, 
+        is_completed: false, 
+        is_archived: false, 
+        creator_name: window.currentUser.name 
+    }]);
+    
+    if (error) { 
+        window.showToast("Błąd: " + error.message); 
+        return; 
+    }
+    window.closeNewTodoModal(); 
+    window.showToast("Zadanie dodane!"); 
+    window.loadTodosAndLists();
 };
 
 window.saveNewList = async function() {
     const title = document.getElementById('new-list-title').value.trim(); 
     if (!title) return;
-    const { error } = await window.supabaseClient.from('checklists').insert([{ title: title, user_id: window.currentUser.id, household_id: window.currentUser.household_id, is_archived: false }]);
-    if (error) { window.showToast("Błąd: " + error.message); return; }
-    window.closeNewListModal(); window.showToast("Lista utworzona!"); window.loadTodosAndLists();
+    const { error } = await window.supabaseClient.from('checklists').insert([{ 
+        title: title, 
+        user_id: window.currentUser.id, 
+        household_id: window.currentUser.household_id, 
+        is_archived: false 
+    }]);
+    
+    if (error) { 
+        window.showToast("Błąd: " + error.message); 
+        return; 
+    }
+    window.closeNewListModal(); 
+    window.showToast("Lista utworzona!"); 
+    window.loadTodosAndLists();
 };
 
 window.toggleTodo = async function(id, currentStatus) {
     let updateData = { is_completed: !currentStatus };
     updateData.completer_name = !currentStatus ? window.currentUser.name : null;
-    const { error } = await window.supabaseClient.from('todos').update(updateData).eq('id', id).eq('household_id', window.currentUser.household_id);
-    if (error) { window.showToast("Błąd: " + error.message); return; }
+    const { error } = await window.supabaseClient.from('todos')
+        .update(updateData)
+        .eq('id', id)
+        .eq('household_id', window.currentUser.household_id);
+        
+    if (error) { 
+        window.showToast("Błąd: " + error.message); 
+        return; 
+    }
     window.loadTodosAndLists();
 };
 
 window.archiveTodo = function(id) {
     window.customConfirm("Zarchiwizować to zadanie? Zniknie z głównej listy.", async () => {
-        const { error } = await window.supabaseClient.from('todos').update({ is_archived: true }).eq('id', id).eq('household_id', window.currentUser.household_id);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.showToast("Zarchiwizowano!"); window.loadTodosAndLists();
+        const { error } = await window.supabaseClient.from('todos')
+            .update({ is_archived: true })
+            .eq('id', id)
+            .eq('household_id', window.currentUser.household_id);
+            
+        if (error) { 
+            window.showToast("Błąd: " + error.message); 
+            return; 
+        }
+        window.showToast("Zarchiwizowano!"); 
+        window.loadTodosAndLists();
     });
 };
 
 window.archiveChecklist = function(id) {
     window.customConfirm("Zarchiwizować całą listę? Zniknie z głównego widoku.", async () => {
-        const { error } = await window.supabaseClient.from('checklists').update({ is_archived: true }).eq('id', id).eq('household_id', window.currentUser.household_id);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.showToast("Lista zarchiwizowana!"); window.loadTodosAndLists();
+        const { error } = await window.supabaseClient.from('checklists')
+            .update({ is_archived: true })
+            .eq('id', id)
+            .eq('household_id', window.currentUser.household_id);
+            
+        if (error) { 
+            window.showToast("Błąd: " + error.message); 
+            return; 
+        }
+        window.showToast("Lista zarchiwizowana!"); 
+        window.loadTodosAndLists();
     });
 };
 
@@ -117,32 +183,55 @@ window.openEditTodoModal = function(id, title) {
     document.getElementById('edit-todo-title').value = title;
     document.getElementById('edit-todo-modal').classList.remove('hidden');
 };
-window.closeEditTodoModal = function() { document.getElementById('edit-todo-modal').classList.add('hidden'); };
+window.closeEditTodoModal = function() { 
+    document.getElementById('edit-todo-modal').classList.add('hidden'); 
+};
 
 window.saveEditedTodo = async function() {
     const id = document.getElementById('edit-todo-id').value;
     const title = document.getElementById('edit-todo-title').value.trim();
     if(!title) return;
     
-    const { error } = await window.supabaseClient.from('todos').update({ title: title }).eq('id', id).eq('household_id', window.currentUser.household_id);
-    if (error) { window.showToast("Błąd: " + error.message); return; }
-    window.closeEditTodoModal(); window.showToast("Zapisano zmiany!"); window.loadTodosAndLists();
+    const { error } = await window.supabaseClient.from('todos')
+        .update({ title: title })
+        .eq('id', id)
+        .eq('household_id', window.currentUser.household_id);
+        
+    if (error) { 
+        window.showToast("Błąd: " + error.message); 
+        return; 
+    }
+    window.closeEditTodoModal(); 
+    window.showToast("Zapisano zmiany!"); 
+    window.loadTodosAndLists();
 };
 
 window.openChecklistScreen = function(id, title) {
-    currentChecklistId = id; document.getElementById('checklist-screen-title').innerText = title; window.loadChecklistItems(); window.goForward('checklist-screen');
+    currentChecklistId = id; 
+    document.getElementById('checklist-screen-title').innerText = title; 
+    window.loadChecklistItems(); 
+    window.goForward('checklist-screen');
 };
-window.closeChecklistScreen = function() { window.goBack(); };
+window.closeChecklistScreen = function() { 
+    window.goBack(); 
+};
 
 window.loadChecklistItems = async function() {
     const listEl = document.getElementById('checklist-items-list');
     if (!listEl) return;
     listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Ładowanie...</p>`;
 
-    const { data } = await window.supabaseClient.from('checklist_items').select('*').eq('checklist_id', currentChecklistId).order('created_at', { ascending: true });
+    const { data } = await window.supabaseClient.from('checklist_items')
+        .select('*')
+        .eq('checklist_id', currentChecklistId)
+        .order('created_at', { ascending: true });
+        
     const items = data || [];
 
-    if (items.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Lista jest pusta. Dodaj coś poniżej.</p>`; return; }
+    if (items.length === 0) { 
+        listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Lista jest pusta. Dodaj coś poniżej.</p>`; 
+        return; 
+    }
 
     listEl.innerHTML = items.map(item => `
         <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 ${item.is_completed ? 'opacity-50' : ''}">
@@ -158,22 +247,38 @@ window.loadChecklistItems = async function() {
 };
 
 window.saveChecklistItem = async function() {
-    const input = document.getElementById('new-checklist-item-input'); const content = input.value.trim();
+    const input = document.getElementById('new-checklist-item-input'); 
+    const content = input.value.trim();
     if (!content || !currentChecklistId) return; 
     input.value = ''; 
-    const { error } = await window.supabaseClient.from('checklist_items').insert([{ checklist_id: currentChecklistId, user_id: window.currentUser.id, household_id: window.currentUser.household_id, content: content, is_completed: false }]);
+    const { error } = await window.supabaseClient.from('checklist_items').insert([{ 
+        checklist_id: currentChecklistId, 
+        user_id: window.currentUser.id, 
+        household_id: window.currentUser.household_id, 
+        content: content, 
+        is_completed: false 
+    }]);
+    
     if (error) window.showToast("Błąd: " + error.message);
     window.loadChecklistItems();
 };
 
 window.toggleChecklistItem = async function(id, currentStatus) {
-    const { error } = await window.supabaseClient.from('checklist_items').update({ is_completed: !currentStatus }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    const { error } = await window.supabaseClient.from('checklist_items')
+        .update({ is_completed: !currentStatus })
+        .eq('id', id)
+        .eq('household_id', window.currentUser.household_id);
+        
     if (error) window.showToast("Błąd: " + error.message);
     window.loadChecklistItems();
 };
 
 window.deleteChecklistItem = async function(id) {
-    const { error } = await window.supabaseClient.from('checklist_items').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+    const { error } = await window.supabaseClient.from('checklist_items')
+        .delete()
+        .eq('id', id)
+        .eq('household_id', window.currentUser.household_id);
+        
     if (error) window.showToast("Błąd: " + error.message);
     window.loadChecklistItems();
 };
