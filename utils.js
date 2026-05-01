@@ -34,7 +34,6 @@ window.refreshCurrentView = async function() {
     }
     
     try {
-        // Sprawdzamy fizycznie w dokumencie HTML, który ekran jest widoczny
         if (document.getElementById('checklist-screen') && !document.getElementById('checklist-screen').classList.contains('hidden')) {
             if (typeof window.loadChecklistItems === 'function') await window.loadChecklistItems();
         } else if (document.getElementById('view-dashboard') && !document.getElementById('view-dashboard').classList.contains('hidden')) {
@@ -80,11 +79,18 @@ window.openChangeUserModal = function(type, id, currentName) {
 };
 
 window.saveChangedUser = async function(newName) {
+    // 1. Zabezpieczenie przed brakiem kontekstu użytkownika
+    if (!window.currentUser || !window.currentUser.household_id) {
+        window.showToast("Błąd krytyczny: Brak przypisanego domu!");
+        return;
+    }
+
     if (!newName) newName = document.getElementById('change-user-custom').value.trim();
     if (!newName) return;
 
     const type = document.getElementById('change-user-type').value;
-    const id = document.getElementById('change-user-id').value;
+    const idStr = document.getElementById('change-user-id').value;
+    const id = parseInt(idStr); 
 
     let table = type;
     let col = 'user_name';
@@ -94,14 +100,17 @@ window.saveChangedUser = async function(newName) {
     else if (type === 'activity_logs') { table = 'activity_logs'; col = 'user_name'; }
     else if (type === 'health_logs') { table = 'health_logs'; col = 'user_name'; }
 
-    const { error } = await supabaseClient.from(table).update({ [col]: newName }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    // 2. Zapytanie z dodatkowym filtrowaniem
+    const { error } = await supabaseClient.from(table)
+        .update({ [col]: newName })
+        .eq('id', id)
+        .eq('household_id', window.currentUser.household_id);
 
     if (error) { 
-        window.showToast("Błąd: " + error.message); 
+        window.showToast("Błąd bazy: " + error.message); 
     } else {
         document.getElementById('change-user-modal').classList.add('hidden');
         window.showToast("Zmieniono osobę! ✔️");
-        // Teraz odświeżenie zadziała bezbłędnie i wymusi przeładowanie danych
         await window.refreshCurrentView();
     }
 };
