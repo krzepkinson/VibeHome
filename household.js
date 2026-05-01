@@ -4,7 +4,7 @@
 
 window.initHousehold = async function(user) {
     // Sprawdzamy, czy użytkownik ma już swój dom
-    let { data: members, error: memErr } = await supabaseClient
+    let { data: members, error: memErr } = await window.supabaseClient
         .from('household_members')
         .select('household_id')
         .eq('user_id', user.id);
@@ -15,7 +15,7 @@ window.initHousehold = async function(user) {
     
     if (!members || members.length === 0) {
         // Jeśli nie ma domu, tworzymy nowy dom o nazwie "Nasz Dom"
-        const { data: hh, error: hhErr } = await supabaseClient
+        const { data: hh, error: hhErr } = await window.supabaseClient
             .from('households')
             .insert([{ name: 'Nasz Dom' }])
             .select()
@@ -25,7 +25,7 @@ window.initHousehold = async function(user) {
         hid = hh.id;
 
         // I przypisujemy użytkownika do tego nowego domu
-        const { error: insErr } = await supabaseClient
+        const { error: insErr } = await window.supabaseClient
             .from('household_members')
             .insert([{ household_id: hid, user_id: user.id }]);
             
@@ -36,4 +36,45 @@ window.initHousehold = async function(user) {
     }
     
     return hid;
+};
+
+window.openJoinHouseholdModal = function() {
+    document.getElementById('join-hh-input').value = '';
+    document.getElementById('join-household-modal').classList.remove('hidden');
+};
+
+window.closeJoinHouseholdModal = function() {
+    document.getElementById('join-household-modal').classList.add('hidden');
+};
+
+window.processJoinHousehold = async function() {
+    const code = document.getElementById('join-hh-input').value.trim();
+    if (!code) return;
+    
+    const newHouseholdId = code; 
+    const oldHouseholdId = window.currentUser.household_id;
+    
+    if (newHouseholdId === oldHouseholdId) { 
+        window.showToast("Już jesteś w tym domu!"); 
+        return; 
+    }
+
+    const { error: joinError } = await window.supabaseClient
+        .from('household_members')
+        .insert([{ household_id: newHouseholdId, user_id: window.currentUser.id }]);
+
+    if (joinError) {
+        console.error("Błąd łączenia domów:", joinError); 
+        window.showToast("Niepoprawny kod domu! Nic nie zmieniono.");
+    } else {
+        await window.supabaseClient
+            .from('household_members')
+            .delete()
+            .eq('household_id', oldHouseholdId)
+            .eq('user_id', window.currentUser.id);
+            
+        window.closeJoinHouseholdModal(); 
+        window.showToast("Zsynchronizowano! Przeładowuję..."); 
+        setTimeout(() => window.location.reload(), 1500);
+    }
 };
