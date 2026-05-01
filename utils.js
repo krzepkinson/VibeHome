@@ -108,3 +108,23 @@ window.openJoinHouseholdModal = function() {
 window.closeJoinHouseholdModal = function() {
     document.getElementById('join-household-modal').classList.add('hidden');
 };
+
+// --- WSPÓŁDZIELONA LOGIKA BIZNESOWA ---
+
+window.isTaskOverdue = function(task, logs) {
+    if (!task.interval_days) return false;
+    
+    const lastLog = logs.find(l => l.activity_name === task.name);
+    if (!lastLog) return true;
+    
+    const lastDate = new Date(lastLog.created_at);
+    lastDate.setHours(0, 0, 0, 0);
+    
+    const nextDate = new Date(lastDate);
+    nextDate.setDate(nextDate.getDate() + task.interval_days);
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return nextDate <= today;
+};
