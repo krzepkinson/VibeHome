@@ -23,26 +23,42 @@ window.loadDashboard = async function() {
     const hid = window.currentUser.household_id;
     
     if (currentRoomFilter) {
-        if (backBtn) { backBtn.classList.remove('hidden'); backBtn.innerHTML = '←'; }
-        const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
+        if (backBtn) { 
+            backBtn.classList.remove('hidden'); 
+            backBtn.innerHTML = '←'; 
+        }
+        const h1 = document.querySelector('#view-home h1'); 
+        const p = document.querySelector('#view-home p');
         if (h1) h1.innerText = currentRoomFilter; 
         if (p) p.innerText = 'Lista zadań';
     } else {
         if (backBtn) backBtn.classList.add('hidden');
-        const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
-        if (h1) h1.innerText = 'Dom'; if (p) p.innerText = 'Wybierz pomieszczenie';
+        const h1 = document.querySelector('#view-home h1'); 
+        const p = document.querySelector('#view-home p');
+        if (h1) h1.innerText = 'Dom'; 
+        if (p) p.innerText = 'Wybierz pomieszczenie';
     }
 
     const [tRes, lRes, rRes] = await Promise.all([
-        window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-        window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }),
-        window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name')
+        window.supabaseClient.from('tasks')
+            .select('*')
+            .eq('household_id', hid)
+            .eq('is_archived', false),
+        window.supabaseClient.from('activity_logs')
+            .select('*')
+            .eq('household_id', hid)
+            .order('created_at', { ascending: false }),
+        window.supabaseClient.from('rooms')
+            .select('*')
+            .eq('household_id', hid)
+            .order('name')
     ]);
     
     allHomeTasks = tRes.data || []; 
     allHomeLogs = lRes.data || [];
     const dbRooms = rRes.data || [];
-    const today = new Date(); today.setHours(0,0,0,0);
+    const today = new Date(); 
+    today.setHours(0,0,0,0);
 
     if (!currentRoomFilter) {
         let roomStats = {};
@@ -59,11 +75,19 @@ window.loadDashboard = async function() {
                 const lastLog = allHomeLogs.find(l => l.activity_name === task.name);
                 let isOverdue = false;
                 if (lastLog) {
-                    const last = new Date(lastLog.created_at); last.setHours(0,0,0,0);
-                    const next = new Date(last); next.setDate(last.getDate() + task.interval_days);
+                    const last = new Date(lastLog.created_at); 
+                    last.setHours(0,0,0,0);
+                    const next = new Date(last); 
+                    next.setDate(last.getDate() + task.interval_days);
                     if (next <= today) isOverdue = true;
-                } else { isOverdue = true; }
-                if (isOverdue) { roomStats[rName].overdue++; totalOverdueAll++; }
+                } else { 
+                    isOverdue = true; 
+                }
+                
+                if (isOverdue) { 
+                    roomStats[rName].overdue++; 
+                    totalOverdueAll++; 
+                }
             }
         });
 
@@ -71,7 +95,9 @@ window.loadDashboard = async function() {
         const allBadge = totalOverdueAll > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${totalOverdueAll}</div>` : '';
         html += `
             <div onclick="window.filterHomeByRoom('Wszystkie')" class="relative bg-[#004a77]/20 p-4 rounded-[20px] border border-[#004a77]/50 cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24">
-                ${allBadge}<div class="text-2xl mb-1 opacity-80">🗂️</div><h3 class="text-xs font-medium text-[#c2e7ff]">Wszystkie</h3>
+                ${allBadge}
+                <div class="text-2xl mb-1 opacity-80">🗂️</div>
+                <h3 class="text-xs font-medium text-[#c2e7ff]">Wszystkie</h3>
                 <p class="text-[9px] text-[#c2e7ff]/70 mt-0.5 uppercase tracking-widest">${allHomeTasks.length} zadań</p>
             </div>`;
 
@@ -79,7 +105,9 @@ window.loadDashboard = async function() {
             const badge = stats.overdue > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${stats.overdue}</div>` : '';
             html += `
                 <div onclick="window.filterHomeByRoom('${window.esc(roomName)}')" class="relative bg-[#1e1f20] p-4 rounded-[20px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24">
-                    ${badge}<div class="text-2xl mb-1 opacity-80">${window.esc(stats.icon)}</div><h3 class="text-xs font-medium text-neutral-200">${window.esc(roomName)}</h3>
+                    ${badge}
+                    <div class="text-2xl mb-1 opacity-80">${window.esc(stats.icon)}</div>
+                    <h3 class="text-xs font-medium text-neutral-200">${window.esc(roomName)}</h3>
                     <p class="text-[9px] text-neutral-500 mt-0.5 uppercase tracking-widest">${stats.total} zadań</p>
                 </div>`;
         });
@@ -88,7 +116,11 @@ window.loadDashboard = async function() {
     }
 
     let tasksToDisplay = currentRoomFilter === 'Wszystkie' ? allHomeTasks : allHomeTasks.filter(t => (t.room || 'Inne') === currentRoomFilter);
-    let scored = tasksToDisplay.map(t => ({ t, last: allHomeLogs.find(l => l.activity_name === t.name), score: window.calculatePriority(t, allHomeLogs.find(l => l.activity_name === t.name)?.created_at) })).sort((a,b) => b.score - a.score || a.t.name.localeCompare(b.t.name));
+    let scored = tasksToDisplay.map(t => ({ 
+        t, 
+        last: allHomeLogs.find(l => l.activity_name === t.name), 
+        score: window.calculatePriority(t, allHomeLogs.find(l => l.activity_name === t.name)?.created_at) 
+    })).sort((a,b) => b.score - a.score || a.t.name.localeCompare(b.t.name));
 
     list.innerHTML = scored.length ? scored.map(item => {
         const status = window.getCompactStatus(item.last?.created_at, item.t.interval_days);
@@ -117,9 +149,13 @@ window.getRelativeTime = function(d) {
 window.getCompactStatus = function(lastDate, interval) {
     if (!lastDate) return { color: 'text-neutral-500', label: 'Jeszcze nie było robione', tooltip: 'Brak wpisów.' };
     const relText = `Ostatnio ${window.getRelativeTime(lastDate)}`;
+    
     if (!interval || interval <= 0) return { color: 'text-neutral-500', label: relText, tooltip: 'Brak harmonogramu.' };
-    const next = new Date(lastDate); next.setDate(next.getDate() + interval);
+    
+    const next = new Date(lastDate); 
+    next.setDate(next.getDate() + interval);
     const diff = Math.ceil((next - new Date().setHours(0,0,0,0)) / 86400000);
+    
     return diff < 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` } 
            : diff === 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: 'Dzisiaj!' } 
            : { color: 'text-[#c4eed0]', label: relText, tooltip: `Za ${diff} dni.` };
@@ -139,15 +175,31 @@ window.openAddLogModal = function(n) {
     document.getElementById('add-log-notes').value = '';
     document.getElementById('add-log-modal').classList.remove('hidden');
 };
-window.closeAddLogModal = function() { document.getElementById('add-log-modal').classList.add('hidden'); };
+
+window.closeAddLogModal = function() { 
+    document.getElementById('add-log-modal').classList.add('hidden'); 
+};
 
 window.saveNewLog = async function() {
     const n = document.getElementById('add-log-name').value; 
     const d = document.getElementById('add-log-date').value; 
     const nt = document.getElementById('add-log-notes').value;
-    const { error } = await window.supabaseClient.from('activity_logs').insert([{ activity_name: n, created_at: `${d}T12:00:00.000Z`, notes: nt, user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name }]);
-    if (error) { window.showToast("Błąd: " + error.message); return; }
-    window.closeAddLogModal(); window.loadDashboard();
+    
+    const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
+        activity_name: n, 
+        created_at: `${d}T12:00:00.000Z`, 
+        notes: nt, 
+        user_id: window.currentUser.id, 
+        household_id: window.currentUser.household_id, 
+        user_name: window.currentUser.name 
+    }]);
+    
+    if (error) { 
+        window.showToast("Błąd: " + error.message); 
+        return; 
+    }
+    window.closeAddLogModal(); 
+    window.loadDashboard();
 };
 
 window.renderHistory = function() {
@@ -164,9 +216,21 @@ window.renderHistory = function() {
 
 window.deleteLog = function(id) {
     window.customConfirm("Usunąć ten wpis z historii?", async () => {
-        const { error } = await window.supabaseClient.from('activity_logs').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        const res = await window.supabaseClient.from('activity_logs').select('*').eq('activity_name', window.currentEditingHomeTask).eq('household_id', window.currentUser.household_id).order('created_at', { ascending: false });
+        const { error } = await window.supabaseClient.from('activity_logs')
+            .delete()
+            .eq('id', id)
+            .eq('household_id', window.currentUser.household_id);
+            
+        if (error) { 
+            window.showToast("Błąd: " + error.message); 
+            return; 
+        }
+        const res = await window.supabaseClient.from('activity_logs')
+            .select('*')
+            .eq('activity_name', window.currentEditingHomeTask)
+            .eq('household_id', window.currentUser.household_id)
+            .order('created_at', { ascending: false });
+            
         allHomeLogs = res.data || []; 
         window.renderHistory(); 
         window.loadDashboard();
@@ -179,16 +243,34 @@ window.openEditLogModal = function(id, date, notes) {
     document.getElementById('edit-log-notes').value = decodeURIComponent(notes); 
     document.getElementById('edit-log-modal').classList.remove('hidden');
 };
-window.closeEditLogModal = function() { document.getElementById('edit-log-modal').classList.add('hidden'); };
+
+window.closeEditLogModal = function() { 
+    document.getElementById('edit-log-modal').classList.add('hidden'); 
+};
 
 window.saveEditLog = async function() {
     const id = document.getElementById('edit-log-id').value; 
     const d = document.getElementById('edit-log-date').value; 
     const n = document.getElementById('edit-log-notes').value;
-    const { error } = await window.supabaseClient.from('activity_logs').update({ created_at: `${d}T12:00:00.000Z`, notes: n }).eq('id', id).eq('household_id', window.currentUser.household_id);
-    if (error) { window.showToast("Błąd: " + error.message); return; }
-    window.closeEditLogModal(); window.loadDashboard();
-    const res = await window.supabaseClient.from('activity_logs').select('*').eq('activity_name', window.currentEditingHomeTask).eq('household_id', window.currentUser.household_id).order('created_at', { ascending: false });
+    
+    const { error } = await window.supabaseClient.from('activity_logs')
+        .update({ created_at: `${d}T12:00:00.000Z`, notes: n })
+        .eq('id', id)
+        .eq('household_id', window.currentUser.household_id);
+        
+    if (error) { 
+        window.showToast("Błąd: " + error.message); 
+        return; 
+    }
+    window.closeEditLogModal(); 
+    window.loadDashboard();
+    
+    const res = await window.supabaseClient.from('activity_logs')
+        .select('*')
+        .eq('activity_name', window.currentEditingHomeTask)
+        .eq('household_id', window.currentUser.household_id)
+        .order('created_at', { ascending: false });
+        
     allHomeLogs = res.data || []; 
     window.renderHistory();
 };
