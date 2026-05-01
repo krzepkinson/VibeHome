@@ -207,14 +207,6 @@
         </div>
     </div>
 
-    <div id="search-modal" class="hidden fixed inset-0 bg-[#131314] z-[100] flex flex-col transition-all duration-300">
-        <div class="p-4 sm:p-6 border-b border-[#333537] flex items-center gap-3 bg-[#1e1f20]">
-            <button onclick="window.closeGlobalSearch()" class="text-neutral-400 text-2xl active:scale-90 transition-transform pb-1 px-2">←</button>
-            <input type="text" id="global-search-input" oninput="window.performGlobalSearch(this.value)" placeholder="Wpisz czego szukasz..." class="flex-1 bg-transparent text-neutral-200 text-lg focus:outline-none placeholder-neutral-600">
-        </div>
-        <div id="search-results-list" class="flex-1 overflow-y-auto p-4 sm:p-6"><div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div></div>
-    </div>
-
     <div id="change-user-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex justify-center items-center p-4">
         <div class="bg-[#131314] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
             <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Wybierz osobę</h3>
@@ -226,6 +218,14 @@
             </div>
             <button onclick="window.closeChangeUserModal()" class="w-full mt-4 text-neutral-500 font-medium py-2 text-sm uppercase tracking-widest active:scale-95">Anuluj</button>
         </div>
+    </div>
+
+    <div id="search-modal" class="hidden fixed inset-0 bg-[#131314] z-[100] flex flex-col transition-all duration-300">
+        <div class="p-4 sm:p-6 border-b border-[#333537] flex items-center gap-3 bg-[#1e1f20]">
+            <button onclick="window.closeGlobalSearch()" class="text-neutral-400 text-2xl active:scale-90 transition-transform pb-1 px-2">←</button>
+            <input type="text" id="global-search-input" oninput="window.performGlobalSearch(this.value)" placeholder="Wpisz czego szukasz..." class="flex-1 bg-transparent text-neutral-200 text-lg focus:outline-none placeholder-neutral-600">
+        </div>
+        <div id="search-results-list" class="flex-1 overflow-y-auto p-4 sm:p-6"><div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div></div>
     </div>
     
     <div id="profile-switcher-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end items-start p-4 pt-16"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-[250px] p-5 shadow-2xl mr-2"><h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest mb-3 pl-1">Przełącz profil</h3><div id="switcher-profiles-list" class="space-y-2 mb-4"></div><button onclick="window.openNewProfileModal()" class="w-full bg-[#131314] text-neutral-300 font-medium py-3 text-sm rounded-[20px] border border-[#333537] hover:border-[#a8c7fa] transition-colors">+ Nowa osoba</button><button onclick="window.closeProfileSwitcher()" class="w-full mt-2 text-neutral-500 text-xs py-2 uppercase tracking-widest font-bold">Zamknij</button></div></div>
