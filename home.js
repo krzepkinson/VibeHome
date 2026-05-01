@@ -57,8 +57,6 @@ window.loadDashboard = async function() {
     allHomeTasks = tRes.data || []; 
     allHomeLogs = lRes.data || [];
     const dbRooms = rRes.data || [];
-    const today = new Date(); 
-    today.setHours(0,0,0,0);
 
     if (!currentRoomFilter) {
         let roomStats = {};
@@ -66,28 +64,16 @@ window.loadDashboard = async function() {
         if (!roomStats['Inne']) roomStats['Inne'] = { icon: '📦', total: 0, overdue: 0 };
         
         let totalOverdueAll = 0;
+        
         allHomeTasks.forEach(task => {
             const rName = task.room || 'Inne';
             if (!roomStats[rName]) roomStats[rName] = { icon: '📦', total: 0, overdue: 0 };
             roomStats[rName].total++;
             
-            if (task.interval_days > 0) {
-                const lastLog = allHomeLogs.find(l => l.activity_name === task.name);
-                let isOverdue = false;
-                if (lastLog) {
-                    const last = new Date(lastLog.created_at); 
-                    last.setHours(0,0,0,0);
-                    const next = new Date(last); 
-                    next.setDate(last.getDate() + task.interval_days);
-                    if (next <= today) isOverdue = true;
-                } else { 
-                    isOverdue = true; 
-                }
-                
-                if (isOverdue) { 
-                    roomStats[rName].overdue++; 
-                    totalOverdueAll++; 
-                }
+            // ZMIANA: Używamy nowej funkcji do sprawdzania przeterminowania
+            if (window.isTaskOverdue(task, allHomeLogs)) {
+                roomStats[rName].overdue++; 
+                totalOverdueAll++;
             }
         });
 
