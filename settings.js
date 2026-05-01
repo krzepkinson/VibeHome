@@ -8,6 +8,7 @@ window.initSettingsModule = function() {
     const hidLabel = document.getElementById('household-id-label');
     if (hidLabel && window.currentUser) { hidLabel.innerText = window.currentUser.household_id; }
     
+    // Uzupełniamy imię w polu tekstowym
     const nameInput = document.getElementById('settings-user-name');
     if (nameInput && window.currentUser && window.currentUser.name) {
         nameInput.value = window.currentUser.name;
@@ -30,14 +31,42 @@ window.saveUserName = async function() {
     }
 };
 
+// BEZPIECZNE ŁĄCZENIE DOMÓW (FIX WEDŁUG UWAG CLAUDEAI)
 window.joinHousehold = async function() {
-    const code = prompt("ID domu Partnera:");
-    if (!code) return;
-    if (confirm("Stracisz dostęp do obecnych danych. Dołączyć?")) {
-        await supabaseClient.from('household_members').delete().eq('user_id', window.currentUser.id);
-        const { error } = await supabaseClient.from('household_members').insert([{ household_id: code.trim(), user_id: window.currentUser.id }]);
-        if (error) { window.showToast("Niepoprawny kod!"); }
-        else { window.location.reload(); }
+    const code = prompt("ID domu Partnera/Partnerki (Kod UUID):");
+    if (!code || code.trim() === '') return;
+    
+    const newHouseholdId = code.trim();
+    const oldHouseholdId = window.currentUser.household_id;
+
+    if (newHouseholdId === oldHouseholdId) {
+        window.showToast("Już jesteś w tym domu!");
+        return;
+    }
+
+    if (confirm("UWAGA: Dołączenie do innego domu sprawi, że stracisz dostęp do swoich obecnych, prywatnych zadań. Kontynuować?")) {
+        
+        // KROK 1: Najpierw wstawiamy usera do nowego domu. 
+        // Dzięki "Foreign Key" Supabase samo odrzuci to zapytanie, jeśli UUID jest zmyślony.
+        const { error: joinError } = await supabaseClient
+            .from('household_members')
+            .insert([{ household_id: newHouseholdId, user_id: window.currentUser.id }]);
+
+        if (joinError) {
+            // KROK 2A: Wpisano zły kod. Zatrzymujemy akcję i chronimy stare konto usera!
+            console.error("Błąd łączenia domów:", joinError);
+            window.showToast("Niepoprawny kod domu! Nic nie zmieniono.");
+        } else {
+            // KROK 2B: Udało się dołączyć! Dopiero teraz bezpiecznie usuwamy stary przydział.
+            await supabaseClient
+                .from('household_members')
+                .delete()
+                .eq('household_id', oldHouseholdId)
+                .eq('user_id', window.currentUser.id);
+                
+            window.showToast("Zsynchronizowano! Przeładowuję...");
+            setTimeout(() => window.location.reload(), 1500);
+        }
     }
 };
 
@@ -159,12 +188,10 @@ window.saveProfileDetails = async function() {
 
 window.currentEditingHomeTask = '';
 
-// KULOOODPORNA FUNKCJA OTWIERANIA USTAWIEŃ ZADANIA
 window.openSettingsScreen = async function(name) {
     try {
         const currentSettingsTaskName = decodeURIComponent(name);
         
-        // Zamiast .single() używamy limit(1), by uchronić aplikację przed błędem dubli
         const { data, error } = await supabaseClient.from('tasks')
             .select('*')
             .eq('name', currentSettingsTaskName)
