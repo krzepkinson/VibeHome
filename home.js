@@ -145,7 +145,8 @@ window.saveNewLog = async function() {
     const n = document.getElementById('add-log-name').value; 
     const d = document.getElementById('add-log-date').value; 
     const nt = document.getElementById('add-log-notes').value;
-    await window.supabaseClient.from('activity_logs').insert([{ activity_name: n, created_at: `${d}T12:00:00.000Z`, notes: nt, user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name }]);
+    const { error } = await window.supabaseClient.from('activity_logs').insert([{ activity_name: n, created_at: `${d}T12:00:00.000Z`, notes: nt, user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name }]);
+    if (error) { window.showToast("Błąd: " + error.message); return; }
     window.closeAddLogModal(); window.loadDashboard();
 };
 
@@ -163,7 +164,8 @@ window.renderHistory = function() {
 
 window.deleteLog = function(id) {
     window.customConfirm("Usunąć ten wpis z historii?", async () => {
-        await window.supabaseClient.from('activity_logs').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+        const { error } = await window.supabaseClient.from('activity_logs').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+        if (error) { window.showToast("Błąd: " + error.message); return; }
         const res = await window.supabaseClient.from('activity_logs').select('*').eq('activity_name', window.currentEditingHomeTask).eq('household_id', window.currentUser.household_id).order('created_at', { ascending: false });
         allHomeLogs = res.data || []; 
         window.renderHistory(); 
@@ -183,7 +185,8 @@ window.saveEditLog = async function() {
     const id = document.getElementById('edit-log-id').value; 
     const d = document.getElementById('edit-log-date').value; 
     const n = document.getElementById('edit-log-notes').value;
-    await window.supabaseClient.from('activity_logs').update({ created_at: `${d}T12:00:00.000Z`, notes: n }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    const { error } = await window.supabaseClient.from('activity_logs').update({ created_at: `${d}T12:00:00.000Z`, notes: n }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    if (error) { window.showToast("Błąd: " + error.message); return; }
     window.closeEditLogModal(); window.loadDashboard();
     const res = await window.supabaseClient.from('activity_logs').select('*').eq('activity_name', window.currentEditingHomeTask).eq('household_id', window.currentUser.household_id).order('created_at', { ascending: false });
     allHomeLogs = res.data || []; 
