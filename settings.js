@@ -7,58 +7,31 @@ let appRooms = []; let appProfiles = [];
 window.initSettingsModule = function() {
     const hidLabel = document.getElementById('household-id-label');
     if (hidLabel && window.currentUser) { hidLabel.innerText = window.currentUser.household_id; }
-    
     const nameInput = document.getElementById('settings-user-name');
-    if (nameInput && window.currentUser && window.currentUser.name) {
-        nameInput.value = window.currentUser.name;
-    }
-
+    if (nameInput && window.currentUser && window.currentUser.name) { nameInput.value = window.currentUser.name; }
     window.loadAppRooms(); window.loadAppProfiles(); window.checkNotificationStatus(); 
 };
 
 window.saveUserName = async function() {
     const name = document.getElementById('settings-user-name').value.trim();
     if(!name) return;
-    
     const { error } = await window.supabaseClient.auth.updateUser({ data: { name: name } });
-    
     if (error) { window.showToast("Błąd: " + error.message); }
-    else {
-        window.currentUser.name = name;
-        window.showToast("Imię zapisane! ↻");
-        if(typeof window.refreshCurrentView === 'function') await window.refreshCurrentView();
-    }
+    else { window.currentUser.name = name; window.showToast("Imię zapisane! ↻"); if(typeof window.refreshCurrentView === 'function') await window.refreshCurrentView(); }
 };
 
 window.processJoinHousehold = async function() {
     const code = document.getElementById('join-hh-input').value.trim();
     if (!code) return;
-    
-    const newHouseholdId = code;
-    const oldHouseholdId = window.currentUser.household_id;
+    const newHouseholdId = code; const oldHouseholdId = window.currentUser.household_id;
+    if (newHouseholdId === oldHouseholdId) { window.showToast("Już jesteś w tym domu!"); return; }
 
-    if (newHouseholdId === oldHouseholdId) {
-        window.showToast("Już jesteś w tym domu!");
-        return;
-    }
-
-    const { error: joinError } = await window.supabaseClient
-        .from('household_members')
-        .insert([{ household_id: newHouseholdId, user_id: window.currentUser.id }]);
-
+    const { error: joinError } = await window.supabaseClient.from('household_members').insert([{ household_id: newHouseholdId, user_id: window.currentUser.id }]);
     if (joinError) {
-        console.error("Błąd łączenia domów:", joinError);
-        window.showToast("Niepoprawny kod domu! Nic nie zmieniono.");
+        console.error("Błąd łączenia domów:", joinError); window.showToast("Niepoprawny kod domu! Nic nie zmieniono.");
     } else {
-        await window.supabaseClient
-            .from('household_members')
-            .delete()
-            .eq('household_id', oldHouseholdId)
-            .eq('user_id', window.currentUser.id);
-            
-        window.closeJoinHouseholdModal();
-        window.showToast("Zsynchronizowano! Przeładowuję...");
-        setTimeout(() => window.location.reload(), 1500);
+        await window.supabaseClient.from('household_members').delete().eq('household_id', oldHouseholdId).eq('user_id', window.currentUser.id);
+        window.closeJoinHouseholdModal(); window.showToast("Zsynchronizowano! Przeładowuję..."); setTimeout(() => window.location.reload(), 1500);
     }
 };
 
@@ -103,22 +76,25 @@ window.loadAppRooms = async function() {
 
 window.openNewRoomModal = function() { document.getElementById('new-room-name').value = ''; document.getElementById('new-room-icon').value = '🏠'; document.getElementById('new-room-modal').classList.remove('hidden'); };
 window.closeNewRoomModal = function() { document.getElementById('new-room-modal').classList.add('hidden'); };
+
 window.saveNewRoom = async function() {
     const name = document.getElementById('new-room-name').value.trim(); const icon = document.getElementById('new-room-icon').value.trim();
     if (!name) return;
     const { error } = await window.supabaseClient.from('rooms').insert([{ name: name, icon: icon || '📦', user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
-    if (error) { if (error.code === '23505') window.showToast('Istnieje!'); else window.showToast('Błąd zapisu'); } else { window.closeNewRoomModal(); window.showToast('Dodano!'); window.loadAppRooms(); }
+    if (error) { if (error.code === '23505') window.showToast('Istnieje!'); else window.showToast('Błąd zapisu: ' + error.message); } 
+    else { window.closeNewRoomModal(); window.showToast('Dodano!'); window.loadAppRooms(); }
 };
 
 window.openEditRoomModal = function(encodedName, icon) {
     const name = decodeURIComponent(encodedName); document.getElementById('edit-room-old-name').value = name; document.getElementById('edit-room-name').value = name; document.getElementById('edit-room-icon').value = icon || '📦'; document.getElementById('edit-room-modal').classList.remove('hidden');
 };
 window.closeEditRoomModal = function() { document.getElementById('edit-room-modal').classList.add('hidden'); };
+
 window.saveEditRoom = async function() {
     const oldName = document.getElementById('edit-room-old-name').value; const newName = document.getElementById('edit-room-name').value.trim(); const newIcon = document.getElementById('edit-room-icon').value.trim() || '📦';
     if (!newName) return;
     const { error } = await window.supabaseClient.from('rooms').update({ name: newName, icon: newIcon }).eq('name', oldName).eq('household_id', window.currentUser.household_id);
-    if (error) { window.showToast('Błąd zapisu'); return; }
+    if (error) { window.showToast('Błąd zapisu: ' + error.message); return; }
     if (oldName !== newName) { await window.supabaseClient.from('tasks').update({ room: newName }).eq('room', oldName).eq('household_id', window.currentUser.household_id); }
     window.closeEditRoomModal(); window.showToast('Zaktualizowano pomieszczenie!'); window.loadAppRooms(); if (typeof window.loadDashboard === 'function') window.loadDashboard();
 };
@@ -126,7 +102,8 @@ window.saveEditRoom = async function() {
 window.deleteRoom = function(encodedName) {
     const name = decodeURIComponent(encodedName); 
     window.customConfirm(`Usunąć pomieszczenie "${name}"?`, async () => {
-        await window.supabaseClient.from('rooms').delete().eq('name', name).eq('household_id', window.currentUser.household_id);
+        const { error } = await window.supabaseClient.from('rooms').delete().eq('name', name).eq('household_id', window.currentUser.household_id);
+        if (error) { window.showToast('Błąd: ' + error.message); return; }
         window.showToast('Usunięto pomieszczenie'); window.loadAppRooms(); if (typeof window.loadDashboard === 'function') window.loadDashboard();
     });
 };
@@ -162,9 +139,11 @@ window.loadAppProfiles = async function() {
 
 window.openNewProfileModal = function() { document.getElementById('new-profile-name').value = ''; document.getElementById('new-profile-modal').classList.remove('hidden'); };
 window.closeNewProfileModal = function() { document.getElementById('new-profile-modal').classList.add('hidden'); };
+
 window.saveNewProfile = async function() {
     const name = document.getElementById('new-profile-name').value.trim(); if (!name) return;
-    await window.supabaseClient.from('profiles').insert([{ name: name, user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
+    const { error } = await window.supabaseClient.from('profiles').insert([{ name: name, user_id: window.currentUser.id, household_id: window.currentUser.household_id }]);
+    if (error) { window.showToast("Błąd: " + error.message); return; }
     window.closeNewProfileModal(); window.showToast('Dodano domownika!'); window.loadAppProfiles();
 };
 
@@ -173,10 +152,12 @@ window.openEditProfileScreen = function(id) {
     document.getElementById('edit-profile-id').value = profile.id; document.getElementById('edit-profile-name').value = profile.name; document.getElementById('edit-profile-birth').value = profile.birth_date || ''; document.getElementById('edit-profile-height').value = profile.height || ''; document.getElementById('edit-profile-weight').value = profile.weight || ''; document.getElementById('edit-profile-title').innerText = `Edytuj: ${profile.name}`; window.goForward('edit-profile-screen');
 };
 window.closeEditProfileScreen = function() { window.goBack(); };
+
 window.saveProfileDetails = async function() {
     const id = document.getElementById('edit-profile-id').value; const name = document.getElementById('edit-profile-name').value.trim(); const birth = document.getElementById('edit-profile-birth').value || null; const height = document.getElementById('edit-profile-height').value || null; const weight = document.getElementById('edit-profile-weight').value || null;
     if(!name) return;
-    await window.supabaseClient.from('profiles').update({ name: name, birth_date: birth, height: height, weight: weight }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    const { error } = await window.supabaseClient.from('profiles').update({ name: name, birth_date: birth, height: height, weight: weight }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    if (error) { window.showToast("Błąd: " + error.message); return; }
     window.showToast('Zapisano profil'); window.closeEditProfileScreen(); window.loadAppProfiles(); if(typeof window.initHealthModule === 'function') window.initHealthModule();
 };
 
@@ -185,52 +166,42 @@ window.currentEditingHomeTask = '';
 window.openSettingsScreen = async function(name) {
     try {
         const currentSettingsTaskName = decodeURIComponent(name);
-        const { data, error } = await window.supabaseClient.from('tasks')
-            .select('*')
-            .eq('name', currentSettingsTaskName)
-            .eq('household_id', window.currentUser.household_id)
-            .limit(1);
-            
+        const { data, error } = await window.supabaseClient.from('tasks').select('*').eq('name', currentSettingsTaskName).eq('household_id', window.currentUser.household_id).limit(1);
         if (error) throw error;
         if (!data || data.length === 0) { window.showToast('Nie znaleziono zadania w bazie.'); return; }
         
         const task = data[0];
-        document.getElementById('settings-title').innerText = task.name; 
-        document.getElementById('set-task-name').value = task.name; 
-        document.getElementById('set-task-interval').value = task.interval_days || 0; 
-        document.getElementById('set-task-remind').value = task.remind_days_before || 0; 
-        document.getElementById('set-task-push').checked = task.push_enabled !== false; 
-        document.getElementById('set-task-history').checked = task.show_in_history !== false;
+        document.getElementById('settings-title').innerText = task.name; document.getElementById('set-task-name').value = task.name; document.getElementById('set-task-interval').value = task.interval_days || 0; document.getElementById('set-task-remind').value = task.remind_days_before || 0; document.getElementById('set-task-push').checked = task.push_enabled !== false; document.getElementById('set-task-history').checked = task.show_in_history !== false;
         
         window.currentEditingHomeTask = task.name;
         if(typeof window.populateRoomsDropdown === 'function') await window.populateRoomsDropdown('set-task-room', task.room || 'Inne');
         if(typeof window.renderHistory === 'function') window.renderHistory(); 
-        
         window.goForward('settings-screen');
-    } catch(err) {
-        console.error("Błąd ładowania ustawień zadania:", err);
-        window.showToast("Wystąpił błąd: " + err.message);
-    }
+    } catch(err) { console.error("Błąd ładowania ustawień zadania:", err); window.showToast("Wystąpił błąd: " + err.message); }
 };
 
 window.closeSettingsScreen = function() { window.goBack(); };
+
 window.saveTaskSettings = async function() {
     const n = document.getElementById('set-task-name').value.trim(); const i = parseInt(document.getElementById('set-task-interval').value) || 0; const remind = parseInt(document.getElementById('set-task-remind').value) || 0; const r = document.getElementById('set-task-room').value; const pushEnabled = document.getElementById('set-task-push').checked; const showHist = document.getElementById('set-task-history').checked; const hid = window.currentUser.household_id;
 
     if (window.currentEditingHomeTask !== n) {
         await window.supabaseClient.from('activity_logs').update({ activity_name: n }).eq('activity_name', window.currentEditingHomeTask).eq('household_id', hid);
-        await window.supabaseClient.from('tasks').insert([{ name: n, interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, show_in_history: showHist, room: r, user_id: window.currentUser.id, household_id: hid }]);
+        const { error } = await window.supabaseClient.from('tasks').insert([{ name: n, interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, show_in_history: showHist, room: r, user_id: window.currentUser.id, household_id: hid }]);
+        if (error) { window.showToast("Błąd: " + error.message); return; }
         await window.supabaseClient.from('tasks').delete().eq('name', window.currentEditingHomeTask).eq('household_id', hid);
         window.currentEditingHomeTask = n;
     } else {
-        await window.supabaseClient.from('tasks').update({ interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, show_in_history: showHist, room: r }).eq('name', window.currentEditingHomeTask).eq('household_id', hid);
+        const { error } = await window.supabaseClient.from('tasks').update({ interval_days: i, remind_days_before: remind, push_enabled: pushEnabled, show_in_history: showHist, room: r }).eq('name', window.currentEditingHomeTask).eq('household_id', hid);
+        if (error) { window.showToast("Błąd: " + error.message); return; }
     }
     window.showToast("Zapisano!"); if(typeof window.loadDashboard === 'function') window.loadDashboard();
 };
 
 window.deleteCurrentTask = function() {
     window.customConfirm("Zarchiwizować czynność? Zniknie z głównych widoków.", async () => {
-        await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('name', window.currentEditingHomeTask).eq('household_id', window.currentUser.household_id); 
+        const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('name', window.currentEditingHomeTask).eq('household_id', window.currentUser.household_id); 
+        if (error) { window.showToast("Błąd: " + error.message); return; }
         window.closeSettingsScreen(); if(typeof window.loadDashboard === 'function') window.loadDashboard();
     });
 };
@@ -268,7 +239,8 @@ window.loadArchiveData = async function() {
 };
 
 window.restoreFromArchive = async function(table, id) {
-    await window.supabaseClient.from(table).update({ is_archived: false }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    const { error } = await window.supabaseClient.from(table).update({ is_archived: false }).eq('id', id).eq('household_id', window.currentUser.household_id);
+    if (error) { window.showToast("Błąd: " + error.message); return; }
     window.showToast("Przywrócono!"); window.loadArchiveData();
     if(typeof window.loadDashboard === 'function') window.loadDashboard(); if(typeof window.initHealthModule === 'function') window.initHealthModule();
 };
@@ -279,7 +251,8 @@ window.permanentlyDelete = function(table, id) {
             const { data } = await window.supabaseClient.from('tasks').select('name').eq('id', id).single();
             if (data) await window.supabaseClient.from('activity_logs').delete().eq('activity_name', data.name).eq('household_id', window.currentUser.household_id);
         }
-        await window.supabaseClient.from(table).delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+        const { error } = await window.supabaseClient.from(table).delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+        if (error) { window.showToast("Błąd: " + error.message); return; }
         window.showToast("Trwale usunięto!"); window.loadArchiveData();
     });
 };
