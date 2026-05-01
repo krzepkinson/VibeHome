@@ -3,14 +3,21 @@
   "short_name": "HomeVibe",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#4f46e5",
+  "background_color": "#131314",
+  "theme_color": "#131314",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "icon.png",
-      "sizes": "512x512",
+      "src": "/icon.png",
+      "sizes": "192x192 512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
