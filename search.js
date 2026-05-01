@@ -2,31 +2,18 @@
 // LOGIKA: WYSZUKIWARKA (search.js)
 // ==========================================
 
-window.searchDataCache = null;
+let searchTimeout = null;
 
-window.openGlobalSearch = async function() {
-    // 1. Pokaż modal i wyczyść input
+window.openGlobalSearch = function() {
+    document.getElementById('global-search-input').value = '';
+    document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
     document.getElementById('search-modal').classList.remove('hidden');
-    const input = document.getElementById('global-search-input');
-    input.value = '';
-    input.focus();
-    document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Pobieranie danych...</p></div>`;
-
-    // 2. Pobierz "mapę" danych do pamięci (tylko raz po otwarciu)
-    const uid = window.currentUser.id;
-    const [tasksRes, todosRes, healthRes] = await Promise.all([
-        supabaseClient.from('tasks').select('*').eq('user_id', uid),
-        supabaseClient.from('todos').select('*').eq('user_id', uid),
-        supabaseClient.from('health_tasks').select('*').eq('user_id', uid)
-    ]);
-
-    window.searchDataCache = {
-        tasks: tasksRes.data || [],
-        todos: todosRes.data || [],
-        health: healthRes.data || []
-    };
-
-    document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-600">Gotowe! Wpisz szukaną frazę.</p></div>`;
+    
+    // Lekkie opóźnienie przed focusem klawiatury dla płynności animacji
+    setTimeout(() => {
+        const input = document.getElementById('global-search-input');
+        if (input) input.focus();
+    }, 100);
 };
 
 window.closeGlobalSearch = function() {
@@ -34,70 +21,65 @@ window.closeGlobalSearch = function() {
 };
 
 window.performGlobalSearch = function(query) {
-    const list = document.getElementById('search-results-list');
-    const q = query.toLowerCase().trim();
-    
+    const q = query.trim().toLowerCase();
+    const listEl = document.getElementById('search-results-list');
+
     if (q.length < 2) {
-        list.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-600">Wpisz co najmniej 2 znaki...</p></div>`;
+        listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
         return;
     }
 
-    if (!window.searchDataCache) return;
+    listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500 animate-pulse">Szukanie w Domu...</p></div>`;
 
-    let resultsHTML = '';
-    
-    // -- SZUKANIE W DOMU --
-    const matchedTasks = window.searchDataCache.tasks.filter(t => t.name.toLowerCase().includes(q) || (t.room && t.room.toLowerCase().includes(q)));
-    if (matchedTasks.length > 0) {
-        resultsHTML += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2 mt-4">🏠 Dom (${matchedTasks.length})</h3>`;
-        resultsHTML += matchedTasks.map(t => `
-            <div onclick="goToSearchTask('${encodeURIComponent(t.name)}')" class="p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 cursor-pointer active:scale-95 transition-transform">
-                <h4 class="text-sm text-neutral-200 font-medium">${esc(t.name)}</h4>
-                <p class="text-[10px] text-neutral-500 mt-0.5">Pomieszczenie: ${esc(t.room || 'Inne')}</p>
-            </div>`).join('');
-    }
+    // Czyścimy poprzedni timeout (zapobiega spamowaniu bazy przy szybkim pisaniu)
+    if (searchTimeout) clearTimeout(searchTimeout);
 
-    // -- SZUKANIE W ZADANIACH (TO-DO) --
-    const matchedTodos = window.searchDataCache.todos.filter(t => t.title.toLowerCase().includes(q));
-    if (matchedTodos.length > 0) {
-        resultsHTML += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2 mt-4">📝 Zadania (${matchedTodos.length})</h3>`;
-        resultsHTML += matchedTodos.map(t => `
-            <div onclick="goToSearchTodo()" class="p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 cursor-pointer active:scale-95 transition-transform ${t.is_completed ? 'opacity-50' : ''}">
-                <h4 class="text-sm ${t.is_completed ? 'text-neutral-500 line-through' : 'text-neutral-200'} font-medium">${esc(t.title)}</h4>
-                <p class="text-[10px] text-neutral-500 mt-0.5">Status: ${t.is_completed ? 'Zakończone' : 'Do zrobienia'}</p>
-            </div>`).join('');
-    }
+    searchTimeout = setTimeout(async () => {
+        try {
+            // ZMIANA: Szukamy globalnie dla całego DOMU, a nie tylko dla jednego użytkownika
+            const hid = window.currentUser.household_id;
 
-    // -- SZUKANIE W ZDROWIU --
-    const matchedHealth = window.searchDataCache.health.filter(t => t.name.toLowerCase().includes(q));
-    if (matchedHealth.length > 0) {
-        resultsHTML += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2 mt-4">❤️ Zdrowie (${matchedHealth.length})</h3>`;
-        resultsHTML += matchedHealth.map(t => `
-            <div onclick="goToSearchHealth(${t.id})" class="p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 cursor-pointer active:scale-95 transition-transform">
-                <h4 class="text-sm text-neutral-200 font-medium">${esc(t.name)}</h4>
-                <p class="text-[10px] text-neutral-500 mt-0.5">Typ: ${t.task_type === 'cyclical' ? 'Cykliczne (Lek)' : 'Trwające (Objaw)'}</p>
-            </div>`).join('');
-    }
+            const [tasksRes, healthRes, todosRes, listsRes] = await Promise.all([
+                window.supabaseClient.from('tasks').select('*').eq('household_id', hid).ilike('name', `%${q}%`).eq('is_archived', false),
+                window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).ilike('name', `%${q}%`).eq('is_archived', false),
+                window.supabaseClient.from('todos').select('*').eq('household_id', hid).ilike('title', `%${q}%`).eq('is_archived', false),
+                window.supabaseClient.from('checklists').select('*').eq('household_id', hid).ilike('title', `%${q}%`).eq('is_archived', false)
+            ]);
 
-    if (resultsHTML === '') {
-        resultsHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Brak wyników dla "${esc(q)}"</p></div>`;
-    }
+            let results = [];
 
-    list.innerHTML = resultsHTML;
-};
+            if (tasksRes.data) {
+                tasksRes.data.forEach(t => results.push({ id: t.id, title: t.name, type: 'Dom', icon: '🏠', action: `window.closeGlobalSearch(); window.switchView('home');` }));
+            }
+            if (healthRes.data) {
+                healthRes.data.forEach(t => results.push({ id: t.id, title: t.name, type: 'Zdrowie', icon: '❤️', action: `window.closeGlobalSearch(); window.switchView('health');` }));
+            }
+            if (todosRes.data) {
+                todosRes.data.forEach(t => results.push({ id: t.id, title: t.title, type: 'Zadanie', icon: '📝', action: `window.closeGlobalSearch(); window.switchView('todo');` }));
+            }
+            if (listsRes.data) {
+                listsRes.data.forEach(t => results.push({ id: t.id, title: t.title, type: 'Lista', icon: '🗂️', action: `window.closeGlobalSearch(); window.switchView('todo'); window.openChecklistScreen(${t.id}, '${window.esc(t.title)}')` }));
+            }
 
-// --- NAWIGACJA PO KLIKNIĘCIU W WYNIK ---
-window.goToSearchTask = function(name) {
-    closeGlobalSearch();
-    window.switchView('home');
-    setTimeout(() => { if(typeof openSettingsScreen === 'function') openSettingsScreen(name); }, 150);
-};
-window.goToSearchTodo = function() {
-    closeGlobalSearch();
-    window.switchView('todo');
-};
-window.goToSearchHealth = function(id) {
-    closeGlobalSearch();
-    window.switchView('health');
-    setTimeout(() => { if(typeof openHealthSettingsScreen === 'function') openHealthSettingsScreen(id); }, 150);
+            if (results.length === 0) {
+                listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Brak wyników dla "${window.esc(q)}"</p></div>`;
+                return;
+            }
+
+            listEl.innerHTML = results.map(r => `
+                <div onclick="${r.action}" class="flex items-center gap-4 p-4 bg-[#1e1f20] hover:bg-[#333537] border border-[#333537] rounded-[16px] mb-2 cursor-pointer active:scale-95 transition-all shadow-sm">
+                    <div class="text-2xl">${r.icon}</div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(r.title)}</h3>
+                        <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-0.5">${r.type}</p>
+                    </div>
+                    <span class="text-neutral-500 text-lg">→</span>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error("Błąd wyszukiwania:", error);
+            listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-[#ffb4ab]">Wystąpił błąd bazy danych.</p></div>`;
+        }
+    }, 400); // 400ms opóźnienia
 };
