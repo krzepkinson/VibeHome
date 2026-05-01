@@ -26,6 +26,7 @@ window.saveUserName = async function() {
     if(!name) return;
     
     const { error } = await window.supabaseClient.auth.updateUser({ data: { name: name } });
+    
     if (error) { 
         window.showToast("Błąd: " + error.message); 
     } else { 
@@ -35,32 +36,13 @@ window.saveUserName = async function() {
     }
 };
 
-window.processJoinHousehold = async function() {
-    const code = document.getElementById('join-hh-input').value.trim();
-    if (!code) return;
-    
-    const newHouseholdId = code; 
-    const oldHouseholdId = window.currentUser.household_id;
-    
-    if (newHouseholdId === oldHouseholdId) { 
-        window.showToast("Już jesteś w tym domu!"); 
-        return; 
-    }
-
-    const { error: joinError } = await window.supabaseClient.from('household_members').insert([{ household_id: newHouseholdId, user_id: window.currentUser.id }]);
-    if (joinError) {
-        console.error("Błąd łączenia domów:", joinError); 
-        window.showToast("Niepoprawny kod domu! Nic nie zmieniono.");
-    } else {
-        await window.supabaseClient.from('household_members').delete().eq('household_id', oldHouseholdId).eq('user_id', window.currentUser.id);
-        window.closeJoinHouseholdModal(); 
-        window.showToast("Zsynchronizowano! Przeładowuję..."); 
-        setTimeout(() => window.location.reload(), 1500);
-    }
+window.openRoomsSettings = function() { 
+    window.goForward('settings-rooms-screen'); 
 };
 
-window.openRoomsSettings = function() { window.goForward('settings-rooms-screen'); };
-window.openProfilesSettings = function() { window.goForward('settings-profiles-screen'); };
+window.openProfilesSettings = function() { 
+    window.goForward('settings-profiles-screen'); 
+};
 
 window.checkNotificationStatus = function() {
     const statusText = document.getElementById('notif-status-text'); 
@@ -142,6 +124,7 @@ window.openNewRoomModal = function() {
     document.getElementById('new-room-icon').value = '🏠'; 
     document.getElementById('new-room-modal').classList.remove('hidden'); 
 };
+
 window.closeNewRoomModal = function() { 
     document.getElementById('new-room-modal').classList.add('hidden'); 
 };
