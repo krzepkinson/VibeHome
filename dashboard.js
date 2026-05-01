@@ -4,18 +4,16 @@
 
 window.activeDashboardTab = 'todo'; 
 
-// NOWOŚĆ: Zmienne do obsługi pamięci podręcznej (Cache)
 window.dashboardCache = null;
 window.dashboardCacheTime = 0;
 
 window.switchDashboardTab = function(tab) {
     window.activeDashboardTab = tab;
-    // Zmiana zakładki pobiera z Cache'a - zero zapytań do bazy!
     window.loadDashboardOverview(false);
 };
 
 window.invalidateDashboardCache = function() {
-    window.dashboardCacheTime = 0; // Wymusza pobranie nowych danych przy najbliższej okazji
+    window.dashboardCacheTime = 0; 
 };
 
 window.loadDashboardOverview = async function(forceRefresh = false) {
@@ -34,7 +32,7 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
     });
 
     const now = Date.now();
-    // Sprawdzamy czy wymuszono odświeżenie LUB czy cache jest stary (starszy niż 30s)
+    
     if (forceRefresh || !window.dashboardCache || (now - window.dashboardCacheTime > 30000)) {
         listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10">Synchronizacja...</p>`;
 
@@ -49,7 +47,6 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
             window.supabaseClient.from('profiles').select('*').eq('household_id', hid)
         ]);
 
-        // Zapisujemy wyniki w pamięci podręcznej
         window.dashboardCache = {
             tasks: tasksRes.data || [],
             logs: logsRes.data || [],
@@ -61,27 +58,23 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
         window.dashboardCacheTime = now;
     }
 
-    // Pobieramy dane z Cache'a (świeżego lub tego sprzed kilku sekund)
     const { tasks, logs, hTasks, hLogs, allTodos, profiles } = window.dashboardCache;
 
     const activeTodos = allTodos.filter(t => !t.is_completed);
     const today = new Date(); 
     today.setHours(0,0,0,0);
     
+    // ZMIANA: Używamy nowej funkcji isTaskOverdue!
     let homeOverdueCount = tasks.filter(t => {
-        if (!t.interval_days) return false;
-        const lastLog = logs.find(l => l.activity_name === t.name);
-        if (!lastLog) return true;
-        const next = new Date(lastLog.created_at); next.setHours(0,0,0,0);
-        next.setDate(next.getDate() + t.interval_days);
-        return next <= today && t.push_enabled !== false;
+        return window.isTaskOverdue(t, logs) && t.push_enabled !== false;
     }).length;
 
     let healthDueCount = hTasks.filter(ht => {
         if (ht.task_type === 'cyclical' && ht.interval_days) {
             const lastLog = hLogs.find(l => l.health_task_id === ht.id);
             if (!lastLog) return true;
-            const next = new Date(lastLog.start_date); next.setHours(0,0,0,0);
+            const next = new Date(lastLog.start_date); 
+            next.setHours(0,0,0,0);
             next.setDate(next.getDate() + ht.interval_days);
             return next <= today;
         }
@@ -117,17 +110,13 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
                     <button onclick="window.quickCompleteTodoDashboard(${todo.id})" class="w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
                 </div>`;
             }).join('');
-        } else { html = renderEmptyState("Zadania załatwione!"); }
+        } else { 
+            html = renderEmptyState("Zadania załatwione!"); 
+        }
     } 
     else if (window.activeDashboardTab === 'home') {
-        let overdueHome = tasks.filter(t => {
-            if (!t.interval_days) return false;
-            const lastLog = logs.find(l => l.activity_name === t.name);
-            if (!lastLog) return true;
-            const next = new Date(lastLog.created_at); next.setHours(0,0,0,0);
-            next.setDate(next.getDate() + t.interval_days);
-            return next <= today;
-        });
+        // ZMIANA: Czysty filter przy użyciu wydzielonej logiki!
+        let overdueHome = tasks.filter(t => window.isTaskOverdue(t, logs));
 
         if (overdueHome.length > 0) {
             html += overdueHome.map(t => `
@@ -138,14 +127,17 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
                     </div>
                     <button onclick="window.quickLogTaskDashboard('${encodeURIComponent(t.name)}')" class="w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
                 </div>`).join('');
-        } else { html = renderEmptyState("Dom lśni!"); }
+        } else { 
+            html = renderEmptyState("Dom lśni!"); 
+        }
     } 
     else if (window.activeDashboardTab === 'health') {
         const dueHealth = hTasks.filter(ht => {
             if (ht.task_type !== 'cyclical' || !ht.interval_days) return false;
             const lastLog = hLogs.find(l => l.health_task_id === ht.id);
             if (!lastLog) return true;
-            const next = new Date(lastLog.start_date); next.setHours(0,0,0,0);
+            const next = new Date(lastLog.start_date); 
+            next.setHours(0,0,0,0);
             next.setDate(next.getDate() + ht.interval_days);
             return next <= today;
         });
@@ -173,26 +165,58 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
                     <button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button>
                 </div>`;
             }).join('');
-        } else { html = renderEmptyState("Wszyscy zdrowi!"); }
+        } else { 
+            html = renderEmptyState("Wszyscy zdrowi!"); 
+        }
     }
     else if (window.activeDashboardTab === 'history') {
         let historyItems = [];
+        
         logs.forEach(l => {
             const t = tasks.find(x => x.name === l.activity_name);
             if (!t || t.show_in_history !== false) {
-                historyItems.push({ table: 'activity_logs', id: l.id, title: l.activity_name, date: new Date(l.created_at), icon: '🏠', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' });
+                historyItems.push({ 
+                    table: 'activity_logs', 
+                    id: l.id, 
+                    title: l.activity_name, 
+                    date: new Date(l.created_at), 
+                    icon: '🏠', 
+                    bg: 'bg-[#0f5223]/20', 
+                    border: 'border-[#0f5223]/50', 
+                    user: l.user_name || '?' 
+                });
             }
         });
+        
         hLogs.forEach(l => {
             const ht = hTasks.find(x => x.id === l.health_task_id);
             if (!ht || ht.show_in_history !== false) {
                 const profile = profiles.find(p => p.id === ht?.profile_id);
                 const title = (ht ? ht.name : 'Zdarzenie') + (profile ? ` (${profile.name})` : '');
-                historyItems.push({ table: 'health_logs', id: l.id, title: title, date: l.end_date ? new Date(l.end_date) : new Date(l.start_date), icon: '❤️', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' });
+                historyItems.push({ 
+                    table: 'health_logs', 
+                    id: l.id, 
+                    title: title, 
+                    date: l.end_date ? new Date(l.end_date) : new Date(l.start_date), 
+                    icon: '❤️', 
+                    bg: 'bg-[#8c1d18]/20', 
+                    border: 'border-[#8c1d18]/50', 
+                    user: l.user_name || '?' 
+                });
             }
         });
+        
         allTodos.filter(t => t.is_completed).forEach(t => {
-            historyItems.push({ table: 'todos', id: t.id, title: t.title, date: new Date(t.created_at), icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' });
+            historyItems.push({ 
+                table: 'todos', 
+                id: t.id, 
+                title: t.title, 
+                date: new Date(t.created_at), 
+                icon: '📝', 
+                bg: 'bg-[#004a77]/20', 
+                border: 'border-[#004a77]/50', 
+                user: t.completer_name || '?' 
+            });
         });
 
         historyItems.sort((a, b) => b.date - a.date);
@@ -219,7 +243,9 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
                 </div>`;
             }).join('');
             html += `</div>`;
-        } else { html = renderEmptyState("Oś czasu jest pusta."); }
+        } else { 
+            html = renderEmptyState("Oś czasu jest pusta."); 
+        }
     }
     listEl.innerHTML = html;
 };
@@ -239,7 +265,10 @@ window.quickCompleteTodoDashboard = async function(id) {
         .eq('id', id)
         .eq('household_id', window.currentUser.household_id);
         
-    if (error) { window.showToast('Błąd: ' + error.message); return; }
+    if (error) { 
+        window.showToast('Błąd: ' + error.message); 
+        return; 
+    }
     
     window.invalidateDashboardCache();
     window.showToast('Zadanie odhaczone! ✔️'); 
@@ -257,7 +286,10 @@ window.quickLogTaskDashboard = async function(name) {
         user_name: window.currentUser.name 
     }]);
     
-    if (error) { window.showToast('Błąd: ' + error.message); return; }
+    if (error) { 
+        window.showToast('Błąd: ' + error.message); 
+        return; 
+    }
     
     window.invalidateDashboardCache();
     window.showToast('Zrobione! ✔️'); 
@@ -275,7 +307,10 @@ window.quickLogHealthDashboard = async function(taskId) {
         user_name: window.currentUser.name 
     }]);
     
-    if (error) { window.showToast('Błąd: ' + error.message); return; }
+    if (error) { 
+        window.showToast('Błąd: ' + error.message); 
+        return; 
+    }
     
     window.invalidateDashboardCache();
     window.showToast('Zapisano! ✔️'); 
@@ -288,7 +323,10 @@ window.quickEndHealthDashboard = async function(logId) {
         .eq('id', logId)
         .eq('household_id', window.currentUser.household_id);
         
-    if (error) { window.showToast('Błąd: ' + error.message); return; }
+    if (error) { 
+        window.showToast('Błąd: ' + error.message); 
+        return; 
+    }
     
     window.invalidateDashboardCache();
     window.showToast('Zakończono! ✔️'); 
