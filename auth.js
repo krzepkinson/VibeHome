@@ -4,47 +4,49 @@
 
 let isLoginMode = true;
 
-function toggleAuthMode() {
+window.toggleAuthMode = function() {
     isLoginMode = !isLoginMode;
     document.getElementById('auth-title').innerText = isLoginMode ? 'Witaj z powrotem' : 'Dołącz do nas';
     document.getElementById('auth-action-btn').innerText = isLoginMode ? 'Zaloguj się' : 'Zarejestruj się';
     document.getElementById('auth-toggle-btn').innerHTML = isLoginMode ? 'Nie masz konta? <span class="text-[#a8c7fa]">Zarejestruj się</span>' : 'Masz już konto? <span class="text-[#a8c7fa]">Zaloguj się</span>';
-}
+};
 
-async function handleAuthAction() {
+window.handleAuthAction = async function() {
     const email = document.getElementById('auth-email').value.trim();
     const password = document.getElementById('auth-password').value;
-    if (!email || !password) { window.showToast('Wypełnij wszystkie pola!'); return; }
+    
+    if (!email || !password) { 
+        window.showToast('Wypełnij wszystkie pola!'); 
+        return; 
+    }
+    
     document.getElementById('auth-action-btn').innerText = 'Przetwarzanie...';
+    
     try {
         if (isLoginMode) {
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
             if (error) throw error;
-            await finalizeLogin(data.user);
+            await window.finalizeLogin(data.user);
         } else {
             const { data, error } = await supabaseClient.auth.signUp({ email, password });
             if (error) throw error;
             window.showToast('Konto utworzone!');
-            await finalizeLogin(data.user);
+            await window.finalizeLogin(data.user);
         }
-    } catch (error) { window.showToast('Błąd: ' + error.message); }
-    finally { document.getElementById('auth-action-btn').innerText = isLoginMode ? 'Zaloguj się' : 'Zarejestruj się'; }
-}
+    } catch (error) { 
+        window.showToast('Błąd: ' + error.message); 
+    } finally { 
+        document.getElementById('auth-action-btn').innerText = isLoginMode ? 'Zaloguj się' : 'Zarejestruj się'; 
+    }
+};
 
-async function finalizeLogin(user) {
+window.finalizeLogin = async function(user) {
     if (!user) return;
     try {
         const userName = user.user_metadata?.name || user.email.split('@')[0];
-        let { data: members, error: memErr } = await supabaseClient.from('household_members').select('household_id').eq('user_id', user.id);
-        if (memErr) throw memErr;
-        let hid = null;
-        if (!members || members.length === 0) {
-            const { data: hh, error: hhErr } = await supabaseClient.from('households').insert([{ name: 'Nasz Dom' }]).select().single();
-            if (hhErr) throw hhErr;
-            hid = hh.id;
-            const { error: insErr } = await supabaseClient.from('household_members').insert([{ household_id: hid, user_id: user.id }]);
-            if (insErr) throw insErr;
-        } else { hid = members[0].household_id; }
+        
+        // Czyste przekazanie delegacji do osobnego pliku:
+        const hid = await window.initHousehold(user);
 
         window.currentUser = { id: user.id, email: user.email, name: userName, household_id: hid };
         
@@ -55,19 +57,32 @@ async function finalizeLogin(user) {
         document.getElementById('auth-email').value = '';
         document.getElementById('auth-password').value = '';
         window.switchView('dashboard');
-    } catch (error) { window.showToast('Błąd ładowania: ' + error.message); }
-}
+    } catch (error) { 
+        window.showToast('Błąd ładowania: ' + error.message); 
+    }
+};
 
 window.checkSession = async function() {
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) { await finalizeLogin(session.user); return true; }
-    } catch (e) { console.error("Sesja wygasła:", e); }
+        if (session) { 
+            await window.finalizeLogin(session.user); 
+            return true; 
+        }
+    } catch (e) { 
+        console.error("Sesja wygasła:", e); 
+    }
     return false;
 };
 
 window.logoutUser = async function() {
     await supabaseClient.auth.signOut();
     window.currentUser = null;
+    
+    // Czyścimy cache przy wylogowaniu dla bezpieczeństwa
+    if (typeof window.invalidateDashboardCache === 'function') {
+        window.invalidateDashboardCache();
+    }
+    
     window.switchView('auth');
 };
