@@ -57,7 +57,7 @@ window.refreshCurrentView = async function() {
             }
         } else if (view === 'dashboard') {
             if (typeof window.loadDashboardOverview === 'function') {
-                await window.loadDashboardOverview(true); // true pomija cache
+                await window.loadDashboardOverview(true); 
             }
         } else if (view === 'home') {
             if (typeof window.loadDashboard === 'function') {
@@ -98,15 +98,6 @@ window.closeConfirmModal = function(result) {
         window._confirmCallback();
     }
     window._confirmCallback = null;
-};
-
-window.openJoinHouseholdModal = function() {
-    document.getElementById('join-hh-input').value = '';
-    document.getElementById('join-household-modal').classList.remove('hidden');
-};
-
-window.closeJoinHouseholdModal = function() {
-    document.getElementById('join-household-modal').classList.add('hidden');
 };
 
 // --- WSPÓŁDZIELONA LOGIKA BIZNESOWA ---
