@@ -41,6 +41,10 @@ window.initHousehold = async function(user) {
 window.openJoinHouseholdModal = function() {
     document.getElementById('join-hh-input').value = '';
     document.getElementById('join-household-modal').classList.remove('hidden');
+    setTimeout(() => {
+        const input = document.getElementById('join-hh-input');
+        if (input) input.focus();
+    }, 100);
 };
 
 window.closeJoinHouseholdModal = function() {
@@ -59,21 +63,18 @@ window.processJoinHousehold = async function() {
         return; 
     }
 
-    // KROK 1: Weryfikacja, czy dom w ogóle istnieje w bazie (ZALECENIE CLAUDEAI)
     const { data: hh, error: checkError } = await window.supabaseClient
         .from('households')
         .select('id')
         .eq('id', newHouseholdId)
         .maybeSingle();
 
-    // Jeśli zapytanie zwróci błąd, albo nie znajdzie domu (hh jest puste)
     if (checkError || !hh) {
         console.warn("Próba dołączenia do nieistniejącego domu:", code);
         window.showToast("Niepoprawny kod! Taki dom nie istnieje.");
         return; 
     }
 
-    // KROK 2: Bezpieczne dołączenie do zweryfikowanego domu
     const { error: joinError } = await window.supabaseClient
         .from('household_members')
         .insert([{ household_id: hh.id, user_id: window.currentUser.id }]);
@@ -82,7 +83,6 @@ window.processJoinHousehold = async function() {
         console.error("Błąd łączenia domów:", joinError); 
         window.showToast("Wystąpił błąd podczas dołączania.");
     } else {
-        // KROK 3: Usunięcie starego przypisania dopiero po sukcesie
         await window.supabaseClient
             .from('household_members')
             .delete()
