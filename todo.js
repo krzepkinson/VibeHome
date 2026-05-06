@@ -91,14 +91,25 @@ window.loadTodosAndLists = async function() {
 window.openNewTodoModal = function() { 
     document.getElementById('new-todo-title').value = ''; 
     document.getElementById('new-todo-modal').classList.remove('hidden'); 
+    setTimeout(() => {
+        const input = document.getElementById('new-todo-title');
+        if (input) input.focus();
+    }, 100);
 };
+
 window.closeNewTodoModal = function() { 
     document.getElementById('new-todo-modal').classList.add('hidden'); 
 };
+
 window.openNewListModal = function() { 
     document.getElementById('new-list-title').value = ''; 
     document.getElementById('new-list-modal').classList.remove('hidden'); 
+    setTimeout(() => {
+        const input = document.getElementById('new-list-title');
+        if (input) input.focus();
+    }, 100);
 };
+
 window.closeNewListModal = function() { 
     document.getElementById('new-list-modal').classList.add('hidden'); 
 };
@@ -194,7 +205,12 @@ window.openEditTodoModal = function(id, title) {
     document.getElementById('edit-todo-id').value = id;
     document.getElementById('edit-todo-title').value = title;
     document.getElementById('edit-todo-modal').classList.remove('hidden');
+    setTimeout(() => {
+        const input = document.getElementById('edit-todo-title');
+        if (input) input.focus();
+    }, 100);
 };
+
 window.closeEditTodoModal = function() { 
     document.getElementById('edit-todo-modal').classList.add('hidden'); 
 };
@@ -223,7 +239,13 @@ window.openChecklistScreen = function(id, title) {
     document.getElementById('checklist-screen-title').innerText = title; 
     window.loadChecklistItems(); 
     window.goForward('checklist-screen');
+    // Opóźnienie 350ms na animację przejścia ekranu
+    setTimeout(() => {
+        const input = document.getElementById('new-checklist-item-input');
+        if (input) input.focus();
+    }, 350);
 };
+
 window.closeChecklistScreen = function() { 
     window.goBack(); 
 };
@@ -279,6 +301,10 @@ window.saveChecklistItem = async function() {
     
     if (error) window.showToast("Błąd: " + error.message);
     window.loadChecklistItems();
+    
+    setTimeout(() => {
+        if (input) input.focus();
+    }, 50);
 };
 
 window.toggleChecklistItem = async function(id, currentStatus) {
