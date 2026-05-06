@@ -7,13 +7,11 @@ let searchTimeout = null;
 window.openGlobalSearch = function() {
     document.getElementById('global-search-input').value = '';
     document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
-    document.getElementById('search-modal').classList.remove('hidden');
     
-    // Lekkie opóźnienie przed focusem klawiatury dla płynności animacji
-    setTimeout(() => {
-        const input = document.getElementById('global-search-input');
-        if (input) input.focus();
-    }, 100);
+    // Zdejmujemy ukrycie i NATYCHMIAST fokusujemy, by przechytrzyć blokady mobilne
+    document.getElementById('search-modal').classList.remove('hidden');
+    const input = document.getElementById('global-search-input');
+    if (input) input.focus();
 };
 
 window.closeGlobalSearch = function() {
@@ -31,7 +29,6 @@ window.performGlobalSearch = function(query) {
 
     listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500 animate-pulse">Szukanie w Domu...</p></div>`;
 
-    // Czyścimy poprzedni timeout (zapobiega spamowaniu bazy przy szybkim pisaniu)
     if (searchTimeout) clearTimeout(searchTimeout);
 
     searchTimeout = setTimeout(async () => {
@@ -47,7 +44,6 @@ window.performGlobalSearch = function(query) {
 
             let results = [];
 
-            // DEEP-LINKING: Przechodzimy do zakładki, ewentualnie filtrujemy, i odpalamy okienko
             if (tasksRes.data) {
                 tasksRes.data.forEach(t => results.push({ 
                     id: t.id, 
@@ -105,5 +101,5 @@ window.performGlobalSearch = function(query) {
             console.error("Błąd wyszukiwania:", error);
             listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-[#ffb4ab]">Wystąpił błąd bazy danych.</p></div>`;
         }
-    }, 400); // 400ms opóźnienia
+    }, 400);
 };
