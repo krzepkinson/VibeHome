@@ -57,6 +57,22 @@ window.loadDashboard = async function() {
     allHomeTasks = tRes.data || []; 
     allHomeLogs = lRes.data || [];
     const dbRooms = rRes.data || [];
+    const today = new Date(); 
+    today.setHours(0,0,0,0);
+
+    // --- PUSTY STAN (EMPTY STATE) CTA DLA NOWYCH UŻYTKOWNIKÓW ---
+    if (allHomeTasks.length === 0 && !currentRoomFilter) {
+        list.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-16 text-center animate-fade-in px-4">
+                <div class="text-7xl mb-6 opacity-80 drop-shadow-lg">🏠</div>
+                <h3 class="text-neutral-100 font-medium text-xl mb-2 tracking-wide">Twój dom jest pusty</h3>
+                <p class="text-neutral-400 text-xs mb-8 max-w-[260px] leading-relaxed">Dodaj pierwszą czynność, np. wyrzucanie śmieci lub podlewanie kwiatów, by zacząć dbać o swoją przestrzeń.</p>
+                <button onclick="window.openNewTaskModal()" class="bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg shadow-[#004a77]/20 active:scale-95 transition-all flex items-center gap-2">
+                    <span class="text-xl pb-1">+</span> Dodaj pierwszą czynność
+                </button>
+            </div>`;
+        return;
+    }
 
     if (!currentRoomFilter) {
         let roomStats = {};
@@ -123,7 +139,7 @@ window.loadDashboard = async function() {
                     <button onclick="window.openSettingsScreen('${encodeURIComponent(item.t.name)}')" class="w-8 h-8 rounded-full bg-[#333537]/50 text-neutral-400 flex items-center justify-center active:scale-90 text-xs">⚙️</button>
                 </div>
             </div>`;
-    }).join('') : `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań.</p>`;
+    }).join('') : `<p class="text-center text-neutral-500 text-xs py-10">W tym pomieszczeniu nie ma jeszcze zadań.</p>`;
 };
 
 window.getRelativeTime = function(d) {
