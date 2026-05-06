@@ -64,7 +64,7 @@ window.renderHealthUI = function() {
     
     nameTitle.innerText = profile.name; 
     headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
-    const colors = ['bg-rose-600', 'bg-blue-600', 'bg-emerald-600', 'bg-amber-600', 'bg-purple-600'];
+    headerAvatar.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 ${window.getAvatarColor(profile.name)}`;
     headerAvatar.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 ${colors[profile.id % colors.length]}`;
     
     window.renderCalendar(); 
