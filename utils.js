@@ -132,3 +132,17 @@ document.addEventListener('DOMContentLoaded', window.setupGlobalSwipe);
 window.triggerHaptic = function() {
     if (navigator && navigator.vibrate) navigator.vibrate(30);
 };
+// --- GENERATOR KOLORÓW AWATARÓW ---
+window.getAvatarColor = function(name) {
+    if (!name) return 'bg-neutral-600';
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash += name.charCodeAt(i);
+    }
+    const colors = [
+        'bg-rose-600', 'bg-blue-600', 'bg-emerald-600', 
+        'bg-amber-600', 'bg-purple-600', 'bg-teal-600', 
+        'bg-indigo-600', 'bg-pink-600'
+    ];
+    return colors[hash % colors.length];
+};
