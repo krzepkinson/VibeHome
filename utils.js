@@ -18,14 +18,15 @@ window.showToast = function(message) {
     if (!toast) return;
     
     toast.innerText = message;
-    toast.classList.remove('opacity-0', 'translate-y-10');
+    // Zmiana klasy na ujemną (-translate-y-10), żeby chował się do góry
+    toast.classList.remove('opacity-0', '-translate-y-10');
     
     if (window.toastTimeout) {
         clearTimeout(window.toastTimeout);
     }
     
     window.toastTimeout = setTimeout(() => { 
-        toast.classList.add('opacity-0', 'translate-y-10'); 
+        toast.classList.add('opacity-0', '-translate-y-10'); 
     }, 3000);
 };
 
