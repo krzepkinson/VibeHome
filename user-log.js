@@ -35,6 +35,11 @@ window.openChangeUserModal = function(type, id, currentName) {
     document.querySelectorAll('#change-user-modal').forEach(modal => {
         modal.classList.remove('hidden');
     });
+
+    setTimeout(() => {
+        const input = document.getElementById('change-user-custom');
+        if (input) input.focus();
+    }, 100);
 };
 
 window.saveChangedUser = async function(newName) {
@@ -80,7 +85,6 @@ window.saveChangedUser = async function(newName) {
         window.closeChangeUserModal();
         window.showToast("Zmieniono osobę!");
         
-        // Zmuszamy dashboard do pobrania nowych danych po powrocie
         if (typeof window.invalidateDashboardCache === 'function') {
             window.invalidateDashboardCache();
         }
