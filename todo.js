@@ -40,7 +40,6 @@ window.loadTodosAndLists = async function() {
                 <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
                     <button onclick="window.archiveChecklist(${list.id})" class="text-[#ffb4ab] text-xl active:scale-90 transition-transform">🗑️</button>
                 </div>
-                
                 <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 cursor-pointer w-full transition-transform" onclick="window.openChecklistScreen(${list.id}, '${window.esc(list.title)}')">
                     <div class="flex items-center gap-3 min-w-0">
                         <span class="text-lg shrink-0">🗂️</span>
@@ -71,7 +70,6 @@ window.loadTodosAndLists = async function() {
                 <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
                     <button onclick="window.archiveTodo(${todo.id})" class="text-[#ffb4ab] text-xl active:scale-90 transition-transform">🗑️</button>
                 </div>
-
                 <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] cursor-pointer w-full transition-transform">
                     <div class="flex items-center gap-2 flex-1 min-w-0" onclick="window.openEditTodoModal(${todo.id}, '${window.esc(todo.title)}')">
                         <div onclick="event.stopPropagation(); window.toggleTodo(${todo.id}, ${isDone})" class="w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
@@ -91,25 +89,14 @@ window.loadTodosAndLists = async function() {
 window.openNewTodoModal = function() { 
     document.getElementById('new-todo-title').value = ''; 
     document.getElementById('new-todo-modal').classList.remove('hidden'); 
-    setTimeout(() => {
-        const input = document.getElementById('new-todo-title');
-        if (input) input.focus();
-    }, 100);
 };
-
 window.closeNewTodoModal = function() { 
     document.getElementById('new-todo-modal').classList.add('hidden'); 
 };
-
 window.openNewListModal = function() { 
     document.getElementById('new-list-title').value = ''; 
     document.getElementById('new-list-modal').classList.remove('hidden'); 
-    setTimeout(() => {
-        const input = document.getElementById('new-list-title');
-        if (input) input.focus();
-    }, 100);
 };
-
 window.closeNewListModal = function() { 
     document.getElementById('new-list-modal').classList.add('hidden'); 
 };
@@ -155,6 +142,8 @@ window.saveNewList = async function() {
 };
 
 window.toggleTodo = async function(id, currentStatus) {
+    if (!currentStatus) window.triggerHaptic(); // WIBRACJA PRZY WYKONANIU!
+    
     let updateData = { is_completed: !currentStatus };
     updateData.completer_name = !currentStatus ? window.currentUser.name : null;
     const { error } = await window.supabaseClient.from('todos')
@@ -176,12 +165,8 @@ window.archiveTodo = function(id) {
             .eq('id', id)
             .eq('household_id', window.currentUser.household_id);
             
-        if (error) { 
-            window.showToast("Błąd: " + error.message); 
-            return; 
-        }
-        window.showToast("Zarchiwizowano!"); 
-        window.loadTodosAndLists();
+        if (error) { window.showToast("Błąd: " + error.message); return; }
+        window.showToast("Zarchiwizowano!"); window.loadTodosAndLists();
     });
 };
 
@@ -192,12 +177,8 @@ window.archiveChecklist = function(id) {
             .eq('id', id)
             .eq('household_id', window.currentUser.household_id);
             
-        if (error) { 
-            window.showToast("Błąd: " + error.message); 
-            return; 
-        }
-        window.showToast("Lista zarchiwizowana!"); 
-        window.loadTodosAndLists();
+        if (error) { window.showToast("Błąd: " + error.message); return; }
+        window.showToast("Lista zarchiwizowana!"); window.loadTodosAndLists();
     });
 };
 
@@ -205,12 +186,7 @@ window.openEditTodoModal = function(id, title) {
     document.getElementById('edit-todo-id').value = id;
     document.getElementById('edit-todo-title').value = title;
     document.getElementById('edit-todo-modal').classList.remove('hidden');
-    setTimeout(() => {
-        const input = document.getElementById('edit-todo-title');
-        if (input) input.focus();
-    }, 100);
 };
-
 window.closeEditTodoModal = function() { 
     document.getElementById('edit-todo-modal').classList.add('hidden'); 
 };
@@ -225,13 +201,8 @@ window.saveEditedTodo = async function() {
         .eq('id', id)
         .eq('household_id', window.currentUser.household_id);
         
-    if (error) { 
-        window.showToast("Błąd: " + error.message); 
-        return; 
-    }
-    window.closeEditTodoModal(); 
-    window.showToast("Zapisano zmiany!"); 
-    window.loadTodosAndLists();
+    if (error) { window.showToast("Błąd: " + error.message); return; }
+    window.closeEditTodoModal(); window.showToast("Zapisano zmiany!"); window.loadTodosAndLists();
 };
 
 window.openChecklistScreen = function(id, title) {
@@ -239,13 +210,7 @@ window.openChecklistScreen = function(id, title) {
     document.getElementById('checklist-screen-title').innerText = title; 
     window.loadChecklistItems(); 
     window.goForward('checklist-screen');
-    // Opóźnienie 350ms na animację przejścia ekranu
-    setTimeout(() => {
-        const input = document.getElementById('new-checklist-item-input');
-        if (input) input.focus();
-    }, 350);
 };
-
 window.closeChecklistScreen = function() { 
     window.goBack(); 
 };
@@ -272,7 +237,6 @@ window.loadChecklistItems = async function() {
             <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-4">
                 <button onclick="window.deleteChecklistItem(${item.id})" class="text-[#ffb4ab] text-lg active:scale-90 transition-transform">🗑️</button>
             </div>
-            
             <div class="swipe-front relative z-10 flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] w-full transition-transform">
                 <div class="flex items-center gap-3 flex-1 cursor-pointer min-w-0" onclick="window.toggleChecklistItem(${item.id}, ${item.is_completed})">
                     <div class="w-5 h-5 rounded-full border-2 ${item.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
@@ -301,13 +265,11 @@ window.saveChecklistItem = async function() {
     
     if (error) window.showToast("Błąd: " + error.message);
     window.loadChecklistItems();
-    
-    setTimeout(() => {
-        if (input) input.focus();
-    }, 50);
 };
 
 window.toggleChecklistItem = async function(id, currentStatus) {
+    if (!currentStatus) window.triggerHaptic(); // WIBRACJA PRZY WYKONANIU!
+    
     const { error } = await window.supabaseClient.from('checklist_items')
         .update({ is_completed: !currentStatus })
         .eq('id', id)
