@@ -3,7 +3,6 @@
 // ==========================================
 
 window.initHousehold = async function(user) {
-    // Sprawdzamy, czy użytkownik ma już swój dom
     let { data: members, error: memErr } = await window.supabaseClient
         .from('household_members')
         .select('household_id')
@@ -14,7 +13,6 @@ window.initHousehold = async function(user) {
     let hid = null;
     
     if (!members || members.length === 0) {
-        // Jeśli nie ma domu, tworzymy nowy dom o nazwie "Nasz Dom"
         const { data: hh, error: hhErr } = await window.supabaseClient
             .from('households')
             .insert([{ name: 'Nasz Dom' }])
@@ -24,14 +22,12 @@ window.initHousehold = async function(user) {
         if (hhErr) throw hhErr;
         hid = hh.id;
 
-        // I przypisujemy użytkownika do tego nowego domu
         const { error: insErr } = await window.supabaseClient
             .from('household_members')
             .insert([{ household_id: hid, user_id: user.id }]);
             
         if (insErr) throw insErr;
     } else { 
-        // Jeśli ma, po prostu pobieramy jego ID
         hid = members[0].household_id; 
     }
     
@@ -63,6 +59,7 @@ window.processJoinHousehold = async function() {
         return; 
     }
 
+    // Weryfikacja czy dom istnieje
     const { data: hh, error: checkError } = await window.supabaseClient
         .from('households')
         .select('id')
@@ -70,27 +67,44 @@ window.processJoinHousehold = async function() {
         .maybeSingle();
 
     if (checkError || !hh) {
-        console.warn("Próba dołączenia do nieistniejącego domu:", code);
         window.showToast("Niepoprawny kod! Taki dom nie istnieje.");
         return; 
     }
 
+    // Dołączenie do domu
     const { error: joinError } = await window.supabaseClient
         .from('household_members')
         .insert([{ household_id: hh.id, user_id: window.currentUser.id }]);
 
     if (joinError) {
-        console.error("Błąd łączenia domów:", joinError); 
         window.showToast("Wystąpił błąd podczas dołączania.");
     } else {
+        // Usunięcie starego powiązania
         await window.supabaseClient
             .from('household_members')
             .delete()
             .eq('household_id', oldHouseholdId)
             .eq('user_id', window.currentUser.id);
             
+        // PŁYNNE PRZEJŚCIE ZAMIAST RELOADU
+        // 1. Aktualizujemy stan użytkownika
+        window.currentUser.household_id = hh.id;
+        
+        // 2. Czyścimy wszystkie zapamiętane filtry i cache Przeglądu
+        if (typeof window.clearRoomFilter === 'function') window.clearRoomFilter();
+        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+        
+        // 3. Zamykamy modal i informujemy użytkownika
         window.closeJoinHouseholdModal(); 
-        window.showToast("Zsynchronizowano! Przeładowuję..."); 
-        setTimeout(() => window.location.reload(), 1500);
+        window.showToast("Pomyślnie dołączono do domu! 🏠"); 
+        
+        // 4. Przerzucamy go gładko do Przeglądu (który sam pociągnie nowe dane)
+        window.switchView('dashboard');
+        
+        // 5. Cicho odświeżamy resztę modułów w tle, by po wejściu w inną zakładkę miały świeże dane
+        setTimeout(() => {
+            if (typeof window.initSettingsModule === 'function') window.initSettingsModule();
+            if (typeof window.loadTodosAndLists === 'function') window.loadTodosAndLists();
+        }, 500);
     }
 };
