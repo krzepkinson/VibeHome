@@ -18,7 +18,6 @@ window.showToast = function(message) {
     if (!toast) return;
     
     toast.innerText = message;
-    // Zmiana klasy na ujemną (-translate-y-10), żeby chował się do góry
     toast.classList.remove('opacity-0', '-translate-y-10');
     
     if (window.toastTimeout) {
@@ -42,7 +41,6 @@ window.urlB64ToUint8Array = function(base64String) {
     return outputArray;
 };
 
-// NIEZAWODNE ODŚWIEŻANIE AKTYWNEGO WIDOKU
 window.refreshCurrentView = async function() {
     const btn = document.activeElement; 
     if (btn && btn.tagName === 'BUTTON' && btn.innerText.includes('↻')) {
@@ -85,8 +83,6 @@ window.refreshCurrentView = async function() {
     }
 };
 
-// --- SYSTEM PANCERNYCH KOMUNIKATÓW ---
-
 window.customConfirm = function(message, onConfirm) {
     document.getElementById('confirm-message').innerText = message;
     window._confirmCallback = onConfirm;
@@ -100,8 +96,6 @@ window.closeConfirmModal = function(result) {
     }
     window._confirmCallback = null;
 };
-
-// --- WSPÓŁDZIELONA LOGIKA BIZNESOWA ---
 
 window.isTaskOverdue = function(task, logs) {
     if (!task.interval_days) return false;
@@ -120,7 +114,6 @@ window.isTaskOverdue = function(task, logs) {
     
     return nextDate <= today;
 };
-// --- SYSTEM PULL-TO-REFRESH ---
 
 window.initPullToRefresh = function() {
     const mainScreen = document.getElementById('main-screen');
@@ -132,10 +125,9 @@ window.initPullToRefresh = function() {
     let startY = 0;
     let currentY = 0;
     let isPulling = false;
-    const threshold = 70; // Ile pikseli trzeba pociągnąć
+    const threshold = 70;
 
     mainScreen.addEventListener('touchstart', (e) => {
-        // Zaczynamy ciągnąć tylko, jeśli jesteśmy na samej górze listy
         if (mainScreen.scrollTop === 0) {
             startY = e.touches[0].clientY;
             isPulling = true;
@@ -150,9 +142,8 @@ window.initPullToRefresh = function() {
         const pullDistance = currentY - startY;
 
         if (pullDistance > 0 && mainScreen.scrollTop === 0) {
-            // Dodajemy "opór" przy ciągnięciu (mnożnik 0.4)
             const visualDistance = Math.min(pullDistance * 0.4, threshold + 20);
-            ptrIndicator.style.transform = `translateY(${visualDistance - 60}px)`; // -60px to wysokość ukrycia
+            ptrIndicator.style.transform = `translateY(${visualDistance - 60}px)`; 
             ptrIcon.style.transform = `rotate(${visualDistance * 4}deg)`;
         }
     }, { passive: true });
@@ -165,19 +156,15 @@ window.initPullToRefresh = function() {
         ptrIndicator.style.transition = 'transform 0.3s ease-out';
         ptrIcon.style.transition = 'transform 0.3s ease-out';
 
-        // Jeśli przeciągnęliśmy wystarczająco mocno
         if (pullDistance > threshold && mainScreen.scrollTop === 0) {
-            ptrIndicator.style.transform = `translateY(15px)`; // Zatrzymujemy kółko lekko poniżej górnej krawędzi
+            ptrIndicator.style.transform = `translateY(15px)`;
             ptrIcon.classList.add('animate-spin');
             
-            // WYWOŁANIE NASZEGO ODŚWIEŻANIA
             await window.refreshCurrentView();
             
-            // Po zakończeniu odświeżania chowamy kółko
             ptrIndicator.style.transform = `translateY(-100%)`;
             ptrIcon.classList.remove('animate-spin');
         } else {
-            // Jeśli pociągnęliśmy za słabo - od razu chowamy
             ptrIndicator.style.transform = `translateY(-100%)`;
         }
         
@@ -186,21 +173,18 @@ window.initPullToRefresh = function() {
     });
 };
 
-// Odpalamy nasłuchiwanie gestów od razu po załadowaniu apki
 document.addEventListener('DOMContentLoaded', window.initPullToRefresh);
-// --- SYSTEM SWIPE-TO-DELETE ---
 
 window.setupGlobalSwipe = function() {
     let startX = 0;
     let currentX = 0;
     let isDragging = false;
     let activeItem = null;
-    let openItem = null; // Przechowuje aktualnie otwarty kafelek
+    let openItem = null;
 
     const handleStart = (e) => {
         const swipeFront = e.target.closest('.swipe-front');
         
-        // Jeśli kliknięto w coś innego, a był otwarty kafelek - zamykamy go
         if (openItem && openItem !== swipeFront) {
             openItem.style.transform = 'translateX(0px)';
             openItem = null;
@@ -211,7 +195,7 @@ window.setupGlobalSwipe = function() {
         activeItem = swipeFront;
         startX = e.type.includes('mouse') ? e.pageX : e.touches[0].clientX;
         isDragging = true;
-        activeItem.style.transition = 'none'; // Wyłączamy płynność, by podążał za palcem
+        activeItem.style.transition = 'none';
     };
 
     const handleMove = (e) => {
@@ -220,9 +204,7 @@ window.setupGlobalSwipe = function() {
         currentX = e.type.includes('mouse') ? e.pageX : e.touches[0].clientX;
         const diff = currentX - startX;
 
-        // Pozwalamy na przesunięcie tylko w lewo
         if (diff < 0) {
-            // Blokujemy maksymalne wychylenie na -100px
             const move = Math.max(diff, -100);
             activeItem.style.transform = `translateX(${move}px)`;
         }
@@ -237,11 +219,9 @@ window.setupGlobalSwipe = function() {
         const diff = currentX - startX;
         
         if (diff < -40) {
-            // Jeśli przeciągnięto mocno, zablokuj pozycję otwartą (na 64px)
             activeItem.style.transform = 'translateX(-64px)';
             openItem = activeItem;
         } else {
-            // Wróć na miejsce, jeśli pociągnięto za słabo
             activeItem.style.transform = 'translateX(0px)';
             if (openItem === activeItem) openItem = null;
         }
@@ -251,16 +231,25 @@ window.setupGlobalSwipe = function() {
         currentX = 0;
     };
 
-    // Nasłuchiwanie dotyku (telefony)
     document.addEventListener('touchstart', handleStart, { passive: true });
     document.addEventListener('touchmove', handleMove, { passive: true });
     document.addEventListener('touchend', handleEnd);
     
-    // Nasłuchiwanie myszki (dla chętnych na komputerach)
     document.addEventListener('mousedown', handleStart);
     document.addEventListener('mousemove', handleMove);
     document.addEventListener('mouseup', handleEnd);
 };
 
-// Uruchamiamy skrypt po załadowaniu okna
 document.addEventListener('DOMContentLoaded', window.setupGlobalSwipe);
+
+// --- HAPTIC FEEDBACK ---
+window.triggerHaptic = function() {
+    try {
+        // Wibracja 30ms (krótka, wyczuwalna, premium)
+        if (navigator && navigator.vibrate) {
+            navigator.vibrate(30);
+        }
+    } catch (e) {
+        // Ignorujemy błędy, jeśli przeglądarka tego nie wspiera
+    }
+};
