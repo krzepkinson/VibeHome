@@ -153,12 +153,25 @@ window.quickLogTaskDashboard = async function(taskId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const task = window.dashboardCache.tasks.find(t => t.id == taskId);
     const d = new Date().toISOString().split('T')[0];
+    
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
         task_id: taskId, activity_name: task ? task.name : 'Zadanie', 
-        created_at: `${d}T12:00:00.000Z`, notes: '', user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
+        created_at: `${d}T12:00:00.000Z`, notes: '', 
+        user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
     }]);
+    
     if (error) { window.showToast('Błąd: ' + error.message); return; }
-    window.invalidateDashboardCache(); window.showToast('Zrobione! ✔️'); window.loadDashboardOverview(); 
+
+    // ZMIANA: Auto-archiwizacja przy szybkim kliknięciu
+    if (task && (!task.interval_days || task.interval_days === 0)) {
+        await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', taskId);
+        window.showToast('Zadanie jednorazowe zarchiwizowane! ✔️');
+    } else {
+        window.showToast('Zrobione! ✔️'); 
+    }
+
+    window.invalidateDashboardCache(); 
+    window.loadDashboardOverview(); 
 };
 
 window.quickLogHealthDashboard = async function(taskId) {
