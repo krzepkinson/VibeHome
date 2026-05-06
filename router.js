@@ -2,12 +2,13 @@
 // SYSTEM NAWIGACJI I ROUTINGU (router.js)
 // ==========================================
 
-let activeView = '';
+// ZMIANA: Konsekwentna deklaracja globalna
+window.activeView = '';
 
 window.switchView = function(view, skipHistory = false) {
     try {
         if (!window.currentUser && view !== 'auth') { view = 'auth'; }
-        activeView = view;
+        window.activeView = view; // ZMIANA
         
         const navIds = ['dashboard', 'home', 'health', 'settings', 'todo'];
         navIds.forEach(id => {
@@ -40,7 +41,6 @@ window.switchView = function(view, skipHistory = false) {
             else if (view === 'settings') { document.getElementById('view-settings-main').classList.remove('hidden'); if(typeof initSettingsModule === 'function') initSettingsModule(); }
         }
 
-        // Modyfikacja: Zapisujemy czysty stan głównego widoku
         if (!skipHistory && ['dashboard', 'home', 'health', 'settings', 'auth', 'todo'].includes(view)) {
             window.history.pushState({ view: view, subScreen: null }, '', `/${view}`);
         }
@@ -54,8 +54,8 @@ window.goForward = function(screenId) {
     const screenEl = document.getElementById(screenId);
     if (screenEl) screenEl.classList.remove('hidden');
 
-    // KLUCZOWE: Dodajemy otwarty ekran (subScreen) do natywnej historii przeglądarki!
-    window.history.pushState({ view: activeView, subScreen: screenId }, '', `#${screenId}`);
+    // ZMIANA: Użycie window.activeView
+    window.history.pushState({ view: window.activeView, subScreen: screenId }, '', `#${screenId}`);
 };
 
 window.goBack = function() {
@@ -66,18 +66,15 @@ window.goBack = function() {
         return el && !el.classList.contains('hidden');
     });
 
-    // Jeśli jakikolwiek sub-ekran jest otwarty, natywny gest "Wstecz" odwali za nas brudną robotę (uruchomi popstate)
     if (isSubScreenOpen) {
         window.history.back();
         return;
     }
 
-    // Logika dla powrotu z filtru pomieszczeń w module Dom
     if (typeof currentRoomFilter !== 'undefined' && currentRoomFilter !== null) {
         if(typeof clearRoomFilter === 'function') { clearRoomFilter(); return; }
     }
 
-    // Ostatnia deska ratunku
     window.switchView('dashboard', false); 
 };
 
@@ -98,22 +95,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// Nasłuchujemy na WSZYSTKIE cofnięcia - od myszki po swipe'y i przycisk sprzętowy
 window.addEventListener('popstate', (event) => {
-    // Zawsze dla bezpieczeństwa czyścimy modale typu "Czy na pewno?"
     document.querySelectorAll('[id$="-modal"]').forEach(m => m.classList.add('hidden'));
 
     const state = event.state;
 
     if (state && state.subScreen) {
-        // Jeśli cofamy (albo idziemy w przód) wprost do głębokiego ekranu (np. Ustawienia Zadania)
         document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
         const bottomNav = document.getElementById('bottom-nav');
         if (bottomNav) bottomNav.classList.add('hidden');
         const screenEl = document.getElementById(state.subScreen);
         if (screenEl) screenEl.classList.remove('hidden');
     } else {
-        // Zamykamy wszystko i pokazujemy normalny główny widok (Tab)
         ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen', 'checklist-screen', 'archive-screen'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
