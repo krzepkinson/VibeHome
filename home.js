@@ -130,9 +130,14 @@ window.getRelativeTime = function(d) {
 };
 
 window.getCompactStatus = function(lastDate, interval) {
+    if (!interval || interval <= 0) {
+        if (!lastDate) return { color: 'text-[#ffb4ab]', label: 'Zadanie jednorazowe', tooltip: 'Czeka na wykonanie.' };
+        return { color: 'text-neutral-500', label: `Zrobione ${window.getRelativeTime(lastDate)}`, tooltip: 'Wykonano.' };
+    }
+
     if (!lastDate) return { color: 'text-neutral-500', label: 'Jeszcze nie robione', tooltip: 'Brak wpisów.' };
     const relText = `Ostatnio ${window.getRelativeTime(lastDate)}`;
-    if (!interval || interval <= 0) return { color: 'text-neutral-500', label: relText, tooltip: 'Brak harmonogramu.' };
+    
     const next = new Date(lastDate); next.setDate(next.getDate() + interval);
     const diff = Math.ceil((next - new Date().setHours(0,0,0,0)) / 86400000);
     return diff < 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` } 
@@ -157,7 +162,7 @@ window.openAddLogModal = function(id, name) {
 window.closeAddLogModal = function() { document.getElementById('add-log-modal').classList.add('hidden'); };
 
 window.saveNewLog = async function() {
-    window.triggerHaptic();
+    if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const taskId = document.getElementById('add-log-name').value;
     const d = document.getElementById('add-log-date').value; 
     const nt = document.getElementById('add-log-notes').value;
@@ -171,7 +176,17 @@ window.saveNewLog = async function() {
     }]);
     
     if (error) { window.showToast("Błąd: " + error.message); return; }
-    window.closeAddLogModal(); window.loadDashboard();
+
+    // ZMIANA: Auto-archiwizacja zadań jednorazowych (interwał 0)
+    if (taskObj && (!taskObj.interval_days || taskObj.interval_days === 0)) {
+        await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', taskId);
+        window.showToast("Zadanie jednorazowe zakończone!");
+    } else {
+        window.showToast("Zapisano log!");
+    }
+
+    window.closeAddLogModal(); 
+    window.loadDashboard();
 };
 
 window.openNewTaskModal = function() {
