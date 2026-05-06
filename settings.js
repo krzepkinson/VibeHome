@@ -234,14 +234,40 @@ window.renderHistory = function() {
 
 window.deleteLog = function(id) {
     window.customConfirm("Usunąć ten wpis z historii?", async () => {
-        const { error } = await window.supabaseClient.from('activity_logs').delete().eq('id', id);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.showToast("Usunięto!");
-        // Ponowne pobranie logów, by odświeżyć widok ustawień
-        const { data } = await window.supabaseClient.from('activity_logs').select('*').eq('household_id', window.currentUser.household_id).order('created_at', { ascending: false });
+        
+        // KROK 1: Usunięcie wpisu z bazy (czekamy na zakończenie)
+        const { error } = await window.supabaseClient.from('activity_logs')
+            .delete()
+            .eq('id', id)
+            .eq('household_id', window.currentUser.household_id);
+            
+        if (error) { 
+            window.showToast("Błąd: " + error.message); 
+            return; 
+        }
+
+        // KROK 2: Pobranie absolutnie świeżych danych (czekamy na odpowiedź)
+        const { data } = await window.supabaseClient.from('activity_logs')
+            .select('*')
+            .eq('household_id', window.currentUser.household_id)
+            .order('created_at', { ascending: false });
+
+        // KROK 3: Aktualizacja zmiennej w pamięci
         allHomeLogs = data || [];
+
+        // KROK 4: Renderowanie historii w otwartym okienku ustawień
         window.renderHistory(); 
-        setTimeout(() => window.refreshCurrentView(), 150);
+        
+        // KROK 5: Informacja dla użytkownika i wyczyszczenie cache'u Dashboardu
+        window.showToast("Usunięto wpis!");
+        if (typeof window.invalidateDashboardCache === 'function') {
+            window.invalidateDashboardCache();
+        }
+
+        // KROK 6: Odświeżenie głównego widoku pod spodem
+        if (typeof window.refreshCurrentView === 'function') {
+            await window.refreshCurrentView();
+        }
     });
 };
 
