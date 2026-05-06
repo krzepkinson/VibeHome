@@ -73,7 +73,6 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
         } else { html = renderEmptyState("Dom lśni!"); }
     } 
     else if (window.activeDashboardTab === 'health') {
-        // ZMODYFIKOWANA LOGIKA: Pokazujemy cykliczne ORAZ zalege jednorazowe
         const dueHealth = hTasks.filter(ht => {
             if (ht.task_type === 'cyclical' && ht.interval_days) {
                 const lastLog = hLogs.find(l => l.health_task_id === ht.id);
@@ -82,12 +81,10 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
                 return next <= today;
             }
             if (ht.task_type === 'one_time' && ht.event_date) {
-                // Szukamy, czy log już istnieje
                 const tLogs = hLogs.filter(l => l.health_task_id === ht.id);
-                if (tLogs.length > 0) return false; // Wykonane
-                
+                if (tLogs.length > 0) return false; 
                 const evDate = new Date(ht.event_date); evDate.setHours(0,0,0,0);
-                return evDate <= today; // Pokaż dziś lub po terminie
+                return evDate <= today; 
             }
             return false;
         });
@@ -122,20 +119,63 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
     }
     else if (window.activeDashboardTab === 'history') {
         let historyItems = [];
-        logs.slice(0, 15).forEach(l => historyItems.push({ title: l.activity_name, date: new Date(l.created_at), icon: '🏠', user: l.user_name || '?' }));
-        hLogs.slice(0, 15).forEach(l => {
-            const ht = hTasks.find(x => x.id === l.health_task_id);
-            historyItems.push({ title: ht ? ht.name : 'Zdarzenie', date: l.end_date ? new Date(l.end_date) : new Date(l.start_date), icon: '❤️', user: l.user_name || '?' });
+        
+        logs.forEach(l => {
+            const t = tasks.find(x => x.id === l.task_id);
+            if (!t || t.show_in_history !== false) {
+                historyItems.push({ 
+                    table: 'activity_logs', id: l.id, title: l.activity_name, date: new Date(l.created_at), 
+                    icon: '🏠', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' 
+                });
+            }
         });
+        
+        hLogs.forEach(l => {
+            const ht = hTasks.find(x => x.id === l.health_task_id);
+            if (!ht || ht.show_in_history !== false) {
+                const profile = profiles.find(p => p.id === ht?.profile_id);
+                const title = (ht ? ht.name : 'Zdarzenie') + (profile ? ` (${profile.name})` : '');
+                historyItems.push({ 
+                    table: 'health_logs', id: l.id, title: title, date: l.end_date ? new Date(l.end_date) : new Date(l.start_date), 
+                    icon: '❤️', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' 
+                });
+            }
+        });
+        
+        allTodos.filter(t => t.is_completed).forEach(t => {
+            historyItems.push({ 
+                table: 'todos', id: t.id, title: t.title, date: new Date(t.created_at), 
+                icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' 
+            });
+        });
+
         historyItems.sort((a, b) => b.date - a.date);
-        html = historyItems.slice(0, 20).map(item => `
-            <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] border border-[#333537] rounded-xl mb-1.5 animate-fade-in">
-                <div class="flex items-center gap-3 min-w-0">
-                    <span class="text-xs opacity-60">${item.icon}</span>
-                    <div class="truncate"><h4 class="text-sm font-medium text-neutral-200 truncate">${window.esc(item.title)}</h4><p class="text-[9px] text-neutral-500 uppercase tracking-widest">${item.date.toLocaleDateString('pl-PL')}</p></div>
-                </div>
-                <div class="w-6 h-6 rounded-full bg-[#333537] text-neutral-400 text-[10px] flex items-center justify-center font-bold">${item.user[0].toUpperCase()}</div>
-            </div>`).join('') || renderEmptyState("Historia jest pusta.");
+        const topHistory = historyItems.slice(0, 30);
+
+        if (topHistory.length > 0) {
+            html += `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">`;
+            html += topHistory.map(item => {
+                let initial = (item.user || '?')[0].toUpperCase();
+                return `
+                <div class="relative pl-5 animate-fade-in">
+                    <div class="absolute -left-[13px] top-1.5 w-6 h-6 rounded-full ${item.bg} ${item.border} border flex items-center justify-center text-xs shadow-md">${item.icon}</div>
+                    <div class="bg-[#1e1f20] px-3 py-2 rounded-[12px] border border-[#333537] shadow-sm flex justify-between items-center">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <h4 class="text-sm font-medium text-neutral-200 truncate">${window.esc(item.title)}</h4>
+                            <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
+                        </div>
+                        <div onclick="event.stopPropagation(); window.openChangeUserModal('${item.table}', ${item.id}, '${window.esc(item.user)}')" 
+                             class="w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 cursor-pointer active:scale-90 transition-transform shadow-inner" 
+                             data-user-name="${window.esc(item.user)}">
+                            ${initial}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            html += `</div>`;
+        } else { 
+            html = renderEmptyState("Oś czasu jest pusta."); 
+        }
     }
     listEl.innerHTML = html;
 };
@@ -162,16 +202,12 @@ window.quickLogTaskDashboard = async function(taskId) {
     
     if (error) { window.showToast('Błąd: ' + error.message); return; }
 
-    // ZMIANA: Auto-archiwizacja przy szybkim kliknięciu
     if (task && (!task.interval_days || task.interval_days === 0)) {
         await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', taskId);
         window.showToast('Zadanie jednorazowe zarchiwizowane! ✔️');
-    } else {
-        window.showToast('Zrobione! ✔️'); 
-    }
+    } else { window.showToast('Zrobione! ✔️'); }
 
-    window.invalidateDashboardCache(); 
-    window.loadDashboardOverview(); 
+    window.invalidateDashboardCache(); window.loadDashboardOverview(); 
 };
 
 window.quickLogHealthDashboard = async function(taskId) {
