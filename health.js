@@ -46,15 +46,28 @@ window.renderHealthUI = function() {
     const headerAvatar = document.getElementById('health-header-avatar');
     const nameTitle = document.getElementById('profile-name-title');
 
-    if (profile) {
-        nameTitle.innerText = profile.name; 
-        headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
-        const colors = ['bg-rose-600', 'bg-blue-600', 'bg-emerald-600', 'bg-amber-600', 'bg-purple-600'];
-        headerAvatar.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 ${colors[profile.id % colors.length]}`;
-    } else {
-        nameTitle.innerText = "Brak profilu"; 
+    // --- PUSTY STAN: BRAK PROFILU ---
+    if (!profile) {
+        nameTitle.innerText = "Karta zdrowia"; 
         headerAvatar.innerText = "?";
+        document.getElementById('calendar-container').innerHTML = ''; 
+        document.getElementById('health-tasks-list').innerHTML = `
+            <div class="flex flex-col items-center justify-center py-16 text-center animate-fade-in px-4 mt-4 bg-[#1e1f20] rounded-[28px] border border-[#333537]">
+                <div class="text-7xl mb-6 opacity-80 drop-shadow-lg">👨‍👩‍👧‍👦</div>
+                <h3 class="text-neutral-100 font-medium text-xl mb-2 tracking-wide">Brak domowników</h3>
+                <p class="text-neutral-400 text-xs mb-8 max-w-[260px] leading-relaxed">Dodaj pierwszy profil domownika, by móc śledzić jego leki, wizyty lekarskie i samopoczucie.</p>
+                <button onclick="window.openNewProfileModal()" class="bg-[#e3e3e3] text-[#131314] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
+                    <span class="text-xl pb-1">+</span> Dodaj osobę
+                </button>
+            </div>`;
+        return; 
     }
+    
+    nameTitle.innerText = profile.name; 
+    headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
+    const colors = ['bg-rose-600', 'bg-blue-600', 'bg-emerald-600', 'bg-amber-600', 'bg-purple-600'];
+    headerAvatar.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 ${colors[profile.id % colors.length]}`;
+    
     window.renderCalendar(); 
     window.renderHealthTasks();
 };
@@ -142,8 +155,18 @@ window.getHealthStatusString = function(task, activeLog, taskLogs) {
 
 window.renderHealthTasks = function() {
     const list = document.getElementById('health-tasks-list');
+    
+    // --- PUSTY STAN: BRAK ZDARZEŃ/LEKÓW ---
     if (healthTasks.length === 0) { 
-        list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak przypisanych leków lub zdarzeń.</p>`; 
+        list.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-12 text-center animate-fade-in px-4">
+                <div class="text-6xl mb-4 opacity-80 drop-shadow-md">💊</div>
+                <h3 class="text-neutral-200 font-medium text-lg mb-2 tracking-wide">Brak wpisów</h3>
+                <p class="text-neutral-400 text-xs mb-6 max-w-[220px] leading-relaxed">Zacznij śledzić leki lub zaplanuj wizytę u specjalisty.</p>
+                <button onclick="window.openNewHealthTaskModal()" class="bg-[#8c1d18] text-[#ffdad6] font-bold py-3.5 px-8 rounded-full shadow-lg shadow-[#8c1d18]/20 active:scale-95 transition-all flex items-center gap-2">
+                    <span class="text-lg pb-1">+</span> Dodaj zdarzenie
+                </button>
+            </div>`; 
         return; 
     }
 
