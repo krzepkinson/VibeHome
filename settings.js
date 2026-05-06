@@ -312,3 +312,10 @@ window.logoutUser = async function() {
     if (error) window.showToast("Błąd wylogowania");
     else window.location.reload();
 };
+window.closeSettingsScreen = function() { 
+    window.goBack(); 
+};
+
+window.closeEditProfileScreen = function() { 
+    window.goBack(); 
+};
