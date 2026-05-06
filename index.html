@@ -13,6 +13,11 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500&display=swap');
         body { font-family: 'Outfit', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #131314; color: #e3e3e3; overscroll-behavior-y: contain; }
+        <div id="ptr-indicator" class="fixed top-0 left-0 w-full flex justify-center items-center z-50 pointer-events-none" style="transform: translateY(-100%);">
+        <div class="bg-[#1e1f20] border border-[#333537] rounded-full w-10 h-10 shadow-lg flex items-center justify-center mt-4">
+            <span id="ptr-icon" class="text-xl text-neutral-400 block">↻</span>
+        </div>
+    </div>
         .hidden { display: none !important; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #444746; border-radius: 10px; }
