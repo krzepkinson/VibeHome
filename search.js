@@ -36,7 +36,6 @@ window.performGlobalSearch = function(query) {
 
     searchTimeout = setTimeout(async () => {
         try {
-            // ZMIANA: Szukamy globalnie dla całego DOMU, a nie tylko dla jednego użytkownika
             const hid = window.currentUser.household_id;
 
             const [tasksRes, healthRes, todosRes, listsRes] = await Promise.all([
@@ -48,17 +47,42 @@ window.performGlobalSearch = function(query) {
 
             let results = [];
 
+            // DEEP-LINKING: Przechodzimy do zakładki, ewentualnie filtrujemy, i odpalamy okienko
             if (tasksRes.data) {
-                tasksRes.data.forEach(t => results.push({ id: t.id, title: t.name, type: 'Dom', icon: '🏠', action: `window.closeGlobalSearch(); window.switchView('home');` }));
+                tasksRes.data.forEach(t => results.push({ 
+                    id: t.id, 
+                    title: t.name, 
+                    type: 'Dom', 
+                    icon: '🏠', 
+                    action: `window.closeGlobalSearch(); window.switchView('home'); window.filterHomeByRoom('${window.esc(t.room || 'Inne')}'); setTimeout(() => window.openSettingsScreen('${encodeURIComponent(t.name)}'), 150);` 
+                }));
             }
             if (healthRes.data) {
-                healthRes.data.forEach(t => results.push({ id: t.id, title: t.name, type: 'Zdrowie', icon: '❤️', action: `window.closeGlobalSearch(); window.switchView('health');` }));
+                healthRes.data.forEach(t => results.push({ 
+                    id: t.id, 
+                    title: t.name, 
+                    type: 'Zdrowie', 
+                    icon: '❤️', 
+                    action: `window.closeGlobalSearch(); window.switchView('health'); setTimeout(() => window.openHealthSettingsScreen(${t.id}), 150);` 
+                }));
             }
             if (todosRes.data) {
-                todosRes.data.forEach(t => results.push({ id: t.id, title: t.title, type: 'Zadanie', icon: '📝', action: `window.closeGlobalSearch(); window.switchView('todo');` }));
+                todosRes.data.forEach(t => results.push({ 
+                    id: t.id, 
+                    title: t.title, 
+                    type: 'Zadanie', 
+                    icon: '📝', 
+                    action: `window.closeGlobalSearch(); window.switchView('todo'); setTimeout(() => window.openEditTodoModal(${t.id}, '${window.esc(t.title)}'), 150);` 
+                }));
             }
             if (listsRes.data) {
-                listsRes.data.forEach(t => results.push({ id: t.id, title: t.title, type: 'Lista', icon: '🗂️', action: `window.closeGlobalSearch(); window.switchView('todo'); window.openChecklistScreen(${t.id}, '${window.esc(t.title)}')` }));
+                listsRes.data.forEach(t => results.push({ 
+                    id: t.id, 
+                    title: t.title, 
+                    type: 'Lista', 
+                    icon: '🗂️', 
+                    action: `window.closeGlobalSearch(); window.switchView('todo'); setTimeout(() => window.openChecklistScreen(${t.id}, '${window.esc(t.title)}'), 150);` 
+                }));
             }
 
             if (results.length === 0) {
