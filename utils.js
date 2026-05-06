@@ -48,12 +48,22 @@ window.closeConfirmModal = function(result) {
 };
 
 window.isTaskOverdue = function(task, logs) {
-    if (!task.interval_days) return false;
     const lastLog = logs.find(l => l.task_id === task.id);
+    
+    // ZMIANA: Jeśli zadanie ma interwał 0, jest "do zrobienia", dopóki nie ma logu
+    if (!task.interval_days || task.interval_days === 0) {
+        return !lastLog; 
+    }
+    
     if (!lastLog) return true;
-    const lastDate = new Date(lastLog.created_at); lastDate.setHours(0, 0, 0, 0);
-    const nextDate = new Date(lastDate); nextDate.setDate(nextDate.getDate() + task.interval_days);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
+    
+    const lastDate = new Date(lastLog.created_at); 
+    lastDate.setHours(0, 0, 0, 0);
+    const nextDate = new Date(lastDate); 
+    nextDate.setDate(nextDate.getDate() + task.interval_days);
+    const today = new Date(); 
+    today.setHours(0, 0, 0, 0);
+    
     return nextDate <= today;
 };
 
