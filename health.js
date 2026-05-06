@@ -395,7 +395,7 @@ window.toggleProfileSwitcher = function() {
     const modal = document.getElementById('profile-switcher-modal');
     document.getElementById('switcher-profiles-list').innerHTML = healthProfiles.map(p => `
         <div onclick="window.selectHealthProfile(${p.id})" class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-[#333537] ${p.id === currentProfileId ? 'bg-[#333537] border border-[#a8c7fa]' : ''}">
-            <div class="w-8 h-8 rounded-full bg-neutral-600 flex items-center justify-center text-xs font-bold">${window.esc(p.name.charAt(0).toUpperCase())}</div>
+            <div class="w-8 h-8 rounded-full ${window.getAvatarColor(p.name)} text-white flex items-center justify-center text-xs font-bold shadow-inner">${window.esc(p.name.charAt(0).toUpperCase())}</div>
             <span class="text-sm text-neutral-200">${window.esc(p.name)}</span>
         </div>
     `).join('');
