@@ -73,22 +73,51 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
         } else { html = renderEmptyState("Dom lśni!"); }
     } 
     else if (window.activeDashboardTab === 'health') {
+        // ZMODYFIKOWANA LOGIKA: Pokazujemy cykliczne ORAZ zalege jednorazowe
         const dueHealth = hTasks.filter(ht => {
-            if (ht.task_type !== 'cyclical' || !ht.interval_days) return false;
-            const lastLog = hLogs.find(l => l.health_task_id === ht.id);
-            if (!lastLog) return true;
-            const next = new Date(lastLog.start_date); next.setHours(0,0,0,0); next.setDate(next.getDate() + ht.interval_days);
-            return next <= today;
+            if (ht.task_type === 'cyclical' && ht.interval_days) {
+                const lastLog = hLogs.find(l => l.health_task_id === ht.id);
+                if (!lastLog) return true;
+                const next = new Date(lastLog.start_date); next.setHours(0,0,0,0); next.setDate(next.getDate() + ht.interval_days);
+                return next <= today;
+            }
+            if (ht.task_type === 'one_time' && ht.event_date) {
+                // Szukamy, czy log już istnieje
+                const tLogs = hLogs.filter(l => l.health_task_id === ht.id);
+                if (tLogs.length > 0) return false; // Wykonane
+                
+                const evDate = new Date(ht.event_date); evDate.setHours(0,0,0,0);
+                return evDate <= today; // Pokaż dziś lub po terminie
+            }
+            return false;
         });
-        if (dueHealth.length > 0) {
-            html += dueHealth.map(ht => `
+        
+        const activeDuration = hTasks.filter(ht => ht.task_type === 'duration' && hLogs.some(l => l.health_task_id === ht.id && l.end_date === null));
+
+        if (dueHealth.length > 0 || activeDuration.length > 0) {
+            html += dueHealth.map(ht => {
+                const isOneTime = ht.task_type === 'one_time';
+                return `
                 <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
-                        <h3 class="font-medium text-neutral-100 text-sm">${window.esc(ht.name)}</h3>
-                        <p class="text-[10px] text-[#ffb4ab] mt-0.5">Zaplanowana dawka</p>
+                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
+                        <p class="text-[10px] text-[#ffb4ab] mt-0.5">${isOneTime ? 'Czas na wizytę/zabieg!' : 'Zaplanowana dawka'}</p>
                     </div>
-                    <button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-8 h-8 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
-                </div>`).join('');
+                    <button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-8 h-8 rounded-full ${isOneTime ? 'bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0]' : 'bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab]'} flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
+                </div>`
+            }).join('');
+            
+            html += activeDuration.map(ht => {
+                const aLog = hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
+                return `
+                <div class="flex items-center justify-between px-3 py-2 bg-rose-900/10 rounded-[12px] border border-rose-900/40 mb-1 border-l-4 border-l-rose-500 shadow-sm animate-fade-in">
+                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
+                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
+                        <p class="text-[10px] text-rose-400 mt-0.5">Zdarzenie trwa...</p>
+                    </div>
+                    <button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button>
+                </div>`;
+            }).join('');
         } else { html = renderEmptyState("Wszyscy zdrowi!"); }
     }
     else if (window.activeDashboardTab === 'history') {
@@ -114,14 +143,14 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
 function renderEmptyState(msg) { return `<div class="flex flex-col items-center justify-center py-20 text-center animate-fade-in"><div class="text-5xl mb-4 opacity-50">✨</div><h3 class="text-neutral-200 font-medium text-sm mb-1">${msg}</h3><p class="text-neutral-500 text-[10px] uppercase tracking-widest">Wszystko pod kontrolą</p></div>`; }
 
 window.quickCompleteTodoDashboard = async function(id) {
-    window.triggerHaptic();
+    if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const { error } = await window.supabaseClient.from('todos').update({ is_completed: true, completer_name: window.currentUser.name }).eq('id', id);
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); window.showToast('Odhaczone! ✔️'); window.loadDashboardOverview();
 };
 
 window.quickLogTaskDashboard = async function(taskId) {
-    window.triggerHaptic();
+    if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const task = window.dashboardCache.tasks.find(t => t.id == taskId);
     const d = new Date().toISOString().split('T')[0];
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
@@ -133,7 +162,7 @@ window.quickLogTaskDashboard = async function(taskId) {
 };
 
 window.quickLogHealthDashboard = async function(taskId) {
-    window.triggerHaptic();
+    if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const now = new Date().toISOString();
     const { error } = await window.supabaseClient.from('health_logs').insert([{ 
         health_task_id: taskId, start_date: now, end_date: now, 
@@ -141,4 +170,11 @@ window.quickLogHealthDashboard = async function(taskId) {
     }]);
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); window.showToast('Zapisano! ✔️'); window.loadDashboardOverview();
+};
+
+window.quickEndHealthDashboard = async function(logId) {
+    if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+    const { error } = await window.supabaseClient.from('health_logs').update({ end_date: new Date().toISOString(), user_name: window.currentUser.name }).eq('id', logId).eq('household_id', window.currentUser.household_id);
+    if (error) { window.showToast('Błąd: ' + error.message); return; }
+    window.invalidateDashboardCache(); window.showToast('Zakończono! ✔️'); window.loadDashboardOverview();
 };
