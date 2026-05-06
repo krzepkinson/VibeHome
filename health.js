@@ -46,7 +46,6 @@ window.renderHealthUI = function() {
     const headerAvatar = document.getElementById('health-header-avatar');
     const nameTitle = document.getElementById('profile-name-title');
 
-    // --- PUSTY STAN: BRAK PROFILU ---
     if (!profile) {
         nameTitle.innerText = "Karta zdrowia"; 
         headerAvatar.innerText = "?";
@@ -127,8 +126,10 @@ window.toggleCalendarMode = function() {
     window.showToast("Widok miesiąca"); 
 };
 
+// ZMODYFIKOWANA LOGIKA STATUSÓW
 window.getHealthStatusString = function(task, activeLog, taskLogs) {
     const today = new Date(); today.setHours(0,0,0,0);
+    
     if (task.task_type === 'duration') {
         if (activeLog) {
             const start = new Date(activeLog.start_date); start.setHours(0,0,0,0);
@@ -138,11 +139,19 @@ window.getHealthStatusString = function(task, activeLog, taskLogs) {
             return `<span class="text-rose-400 font-medium">Od ${diff} dni</span>`;
         }
         return 'Brak aktywnych';
-    } else if (task.task_type === 'one_time') {
-        if (taskLogs.length > 0) return '<span class="text-neutral-500">Zrealizowane</span>';
-        if (!task.event_date) return 'Brak daty';
+    } 
+    else if (task.task_type === 'one_time') {
+        if (taskLogs.length > 0) return '<span class="text-neutral-500">Wydarzenie zakończone</span>';
+        if (!task.event_date) return 'Brak określonej daty';
+        
+        const evDate = new Date(task.event_date); evDate.setHours(0,0,0,0);
+        const diff = Math.floor((evDate - today) / 86400000);
+        
+        if (diff < 0) return `<span class="text-[#ffb4ab]">Zaległe (${Math.abs(diff)} dni temu)</span>`;
+        if (diff === 0) return `<span class="text-[#ffb4ab] font-bold">Dzisiaj!</span>`;
         return `Zaplanowane: <span class="text-[#c4eed0]">${new Date(task.event_date).toLocaleDateString('pl-PL')}</span>`;
-    } else {
+    } 
+    else {
         if (task.interval_days > 0) return `Co ${task.interval_days} dni`;
         if (!taskLogs[0]) return 'Jeszcze nie było robione';
         const last = new Date(taskLogs[0].start_date); last.setHours(0,0,0,0);
@@ -156,7 +165,6 @@ window.getHealthStatusString = function(task, activeLog, taskLogs) {
 window.renderHealthTasks = function() {
     const list = document.getElementById('health-tasks-list');
     
-    // --- PUSTY STAN: BRAK ZDARZEŃ/LEKÓW ---
     if (healthTasks.length === 0) { 
         list.innerHTML = `
             <div class="flex flex-col items-center justify-center py-12 text-center animate-fade-in px-4">
@@ -175,20 +183,35 @@ window.renderHealthTasks = function() {
         const activeLog = tLogs.find(l => l.end_date === null);
         
         let actionBtn = '';
+        
+        // ZMODYFIKOWANA LOGIKA PRZYCISKÓW / BADGE'Y
         if (task.task_type === 'one_time') {
             if (tLogs.length === 0) {
-                actionBtn = `<button onclick="window.startHealthLog(${task.id}, 'one_time')" class="w-8 h-8 rounded-full bg-[#0f5223]/20 text-[#c4eed0] font-bold text-base flex items-center justify-center active:scale-90 border border-[#0f5223]/50">✓</button>`;
+                // Nie zrobione - pokazujemy przycisk akcji do zrobienia
+                actionBtn = `<button onclick="window.startHealthLog(${task.id}, 'one_time')" class="w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0 shadow-sm">✓</button>`;
+            } else {
+                // ZROBIONE - dedykowany UX! Pokazujemy ładną plakietkę zamiast pustego miejsca.
+                actionBtn = `<div class="px-2.5 py-1.5 bg-[#131314] border border-[#333537] rounded-lg flex items-center gap-1.5 shadow-inner">
+                                <span class="text-[#0f5223] text-xs font-bold">✓</span>
+                                <span class="text-[9px] text-neutral-500 font-bold uppercase tracking-widest">Zrobione</span>
+                             </div>`;
             }
-        } else {
+        } 
+        else if (task.task_type === 'duration') {
             actionBtn = activeLog 
-                ? `<button onclick="window.closeHealthLog(${activeLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/30 text-rose-300 text-[9px] font-bold uppercase tracking-wider">Zakończ</button>`
-                : `<button onclick="window.startHealthLog(${task.id}, '${task.task_type}')" class="w-8 h-8 rounded-full bg-[#3c1414] text-[#ffb4ab] font-bold text-base flex items-center justify-center active:scale-90 pb-0.5">+</button>`;
+                ? `<button onclick="window.closeHealthLog(${activeLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button>`
+                : `<button onclick="window.startHealthLog(${task.id}, 'duration')" class="w-8 h-8 rounded-full bg-[#3c1414] text-[#ffb4ab] font-bold text-base flex items-center justify-center active:scale-90 pb-0.5 border border-[#8c1d18]/50 shadow-sm">+</button>`;
+        } 
+        else { // cyclical
+            actionBtn = `<button onclick="window.startHealthLog(${task.id}, 'cyclical')" class="w-8 h-8 rounded-full bg-[#3c1414] text-[#ffb4ab] font-bold text-base flex items-center justify-center active:scale-90 pb-0.5 border border-[#8c1d18]/50 shadow-sm">+</button>`;
         }
 
+        const isCompletedOneTime = task.task_type === 'one_time' && tLogs.length > 0;
+
         return `
-            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1 shadow-sm">
+            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1 shadow-sm transition-opacity ${isCompletedOneTime ? 'opacity-60' : ''}">
                 <div class="flex-1 cursor-pointer pr-2" onclick="window.openHealthSettingsScreen(${task.id})">
-                    <h3 class="font-medium text-neutral-100 text-sm">${window.esc(task.name)}</h3>
+                    <h3 class="font-medium text-neutral-100 text-sm ${isCompletedOneTime ? 'line-through text-neutral-400' : ''}">${window.esc(task.name)}</h3>
                     <p class="text-[10px] text-neutral-500 mt-0.5">${window.getHealthStatusString(task, activeLog, tLogs)}</p>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">${actionBtn}</div>
@@ -197,39 +220,25 @@ window.renderHealthTasks = function() {
 };
 
 window.startHealthLog = async function(taskId, type) {
+    if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const now = new Date().toISOString();
     const { error } = await window.supabaseClient.from('health_logs').insert([{ 
-        health_task_id: taskId, 
-        start_date: now, 
-        end_date: (type === 'cyclical' || type === 'one_time') ? now : null, 
-        user_id: window.currentUser.id, 
-        household_id: window.currentUser.household_id, 
-        user_name: window.currentUser.name 
+        health_task_id: taskId, start_date: now, end_date: (type === 'cyclical' || type === 'one_time') ? now : null, 
+        user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
     }]);
-    if (error) { 
-        window.showToast("Błąd: " + error.message); 
-        return; 
-    }
+    if (error) { window.showToast("Błąd: " + error.message); return; }
     window.showToast("Zapisano!"); 
-    await window.refreshHealthData(); 
-    window.renderHealthUI(); 
-    if(typeof window.loadDashboardOverview === 'function') window.loadDashboardOverview();
+    await window.refreshHealthData(); window.renderHealthUI(); 
+    if(typeof window.loadDashboardOverview === 'function') { window.invalidateDashboardCache(); window.loadDashboardOverview(); }
 };
 
 window.closeHealthLog = async function(logId) {
-    const { error } = await window.supabaseClient.from('health_logs')
-        .update({ end_date: new Date().toISOString() })
-        .eq('id', logId)
-        .eq('household_id', window.currentUser.household_id);
-        
-    if (error) { 
-        window.showToast("Błąd: " + error.message); 
-        return; 
-    }
+    if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+    const { error } = await window.supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('household_id', window.currentUser.household_id);
+    if (error) { window.showToast("Błąd: " + error.message); return; }
     window.showToast("Zakończono"); 
-    await window.refreshHealthData(); 
-    window.renderHealthUI(); 
-    if(typeof window.loadDashboardOverview === 'function') window.loadDashboardOverview();
+    await window.refreshHealthData(); window.renderHealthUI(); 
+    if(typeof window.loadDashboardOverview === 'function') { window.invalidateDashboardCache(); window.loadDashboardOverview(); }
 };
 
 window.openNewHealthTaskModal = function() { 
@@ -237,15 +246,9 @@ window.openNewHealthTaskModal = function() {
     document.getElementById('h-task-type').value = 'cyclical'; 
     window.toggleHealthInterval(); 
     document.getElementById('new-health-task-modal').classList.remove('hidden'); 
-    setTimeout(() => {
-        const input = document.getElementById('h-task-name');
-        if (input) input.focus();
-    }, 100);
 };
 
-window.closeNewHealthTaskModal = function() { 
-    document.getElementById('new-health-task-modal').classList.add('hidden'); 
-};
+window.closeNewHealthTaskModal = function() { document.getElementById('new-health-task-modal').classList.add('hidden'); };
 
 window.toggleHealthInterval = function() { 
     const type = document.getElementById('h-task-type').value;
@@ -256,9 +259,7 @@ window.toggleHealthInterval = function() {
 window.saveNewHealthTask = async function() {
     const n = document.getElementById('h-task-name').value.trim(); 
     const type = document.getElementById('h-task-type').value;
-    let interval = 0; 
-    let remind = 0; 
-    let evDate = null;
+    let interval = 0; let remind = 0; let evDate = null;
     
     if (type === 'cyclical') { 
         interval = parseInt(document.getElementById('h-task-interval').value) || 0; 
@@ -271,24 +272,13 @@ window.saveNewHealthTask = async function() {
     if (!n || !currentProfileId) return;
     
     const { error } = await window.supabaseClient.from('health_tasks').insert([{ 
-        profile_id: currentProfileId, 
-        name: n, 
-        task_type: type, 
-        interval_days: interval, 
-        remind_days_before: remind, 
-        event_date: evDate, 
-        show_in_history: true, 
-        is_archived: false, 
-        user_id: window.currentUser.id, 
-        household_id: window.currentUser.household_id 
+        profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, 
+        remind_days_before: remind, event_date: evDate, show_in_history: true, is_archived: false, 
+        user_id: window.currentUser.id, household_id: window.currentUser.household_id 
     }]);
     
-    if (error) { 
-        window.showToast("Błąd: " + error.message); 
-        return; 
-    }
-    window.closeNewHealthTaskModal(); 
-    window.initHealthModule();
+    if (error) { window.showToast("Błąd: " + error.message); return; }
+    window.closeNewHealthTaskModal(); window.initHealthModule();
 };
 
 window.currentHealthSettingsId = null;
@@ -298,7 +288,6 @@ window.openHealthSettingsScreen = async function(taskId) {
     const task = healthTasks.find(t => t.id === taskId);
     document.getElementById('h-settings-title').innerText = task.name; 
     document.getElementById('set-h-task-name').value = task.name;
-    
     document.getElementById('set-h-task-interval-container').classList.toggle('hidden', task.task_type !== 'cyclical');
     document.getElementById('set-h-task-date-container').classList.toggle('hidden', task.task_type !== 'one_time');
     
@@ -310,14 +299,10 @@ window.openHealthSettingsScreen = async function(taskId) {
         document.getElementById('set-h-task-remind-date').value = task.remind_days_before || 0; 
     }
     document.getElementById('set-h-task-history').checked = task.show_in_history !== false;
-    
-    window.renderHealthHistory(); 
-    window.goForward('health-settings-screen');
+    window.renderHealthHistory(); window.goForward('health-settings-screen');
 };
 
-window.closeHealthSettingsScreen = function() { 
-    window.goBack(); 
-};
+window.closeHealthSettingsScreen = function() { window.goBack(); };
 
 window.saveHealthTaskSettings = async function() {
     const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
@@ -325,7 +310,6 @@ window.saveHealthTaskSettings = async function() {
     const showHist = document.getElementById('set-h-task-history').checked;
     
     let updateData = { name: n, show_in_history: showHist };
-    
     if (task.task_type === 'cyclical') { 
         updateData.interval_days = parseInt(document.getElementById('set-h-task-interval').value) || 0; 
         updateData.remind_days_before = parseInt(document.getElementById('set-h-task-remind').value) || 0; 
@@ -334,17 +318,10 @@ window.saveHealthTaskSettings = async function() {
         updateData.remind_days_before = parseInt(document.getElementById('set-h-task-remind-date').value) || 0; 
     }
 
-    const { error } = await window.supabaseClient.from('health_tasks')
-        .update(updateData)
-        .eq('id', window.currentHealthSettingsId)
-        .eq('household_id', window.currentUser.household_id);
-        
-    if (error) { 
-        window.showToast("Błąd: " + error.message); 
-        return; 
-    }
-    window.showToast("Zapisano!"); 
-    window.initHealthModule();
+    const { error } = await window.supabaseClient.from('health_tasks').update(updateData).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
+    if (error) { window.showToast("Błąd: " + error.message); return; }
+    window.showToast("Zapisano!"); window.initHealthModule(); window.goBack();
+    setTimeout(() => window.refreshCurrentView(), 150);
 };
 
 window.renderHealthHistory = function() {
@@ -361,41 +338,23 @@ window.renderHealthHistory = function() {
 
 window.deleteHealthLog = function(id) {
     window.customConfirm("Usunąć ten wpis z historii?", async () => {
-        const { error } = await window.supabaseClient.from('health_logs')
-            .delete()
-            .eq('id', id)
-            .eq('household_id', window.currentUser.household_id);
-            
-        if (error) { 
-            window.showToast("Błąd: " + error.message); 
-            return; 
-        }
-        await window.refreshHealthData(); 
-        window.renderHealthHistory(); 
-        window.renderHealthUI();
+        const { error } = await window.supabaseClient.from('health_logs').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+        if (error) { window.showToast("Błąd: " + error.message); return; }
+        await window.refreshHealthData(); window.renderHealthHistory(); window.renderHealthUI();
     });
 };
 
 window.deleteHealthTask = function() {
-    window.customConfirm("Zarchiwizować to zdarzenie? Zniknie z głównych widoków.", async () => {
-        const { error } = await window.supabaseClient.from('health_tasks')
-            .update({ is_archived: true })
-            .eq('id', window.currentHealthSettingsId)
-            .eq('household_id', window.currentUser.household_id);
-            
-        if (error) { 
-            window.showToast("Błąd: " + error.message); 
-            return; 
-        }
-        window.closeHealthSettingsScreen(); 
-        window.initHealthModule();
+    window.customConfirm("Zarchiwizować to zdarzenie?", async () => {
+        const { error } = await window.supabaseClient.from('health_tasks').update({ is_archived: true }).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
+        if (error) { window.showToast("Błąd: " + error.message); return; }
+        window.closeHealthSettingsScreen(); window.initHealthModule();
     });
 };
 
 window.openDayDetails = function(dateStr) {
     const modal = document.getElementById('day-details-modal'); 
     const list = document.getElementById('day-details-list');
-    
     document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
     
     const dayLogs = healthLogs.filter(l => { 
@@ -403,7 +362,6 @@ window.openDayDetails = function(dateStr) {
         const end = l.end_date ? l.end_date.split('T')[0] : new Date().toISOString().split('T')[0]; 
         return dateStr >= start && dateStr <= end; 
     });
-    
     const oneTimeEvents = healthTasks.filter(t => t.task_type === 'one_time' && t.event_date === dateStr);
     
     if (dayLogs.length === 0 && oneTimeEvents.length === 0) { 
@@ -418,7 +376,6 @@ window.openDayDetails = function(dateStr) {
                     <p class="text-[10px] text-neutral-500 mt-0.5">${isDone ? 'Zrealizowane' : 'Do zrobienia'}</p>
                 </div>`; 
         });
-        
         dayLogs.forEach(l => { 
             const task = healthTasks.find(t => t.id === l.health_task_id) || { name: 'Usunięte zadanie' }; 
             itemsHtml += `
@@ -432,9 +389,7 @@ window.openDayDetails = function(dateStr) {
     modal.classList.remove('hidden');
 };
 
-window.closeDayDetailsModal = function() { 
-    document.getElementById('day-details-modal').classList.add('hidden'); 
-};
+window.closeDayDetailsModal = function() { document.getElementById('day-details-modal').classList.add('hidden'); };
 
 window.toggleProfileSwitcher = function() {
     const modal = document.getElementById('profile-switcher-modal');
@@ -447,12 +402,5 @@ window.toggleProfileSwitcher = function() {
     modal.classList.remove('hidden');
 };
 
-window.selectHealthProfile = function(id) { 
-    currentProfileId = id; 
-    window.closeProfileSwitcher(); 
-    window.initHealthModule(); 
-};
-
-window.closeProfileSwitcher = function() { 
-    document.getElementById('profile-switcher-modal').classList.add('hidden'); 
-};
+window.selectHealthProfile = function(id) { currentProfileId = id; window.closeProfileSwitcher(); window.initHealthModule(); };
+window.closeProfileSwitcher = function() { document.getElementById('profile-switcher-modal').classList.add('hidden'); };
