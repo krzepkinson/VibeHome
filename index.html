@@ -10,7 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="/config.js"></script>
-    <style>
+<style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500&display=swap');
         body { font-family: 'Outfit', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #131314; color: #e3e3e3; overscroll-behavior-y: contain; }
         .hidden { display: none !important; }
@@ -21,6 +21,7 @@
         input:checked ~ .dot { background-color: #004a77; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .swipe-front { touch-action: pan-y; } /* WAŻNE: Pozwala na scrollowanie w pionie przy swipowaniu */
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
