@@ -64,7 +64,6 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
     const today = new Date(); 
     today.setHours(0,0,0,0);
     
-    // ZMIANA: Używamy nowej funkcji isTaskOverdue!
     let homeOverdueCount = tasks.filter(t => {
         return window.isTaskOverdue(t, logs) && t.push_enabled !== false;
     }).length;
@@ -115,7 +114,6 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
         }
     } 
     else if (window.activeDashboardTab === 'home') {
-        // ZMIANA: Czysty filter przy użyciu wydzielonej logiki!
         let overdueHome = tasks.filter(t => window.isTaskOverdue(t, logs));
 
         if (overdueHome.length > 0) {
@@ -260,6 +258,8 @@ function renderEmptyState(msg) {
 }
 
 window.quickCompleteTodoDashboard = async function(id) {
+    window.triggerHaptic(); // WIBRACJA PRZY WYKONANIU!
+    
     const { error } = await window.supabaseClient.from('todos')
         .update({ is_completed: true, completer_name: window.currentUser.name })
         .eq('id', id)
@@ -276,6 +276,8 @@ window.quickCompleteTodoDashboard = async function(id) {
 };
 
 window.quickLogTaskDashboard = async function(name) {
+    window.triggerHaptic(); // WIBRACJA PRZY WYKONANIU!
+    
     const d = new Date().toISOString().split('T')[0];
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
         activity_name: decodeURIComponent(name), 
@@ -297,6 +299,8 @@ window.quickLogTaskDashboard = async function(name) {
 };
 
 window.quickLogHealthDashboard = async function(taskId) {
+    window.triggerHaptic(); // WIBRACJA PRZY WYKONANIU!
+    
     const now = new Date().toISOString();
     const { error } = await window.supabaseClient.from('health_logs').insert([{ 
         health_task_id: taskId, 
@@ -318,6 +322,8 @@ window.quickLogHealthDashboard = async function(taskId) {
 };
 
 window.quickEndHealthDashboard = async function(logId) {
+    window.triggerHaptic(); // WIBRACJA PRZY WYKONANIU!
+    
     const { error } = await window.supabaseClient.from('health_logs')
         .update({ end_date: new Date().toISOString(), user_name: window.currentUser.name })
         .eq('id', logId)
