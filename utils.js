@@ -119,3 +119,71 @@ window.isTaskOverdue = function(task, logs) {
     
     return nextDate <= today;
 };
+// --- SYSTEM PULL-TO-REFRESH ---
+
+window.initPullToRefresh = function() {
+    const mainScreen = document.getElementById('main-screen');
+    const ptrIndicator = document.getElementById('ptr-indicator');
+    const ptrIcon = document.getElementById('ptr-icon');
+    
+    if (!mainScreen || !ptrIndicator) return;
+
+    let startY = 0;
+    let currentY = 0;
+    let isPulling = false;
+    const threshold = 70; // Ile pikseli trzeba pociągnąć
+
+    mainScreen.addEventListener('touchstart', (e) => {
+        // Zaczynamy ciągnąć tylko, jeśli jesteśmy na samej górze listy
+        if (mainScreen.scrollTop === 0) {
+            startY = e.touches[0].clientY;
+            isPulling = true;
+            ptrIndicator.style.transition = 'none';
+            ptrIcon.style.transition = 'none';
+        }
+    }, { passive: true });
+
+    mainScreen.addEventListener('touchmove', (e) => {
+        if (!isPulling) return;
+        currentY = e.touches[0].clientY;
+        const pullDistance = currentY - startY;
+
+        if (pullDistance > 0 && mainScreen.scrollTop === 0) {
+            // Dodajemy "opór" przy ciągnięciu (mnożnik 0.4)
+            const visualDistance = Math.min(pullDistance * 0.4, threshold + 20);
+            ptrIndicator.style.transform = `translateY(${visualDistance - 60}px)`; // -60px to wysokość ukrycia
+            ptrIcon.style.transform = `rotate(${visualDistance * 4}deg)`;
+        }
+    }, { passive: true });
+
+    mainScreen.addEventListener('touchend', async () => {
+        if (!isPulling) return;
+        isPulling = false;
+        const pullDistance = currentY - startY;
+        
+        ptrIndicator.style.transition = 'transform 0.3s ease-out';
+        ptrIcon.style.transition = 'transform 0.3s ease-out';
+
+        // Jeśli przeciągnęliśmy wystarczająco mocno
+        if (pullDistance > threshold && mainScreen.scrollTop === 0) {
+            ptrIndicator.style.transform = `translateY(15px)`; // Zatrzymujemy kółko lekko poniżej górnej krawędzi
+            ptrIcon.classList.add('animate-spin');
+            
+            // WYWOŁANIE NASZEGO ODŚWIEŻANIA
+            await window.refreshCurrentView();
+            
+            // Po zakończeniu odświeżania chowamy kółko
+            ptrIndicator.style.transform = `translateY(-100%)`;
+            ptrIcon.classList.remove('animate-spin');
+        } else {
+            // Jeśli pociągnęliśmy za słabo - od razu chowamy
+            ptrIndicator.style.transform = `translateY(-100%)`;
+        }
+        
+        startY = 0;
+        currentY = 0;
+    });
+};
+
+// Odpalamy nasłuchiwanie gestów od razu po załadowaniu apki
+document.addEventListener('DOMContentLoaded', window.initPullToRefresh);
