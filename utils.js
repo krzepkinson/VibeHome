@@ -187,3 +187,79 @@ window.initPullToRefresh = function() {
 
 // Odpalamy nasłuchiwanie gestów od razu po załadowaniu apki
 document.addEventListener('DOMContentLoaded', window.initPullToRefresh);
+// --- SYSTEM SWIPE-TO-DELETE ---
+
+window.setupGlobalSwipe = function() {
+    let startX = 0;
+    let currentX = 0;
+    let isDragging = false;
+    let activeItem = null;
+    let openItem = null; // Przechowuje aktualnie otwarty kafelek
+
+    const handleStart = (e) => {
+        const swipeFront = e.target.closest('.swipe-front');
+        
+        // Jeśli kliknięto w coś innego, a był otwarty kafelek - zamykamy go
+        if (openItem && openItem !== swipeFront) {
+            openItem.style.transform = 'translateX(0px)';
+            openItem = null;
+        }
+
+        if (!swipeFront) return;
+
+        activeItem = swipeFront;
+        startX = e.type.includes('mouse') ? e.pageX : e.touches[0].clientX;
+        isDragging = true;
+        activeItem.style.transition = 'none'; // Wyłączamy płynność, by podążał za palcem
+    };
+
+    const handleMove = (e) => {
+        if (!isDragging || !activeItem) return;
+        
+        currentX = e.type.includes('mouse') ? e.pageX : e.touches[0].clientX;
+        const diff = currentX - startX;
+
+        // Pozwalamy na przesunięcie tylko w lewo
+        if (diff < 0) {
+            // Blokujemy maksymalne wychylenie na -100px
+            const move = Math.max(diff, -100);
+            activeItem.style.transform = `translateX(${move}px)`;
+        }
+    };
+
+    const handleEnd = () => {
+        if (!isDragging || !activeItem) return;
+        isDragging = false;
+        
+        activeItem.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        
+        const diff = currentX - startX;
+        
+        if (diff < -40) {
+            // Jeśli przeciągnięto mocno, zablokuj pozycję otwartą (na 64px)
+            activeItem.style.transform = 'translateX(-64px)';
+            openItem = activeItem;
+        } else {
+            // Wróć na miejsce, jeśli pociągnięto za słabo
+            activeItem.style.transform = 'translateX(0px)';
+            if (openItem === activeItem) openItem = null;
+        }
+        
+        activeItem = null;
+        startX = 0;
+        currentX = 0;
+    };
+
+    // Nasłuchiwanie dotyku (telefony)
+    document.addEventListener('touchstart', handleStart, { passive: true });
+    document.addEventListener('touchmove', handleMove, { passive: true });
+    document.addEventListener('touchend', handleEnd);
+    
+    // Nasłuchiwanie myszki (dla chętnych na komputerach)
+    document.addEventListener('mousedown', handleStart);
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleEnd);
+};
+
+// Uruchamiamy skrypt po załadowaniu okna
+document.addEventListener('DOMContentLoaded', window.setupGlobalSwipe);
