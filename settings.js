@@ -138,7 +138,7 @@ window.loadAppProfiles = async function() {
     listEl.innerHTML = appProfiles.map(p => `
         <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
             <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-rose-600 text-white rounded-full flex items-center justify-center font-bold shadow-md border-2 border-[#131314]">${window.esc(p.name.charAt(0).toUpperCase())}</div>
+                <div class="w-8 h-8 ${window.getAvatarColor(p.name)} text-white rounded-full flex items-center justify-center font-bold shadow-md border-2 border-[#131314]">${window.esc(p.name.charAt(0).toUpperCase())}</div>
                 <span class="text-sm font-medium text-neutral-200">${window.esc(p.name)}</span>
             </div>
             <button onclick="window.openEditProfileScreen(${p.id})" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] text-sm">⚙️</button>
