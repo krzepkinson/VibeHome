@@ -214,6 +214,10 @@ window.openNewHealthTaskModal = function() {
     document.getElementById('h-task-type').value = 'cyclical'; 
     window.toggleHealthInterval(); 
     document.getElementById('new-health-task-modal').classList.remove('hidden'); 
+    setTimeout(() => {
+        const input = document.getElementById('h-task-name');
+        if (input) input.focus();
+    }, 100);
 };
 
 window.closeNewHealthTaskModal = function() { 
