@@ -36,12 +36,18 @@ window.loadTodosAndLists = async function() {
     if (lists.length > 0) {
         html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2">Twoje Listy</h3>`;
         html += lists.map(list => `
-            <div onclick="window.openChecklistScreen(${list.id}, '${window.esc(list.title)}')" class="flex items-center justify-between p-3 bg-[#004a77]/20 rounded-[16px] border border-[#004a77]/50 mb-1.5 cursor-pointer active:scale-95 transition-transform shadow-sm">
-                <div class="flex items-center gap-3 min-w-0">
-                    <span class="text-lg shrink-0">🗂️</span>
-                    <span class="text-sm font-medium text-[#c2e7ff] truncate">${window.esc(list.title)}</span>
+            <div class="relative overflow-hidden mb-1.5 rounded-[16px] group">
+                <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
+                    <button onclick="window.archiveChecklist(${list.id})" class="text-[#ffb4ab] text-xl active:scale-90 transition-transform">🗑️</button>
                 </div>
-                <button onclick="event.stopPropagation(); window.archiveChecklist(${list.id})" class="text-neutral-500 hover:text-[#ffb4ab] px-2 text-sm shrink-0">🗑️</button>
+                
+                <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 cursor-pointer w-full transition-transform" onclick="window.openChecklistScreen(${list.id}, '${window.esc(list.title)}')">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="text-lg shrink-0">🗂️</span>
+                        <span class="text-sm font-medium text-[#c2e7ff] truncate">${window.esc(list.title)}</span>
+                    </div>
+                    <button onclick="event.stopPropagation(); window.archiveChecklist(${list.id})" class="hidden md:block opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-[#ffb4ab] px-2 text-sm shrink-0 transition-opacity">🗑️</button>
+                </div>
             </div>
         `).join('');
         html += `<div class="h-3"></div>`; 
@@ -61,15 +67,21 @@ window.loadTodosAndLists = async function() {
             let userBadge = `<div onclick="event.stopPropagation(); window.openChangeUserModal('${badgeType}', ${todo.id}, '${window.esc(currentName)}')" class="w-6 h-6 rounded-full ${isDone ? 'bg-[#0f5223]/30 border-[#0f5223]/50 text-[#c4eed0]' : 'bg-[#333537] border-[#444746] text-neutral-300'} border text-[10px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform font-bold" data-user-name="${window.esc(currentName)}">${initial}</div>`;
 
             return `
-            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 ${isDone ? 'opacity-50' : ''}">
-                <div class="flex items-center gap-2 flex-1 cursor-pointer min-w-0" onclick="window.openEditTodoModal(${todo.id}, '${window.esc(todo.title)}')">
-                    <div onclick="event.stopPropagation(); window.toggleTodo(${todo.id}, ${isDone})" class="w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
-                        ${isDone ? '<span class="text-[#0f5223] text-xs font-bold">✓</span>' : ''}
-                    </div>
-                    <span class="text-sm truncate flex-1 ${isDone ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(todo.title)}</span>
-                    ${userBadge}
+            <div class="relative overflow-hidden mb-1.5 rounded-[16px] group ${isDone ? 'opacity-50' : ''}">
+                <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
+                    <button onclick="window.archiveTodo(${todo.id})" class="text-[#ffb4ab] text-xl active:scale-90 transition-transform">🗑️</button>
                 </div>
-                <button onclick="event.stopPropagation(); window.archiveTodo(${todo.id})" class="text-neutral-600 hover:text-[#ffb4ab] pl-3 text-sm shrink-0">🗑️</button>
+
+                <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] cursor-pointer w-full transition-transform">
+                    <div class="flex items-center gap-2 flex-1 min-w-0" onclick="window.openEditTodoModal(${todo.id}, '${window.esc(todo.title)}')">
+                        <div onclick="event.stopPropagation(); window.toggleTodo(${todo.id}, ${isDone})" class="w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
+                            ${isDone ? '<span class="text-[#0f5223] text-xs font-bold">✓</span>' : ''}
+                        </div>
+                        <span class="text-sm truncate flex-1 ${isDone ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(todo.title)}</span>
+                        ${userBadge}
+                    </div>
+                    <button onclick="event.stopPropagation(); window.archiveTodo(${todo.id})" class="hidden md:block opacity-0 group-hover:opacity-100 text-neutral-500 hover:text-[#ffb4ab] pl-3 text-sm shrink-0 transition-opacity">🗑️</button>
+                </div>
             </div>`;
         }).join('');
     }
@@ -234,14 +246,20 @@ window.loadChecklistItems = async function() {
     }
 
     listEl.innerHTML = items.map(item => `
-        <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 ${item.is_completed ? 'opacity-50' : ''}">
-            <div class="flex items-center gap-3 flex-1 cursor-pointer min-w-0" onclick="window.toggleChecklistItem(${item.id}, ${item.is_completed})">
-                <div class="w-5 h-5 rounded-full border-2 ${item.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
-                    ${item.is_completed ? '<span class="text-[#0f5223] text-[10px] font-bold">✓</span>' : ''}
-                </div>
-                <span class="text-sm truncate ${item.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(item.content)}</span>
+        <div class="relative overflow-hidden mb-1 rounded-[12px] group ${item.is_completed ? 'opacity-50' : ''}">
+            <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-4">
+                <button onclick="window.deleteChecklistItem(${item.id})" class="text-[#ffb4ab] text-lg active:scale-90 transition-transform">🗑️</button>
             </div>
-            <button onclick="window.deleteChecklistItem(${item.id})" class="text-neutral-600 hover:text-[#ffb4ab] px-2 text-sm shrink-0">✕</button>
+            
+            <div class="swipe-front relative z-10 flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] w-full transition-transform">
+                <div class="flex items-center gap-3 flex-1 cursor-pointer min-w-0" onclick="window.toggleChecklistItem(${item.id}, ${item.is_completed})">
+                    <div class="w-5 h-5 rounded-full border-2 ${item.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
+                        ${item.is_completed ? '<span class="text-[#0f5223] text-[10px] font-bold">✓</span>' : ''}
+                    </div>
+                    <span class="text-sm truncate ${item.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(item.content)}</span>
+                </div>
+                <button onclick="window.deleteChecklistItem(${item.id})" class="hidden md:block opacity-0 group-hover:opacity-100 text-neutral-600 hover:text-[#ffb4ab] px-2 text-sm shrink-0 transition-opacity">✕</button>
+            </div>
         </div>
     `).join('');
 };
