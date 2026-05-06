@@ -26,7 +26,6 @@ window.saveUserName = async function() {
     if(!name) return;
     
     const { error } = await window.supabaseClient.auth.updateUser({ data: { name: name } });
-    
     if (error) { 
         window.showToast("Błąd: " + error.message); 
     } else { 
@@ -36,13 +35,8 @@ window.saveUserName = async function() {
     }
 };
 
-window.openRoomsSettings = function() { 
-    window.goForward('settings-rooms-screen'); 
-};
-
-window.openProfilesSettings = function() { 
-    window.goForward('settings-profiles-screen'); 
-};
+window.openRoomsSettings = function() { window.goForward('settings-rooms-screen'); };
+window.openProfilesSettings = function() { window.goForward('settings-profiles-screen'); };
 
 window.checkNotificationStatus = function() {
     const statusText = document.getElementById('notif-status-text'); 
@@ -123,6 +117,10 @@ window.openNewRoomModal = function() {
     document.getElementById('new-room-name').value = ''; 
     document.getElementById('new-room-icon').value = '🏠'; 
     document.getElementById('new-room-modal').classList.remove('hidden'); 
+    setTimeout(() => {
+        const input = document.getElementById('new-room-name');
+        if (input) input.focus();
+    }, 100);
 };
 
 window.closeNewRoomModal = function() { 
@@ -157,6 +155,10 @@ window.openEditRoomModal = function(encodedName, icon) {
     document.getElementById('edit-room-name').value = name; 
     document.getElementById('edit-room-icon').value = icon || '📦'; 
     document.getElementById('edit-room-modal').classList.remove('hidden');
+    setTimeout(() => {
+        const input = document.getElementById('edit-room-name');
+        if (input) input.focus();
+    }, 100);
 };
 
 window.closeEditRoomModal = function() { 
@@ -269,7 +271,12 @@ window.loadAppProfiles = async function() {
 window.openNewProfileModal = function() { 
     document.getElementById('new-profile-name').value = ''; 
     document.getElementById('new-profile-modal').classList.remove('hidden'); 
+    setTimeout(() => {
+        const input = document.getElementById('new-profile-name');
+        if (input) input.focus();
+    }, 100);
 };
+
 window.closeNewProfileModal = function() { 
     document.getElementById('new-profile-modal').classList.add('hidden'); 
 };
