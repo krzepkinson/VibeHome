@@ -70,7 +70,6 @@ window.loadDashboard = async function() {
             if (!roomStats[rName]) roomStats[rName] = { icon: '📦', total: 0, overdue: 0 };
             roomStats[rName].total++;
             
-            // ZMIANA: Używamy nowej funkcji do sprawdzania przeterminowania
             if (window.isTaskOverdue(task, allHomeLogs)) {
                 roomStats[rName].overdue++; 
                 totalOverdueAll++;
@@ -160,6 +159,10 @@ window.openAddLogModal = function(n) {
     document.getElementById('add-log-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('add-log-notes').value = '';
     document.getElementById('add-log-modal').classList.remove('hidden');
+    setTimeout(() => {
+        const input = document.getElementById('add-log-notes');
+        if (input) input.focus();
+    }, 100);
 };
 
 window.closeAddLogModal = function() { 
@@ -228,6 +231,10 @@ window.openEditLogModal = function(id, date, notes) {
     document.getElementById('edit-log-date').value = date; 
     document.getElementById('edit-log-notes').value = decodeURIComponent(notes); 
     document.getElementById('edit-log-modal').classList.remove('hidden');
+    setTimeout(() => {
+        const input = document.getElementById('edit-log-notes');
+        if (input) input.focus();
+    }, 100);
 };
 
 window.closeEditLogModal = function() { 
@@ -259,4 +266,51 @@ window.saveEditLog = async function() {
         
     allHomeLogs = res.data || []; 
     window.renderHistory();
+};
+
+window.openNewTaskModal = function() {
+    document.getElementById('new-task-name').value = '';
+    if(typeof window.populateRoomsDropdown === 'function') {
+        window.populateRoomsDropdown('new-task-room');
+    }
+    document.getElementById('new-task-interval').value = '';
+    document.getElementById('new-task-remind').value = '0';
+    document.getElementById('new-task-modal').classList.remove('hidden');
+    setTimeout(() => {
+        const input = document.getElementById('new-task-name');
+        if (input) input.focus();
+    }, 100);
+};
+
+window.closeNewTaskModal = function() { 
+    document.getElementById('new-task-modal').classList.add('hidden'); 
+};
+
+window.saveNewTask = async function() {
+    const n = document.getElementById('new-task-name').value.trim();
+    const i = parseInt(document.getElementById('new-task-interval').value) || 0;
+    const remind = parseInt(document.getElementById('new-task-remind').value) || 0;
+    const r = document.getElementById('new-task-room').value;
+    const hid = window.currentUser.household_id;
+
+    if (!n) return;
+
+    const { error } = await window.supabaseClient.from('tasks').insert([{ 
+        name: n, 
+        interval_days: i, 
+        remind_days_before: remind, 
+        push_enabled: true, 
+        show_in_history: true, 
+        room: r, 
+        user_id: window.currentUser.id, 
+        household_id: hid 
+    }]);
+
+    if (error) { 
+        window.showToast("Błąd: " + error.message); 
+        return; 
+    }
+    window.closeNewTaskModal();
+    window.showToast("Dodano czynność!");
+    if (typeof window.loadDashboard === 'function') window.loadDashboard();
 };
