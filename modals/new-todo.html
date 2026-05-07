@@ -1,1 +1,21 @@
-<div id="new-todo-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Co jest do zrobienia?</h3><input type="text" id="new-todo-title" maxlength="150" placeholder="Np. Zapisać na basen" class="w-full p-4 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]"><div class="flex gap-3 mt-6"><button onclick="window.closeNewTodoModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="window.saveNewTodo()" class="flex-1 bg-[#a8c7fa] text-[#004a77] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Dodaj</button></div></div></div>
+<div id="new-todo-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+    <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
+        
+        <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">
+            Co jest do zrobienia?
+        </h3>
+        
+        <input type="text" id="new-todo-title" maxlength="150" placeholder="Np. Zapisać na basen" 
+               class="w-full p-4 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
+        
+        <div class="flex gap-3 mt-6">
+            <button onclick="window.closeNewTodoModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">
+                Anuluj
+            </button>
+            <button onclick="window.saveNewTodo()" class="flex-1 bg-[#a8c7fa] text-[#004a77] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">
+                Dodaj
+            </button>
+        </div>
+
+    </div>
+</div>
