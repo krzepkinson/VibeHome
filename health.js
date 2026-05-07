@@ -481,6 +481,8 @@ window.closePharmacyScreen = function() {
     window.goBack();
 };
 
+window.allPharmacyItems = []; // Zmienna globalna trzymająca całą apteczkę w pamięci
+
 window.loadPharmacyItems = async function() {
     const listEl = document.getElementById('pharmacy-list');
     listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Szukam leków...</p>`;
@@ -492,13 +494,40 @@ window.loadPharmacyItems = async function() {
 
     if (error) { listEl.innerHTML = `<p class="text-center text-[#ffb4ab] text-xs py-10">Błąd pobierania bazy leków.</p>`; return; }
 
-    if (!data || data.length === 0) {
+    window.allPharmacyItems = data || [];
+    
+    // Czyścimy input przy wejściu w apteczkę
+    const searchInput = document.getElementById('pharmacy-search-input');
+    if (searchInput) searchInput.value = '';
+
+    window.renderPharmacyList();
+};
+
+// NOWOŚĆ: Błyskawiczne filtrowanie i generowanie ultra-kompaktowego widoku
+window.renderPharmacyList = function() {
+    const listEl = document.getElementById('pharmacy-list');
+    const searchInput = document.getElementById('pharmacy-search-input');
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    if (window.allPharmacyItems.length === 0) {
         listEl.innerHTML = `
             <div class="flex flex-col items-center justify-center py-10 text-center">
                 <div class="text-5xl mb-4 opacity-50">🩹</div>
                 <h3 class="text-neutral-200 font-medium text-sm mb-1">Apteczka jest pusta</h3>
-                <p class="text-neutral-500 text-[10px] uppercase tracking-widest">Kliknij "Dodaj lek" powyżej</p>
+                <p class="text-neutral-500 text-[10px] uppercase tracking-widest">Kliknij "Dodaj" powyżej</p>
             </div>`;
+        return;
+    }
+
+    // Filtrowanie (instant search) po nazwie LUB przeznaczeniu
+    const filteredData = window.allPharmacyItems.filter(item => {
+        const nameMatch = item.name.toLowerCase().includes(query);
+        const purposeMatch = item.purpose ? item.purpose.toLowerCase().includes(query) : false;
+        return nameMatch || purposeMatch;
+    });
+
+    if (filteredData.length === 0) {
+        listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak wyników dla "${window.esc(query)}"</p>`;
         return;
     }
 
@@ -507,7 +536,7 @@ window.loadPharmacyItems = async function() {
     const thirtyDaysFromNow = new Date(today);
     thirtyDaysFromNow.setDate(today.getDate() + 30);
 
-    listEl.innerHTML = data.map(item => {
+    listEl.innerHTML = filteredData.map(item => {
         let statusHtml = '';
         let borderClass = 'border-[#333537]';
         let opacityClass = '';
@@ -516,34 +545,41 @@ window.loadPharmacyItems = async function() {
             const expDate = new Date(item.expiration_date);
             expDate.setHours(0,0,0,0);
             
-            // Formatowanie daty na MM.YYYY
             const monthStr = String(expDate.getMonth() + 1).padStart(2, '0');
             const yearStr = expDate.getFullYear();
             const displayDate = `${monthStr}.${yearStr}`;
 
             if (expDate < today) {
-                statusHtml = `<span class="text-[9px] font-bold text-[#ffb4ab] bg-[#3c1414] px-2 py-0.5 rounded uppercase tracking-wider">Przeterminowany (${displayDate})</span>`;
+                statusHtml = `<span class="text-[9px] font-bold text-[#ffb4ab] bg-[#3c1414] px-1.5 py-0.5 rounded uppercase tracking-wider shadow-sm">⚠ ${displayDate}</span>`;
                 borderClass = 'border-[#8c1d18]/50';
-                opacityClass = 'opacity-50'; 
+                opacityClass = 'opacity-60'; 
             } else if (expDate <= thirtyDaysFromNow) {
-                statusHtml = `<span class="text-[9px] font-bold text-amber-200 bg-amber-900/50 px-2 py-0.5 rounded uppercase tracking-wider">Wkrótce (do ${displayDate})</span>`;
+                statusHtml = `<span class="text-[9px] font-bold text-amber-200 bg-amber-900/50 px-1.5 py-0.5 rounded uppercase tracking-wider shadow-sm">⏳ ${displayDate}</span>`;
                 borderClass = 'border-amber-700/50';
             } else {
-                statusHtml = `<span class="text-[9px] text-neutral-500 uppercase tracking-widest">Ważny do: ${displayDate}</span>`;
+                statusHtml = `<span class="text-[10px] font-medium text-neutral-400">${displayDate}</span>`;
             }
         } else {
-            statusHtml = `<span class="text-[9px] text-neutral-600 uppercase tracking-widest">Brak daty ważności</span>`;
+            statusHtml = `<span class="text-[9px] text-neutral-600 uppercase tracking-widest">Brak daty</span>`;
         }
 
+        // ULTRA KOMPAKTOWY KAFELEK ZE SWIPE-TO-DELETE
         return `
-            <div class="flex items-center justify-between p-3.5 bg-[#1e1f20] rounded-[16px] border ${borderClass} mb-1.5 shadow-sm transition-all ${opacityClass}">
-                <div class="flex-1 min-w-0 pr-3">
-                    <h3 class="font-medium text-neutral-100 text-sm truncate">${window.esc(item.name)}</h3>
-                    ${item.purpose ? `<p class="text-[10px] text-neutral-400 truncate mt-0.5 mb-2">${window.esc(item.purpose)}</p>` : '<div class="h-1"></div>'}
-                    <div>${statusHtml}</div>
+        <div class="relative overflow-hidden mb-1 rounded-[14px] group ${opacityClass}">
+            <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-4">
+                <button onclick="window.deletePharmacyItem(${item.id})" class="text-[#ffb4ab] text-lg active:scale-90 transition-transform">🗑️</button>
+            </div>
+            <div class="swipe-front relative z-10 flex items-center justify-between p-2.5 bg-[#1e1f20] rounded-[14px] border ${borderClass} w-full transition-transform shadow-sm">
+                <div class="flex flex-col flex-1 min-w-0 pr-2">
+                    <h3 class="font-medium text-neutral-100 text-sm truncate leading-tight">${window.esc(item.name)}</h3>
+                    ${item.purpose ? `<p class="text-[10px] text-neutral-500 truncate leading-tight mt-0.5">${window.esc(item.purpose)}</p>` : ''}
                 </div>
-                <button onclick="window.deletePharmacyItem(${item.id})" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-500 hover:text-[#ffb4ab] hover:bg-[#333537] text-sm shrink-0 transition-colors">🗑️</button>
-            </div>`;
+                <div class="shrink-0 flex items-center gap-2">
+                    ${statusHtml}
+                    <button onclick="window.deletePharmacyItem(${item.id})" class="hidden md:block opacity-0 group-hover:opacity-100 text-neutral-600 hover:text-[#ffb4ab] px-1 text-sm shrink-0 transition-opacity">✕</button>
+                </div>
+            </div>
+        </div>`;
     }).join('');
 };
 
