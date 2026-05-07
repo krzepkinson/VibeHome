@@ -68,6 +68,34 @@
             <header class="mb-6 flex justify-between items-center mt-2">
                 <div class="flex items-center gap-3"><button id="home-back-btn" onclick="window.goBack()" class="hidden w-8 h-8 rounded-full bg-[#333537] text-neutral-200 flex items-center justify-center active:scale-90">→</button><div><h1 class="text-xl font-medium text-neutral-100 tracking-wide">Dom</h1><p class="text-xs text-neutral-400">Zarządzanie przestrzenią</p></div></div>
                 <div class="flex gap-2"><button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl">↻</button><button onclick="window.openNewTaskModal()" class="w-10 h-10 bg-[#004a77] text-[#c2e7ff] rounded-full hover:bg-[#005c94] active:scale-95 flex items-center justify-center text-xl pb-1 transition-all">+</button></div>
+                <!-- Znajdź: -->
+<div class="flex gap-2">
+    <button onclick="window.refreshCurrentView()" ...>↻</button>
+    <button onclick="window.openNewTaskModal()" ...>+</button>
+</div>
+
+<!-- Zamień na: -->
+<div class="flex gap-2">
+    <button onclick="window.openStatsScreen()" 
+            class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] 
+                   text-neutral-400 flex items-center justify-center 
+                   active:scale-90 transition-transform text-base"
+            title="Statystyki">
+        📊
+    </button>
+    <button onclick="window.refreshCurrentView()" 
+            class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] 
+                   text-neutral-400 flex items-center justify-center 
+                   active:scale-90 transition-transform text-xl">
+        ↻
+    </button>
+    <button onclick="window.openNewTaskModal()" 
+            class="w-10 h-10 bg-[#004a77] text-[#c2e7ff] rounded-full 
+                   hover:bg-[#005c94] active:scale-95 flex items-center 
+                   justify-center text-xl pb-1 transition-all">
+        +
+    </button>
+</div>
             </header>
             <div id="dashboard-list" class="flex flex-col space-y-2"></div>
         </div>
@@ -148,6 +176,21 @@
             <div id="checklist-items-list" class="flex flex-col"></div>
         </div>
     </div>
+    <!-- EKRAN: STATYSTYKI ZADAŃ -->
+<div id="stats-screen" class="hidden max-w-xl mx-auto p-4 sm:p-6 screen-view">
+    <header class="mb-6 mt-2 flex items-center gap-3">
+        <button onclick="window.goBack()" 
+                class="w-9 h-9 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 
+                       flex items-center justify-center active:scale-90 transition-transform">
+            ←
+        </button>
+        <div>
+            <h1 class="text-xl font-medium text-neutral-100">Statystyki</h1>
+            <p class="text-xs text-neutral-400">Streaki i terminowość zadań</p>
+        </div>
+    </header>
+    <div id="stats-list"></div>
+</div>
 
     <div id="archive-screen" class="hidden fixed inset-0 bg-[#131314] z-50 overflow-y-auto flex flex-col transition-all duration-300 screen-view">
         <div class="max-w-xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col pt-8"><button onclick="window.goBack()" class="flex items-center text-neutral-400 text-sm font-medium mb-6 active:scale-95 w-fit hover:text-neutral-200 transition-colors"><span class="mr-2 text-lg">←</span> Wróć</button><h2 class="text-xl font-medium text-neutral-100 tracking-wide mb-6">🗃️ Archiwum</h2><div id="archive-list"></div></div>
@@ -297,6 +340,7 @@
     <script src="/todo.js"></script>
     <script src="/settings.js"></script>
     <script src="/search.js"></script>
+    <script src="/stats.js"></script>
 
 </body>
 </html>
