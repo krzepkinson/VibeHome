@@ -107,10 +107,19 @@ window.loadTodosAndLists = async function() {
 };
 
 window.openNewTodoModal = function() { 
-    document.getElementById('new-todo-title').value = ''; 
-    document.getElementById('new-todo-modal').classList.remove('hidden'); 
-    const input = document.getElementById('new-todo-title');
-    if (input) input.focus();
+    // Wywołujemy naszą funkcję ładującą: podajemy ID modala, ścieżkę do pliku i otwieramy nawias "paczki" () => {
+    window.loadAndShowModal('new-todo-modal', '/modals/new-todo.html', () => {
+        
+        // Ten kod wykona się DOPIERO po załadowaniu pliku HTML
+        document.getElementById('new-todo-title').value = ''; 
+        
+        // Fokusowanie (dodajemy małe 50ms opóźnienia, żeby przeglądarka zdążyła narysować okienko na ekranie)
+        setTimeout(() => {
+            const input = document.getElementById('new-todo-title');
+            if (input) input.focus();
+        }, 50);
+
+    }); // <-- Zamykamy paczkę
 };
 window.closeNewTodoModal = function() { document.getElementById('new-todo-modal').classList.add('hidden'); };
 
