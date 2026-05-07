@@ -7,10 +7,18 @@ let healthTasks = [];
 let healthLogs = [];
 let currentProfileId = null; 
 
-// BEZPIECZNA INICJALIZACJA DATY
+// NOWE ZMIENNE DLA TRYBU WIDOKU
+let healthViewMode = 'list'; // Domyślnie lista
 let currentMonth = new Date().getMonth(); 
 let currentYear = new Date().getFullYear();
 let calendarViewMode = 'month'; 
+
+window.toggleHealthView = function() {
+    healthViewMode = healthViewMode === 'list' ? 'calendar' : 'list';
+    const toggleBtn = document.getElementById('health-view-toggle-btn');
+    if (toggleBtn) toggleBtn.innerText = healthViewMode === 'list' ? '📅' : '📋';
+    window.renderHealthUI();
+};
 
 window.initHealthModule = async function() {
     const hid = window.currentUser.household_id;
@@ -45,6 +53,45 @@ window.refreshHealthData = async function() {
     ]);
     healthTasks = tRes.data || []; 
     healthLogs = lRes.data || [];
+};
+
+window.renderHealthUI = function() {
+    const profile = healthProfiles.find(p => p.id === currentProfileId);
+    const headerAvatar = document.getElementById('health-header-avatar');
+    const nameTitle = document.getElementById('profile-name-title');
+    const calWrapper = document.getElementById('health-calendar-wrapper');
+    const tasksList = document.getElementById('health-tasks-list');
+
+    if (!profile) {
+        nameTitle.innerText = "Karta zdrowia"; 
+        headerAvatar.innerText = "?";
+        if (calWrapper) calWrapper.classList.add('hidden');
+        if (tasksList) tasksList.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-16 text-center animate-fade-in px-4 mt-4 bg-[#1e1f20] rounded-[28px] border border-[#333537]">
+                <div class="text-7xl mb-6 opacity-80 drop-shadow-lg">👨‍👩‍👧‍👦</div>
+                <h3 class="text-neutral-100 font-medium text-xl mb-2 tracking-wide">Brak domowników</h3>
+                <p class="text-neutral-400 text-xs mb-8 max-w-[260px] leading-relaxed">Dodaj pierwszy profil domownika, by móc śledzić jego leki, wizyty lekarskie i samopoczucie.</p>
+                <button onclick="window.openNewProfileModal()" class="bg-[#e3e3e3] text-[#131314] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
+                    <span class="text-xl pb-1">+</span> Dodaj osobę
+                </button>
+            </div>`;
+        return; 
+    }
+    
+    nameTitle.innerText = profile.name; 
+    headerAvatar.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 ${window.getAvatarColor ? window.getAvatarColor(profile.name) : 'bg-rose-600'}`;
+    headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
+    
+    // LOGIKA POKAZYWANIA/UKRYWANIA
+    if (healthViewMode === 'calendar') {
+        if (calWrapper) calWrapper.classList.remove('hidden');
+        if (tasksList) tasksList.classList.add('hidden');
+        window.renderCalendar();
+    } else {
+        if (calWrapper) calWrapper.classList.add('hidden');
+        if (tasksList) tasksList.classList.remove('hidden');
+        window.renderHealthTasks();
+    }
 };
 
 window.renderHealthUI = function() {
