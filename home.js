@@ -281,11 +281,17 @@ window.calculatePriority = function(task, lastDate) {
 };
 
 window.openAddLogModal = function(id, name) {
-    document.getElementById('add-log-subtitle').innerText = name;
-    document.getElementById('add-log-name').value = id; 
-    document.getElementById('add-log-date').value = new Date().toISOString().split('T')[0];
-    document.getElementById('add-log-notes').value = '';
-    document.getElementById('add-log-modal').classList.remove('hidden');
+    window.loadAndShowModal('add-log-modal', '/modals/add-log.html', () => {
+        document.getElementById('add-log-subtitle').innerText = name;
+        document.getElementById('add-log-name').value = id; 
+        document.getElementById('add-log-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('add-log-notes').value = '';
+        
+        setTimeout(() => {
+            const input = document.getElementById('add-log-notes');
+            if (input) input.focus();
+        }, 50);
+    });
 };
 
 window.closeAddLogModal = function() { document.getElementById('add-log-modal').classList.add('hidden'); };
