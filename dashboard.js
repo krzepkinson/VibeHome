@@ -238,9 +238,16 @@ function renderEmptyState(msg) {
 
 window.quickCompleteTodoDashboard = async function(id) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+    
+    const now = new Date().toISOString();
     const { error } = await window.supabaseClient.from('todos')
-        .update({ is_completed: true, completer_name: window.currentUser.name })
+        .update({ 
+            is_completed: true, 
+            completed_at: now, // DODANO: Zapisujemy dokładny moment wykonania
+            completer_name: window.currentUser.name 
+        })
         .eq('id', id);
+        
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); 
     window.showToast('Odhaczone! ✔️'); 
