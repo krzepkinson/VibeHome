@@ -107,7 +107,8 @@ window.addEventListener('popstate', (event) => {
         const screenEl = document.getElementById(state.subScreen);
         if (screenEl) screenEl.classList.remove('hidden');
     } else {
-        ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen', 'checklist-screen', 'archive-screen'].forEach(id => {
+        // DODANO: 'stats-screen' do tablicy poniżej!
+        ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen', 'checklist-screen', 'archive-screen', 'stats-screen'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
         });
