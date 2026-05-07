@@ -124,10 +124,16 @@ window.openNewTodoModal = function() {
 window.closeNewTodoModal = function() { document.getElementById('new-todo-modal').classList.add('hidden'); };
 
 window.openNewListModal = function() { 
-    document.getElementById('new-list-title').value = ''; 
-    document.getElementById('new-list-type').value = 'generic'; 
-    window.toggleListTemplates();
-    document.getElementById('new-list-modal').classList.remove('hidden'); 
+    window.loadAndShowModal('new-list-modal', '/modals/new-list.html', () => {
+        document.getElementById('new-list-title').value = ''; 
+        document.getElementById('new-list-type').value = 'generic'; 
+        window.toggleListTemplates();
+        
+        setTimeout(() => {
+            const input = document.getElementById('new-list-title');
+            if (input) input.focus();
+        }, 50);
+    });
 };
 window.closeNewListModal = function() { document.getElementById('new-list-modal').classList.add('hidden'); };
 
