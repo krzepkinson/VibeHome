@@ -250,12 +250,14 @@ window.quickCompleteTodoDashboard = async function(id) {
 window.quickLogTaskDashboard = async function(taskId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const task = window.dashboardCache.tasks.find(t => t.id == taskId);
-    const d = new Date().toISOString().split('T')[0];
+    
+    // ZMIANA: Pobieramy dokładny, aktualny czas!
+    const now = new Date().toISOString(); 
     
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
         task_id: taskId, 
         activity_name: task ? task.name : 'Zadanie', 
-        created_at: `${d}T12:00:00.000Z`, 
+        created_at: now,  // ZMIANA: Wrzucamy dokładny czas zamiast sklejki
         notes: '', 
         user_id: window.currentUser.id, 
         household_id: window.currentUser.household_id, 
