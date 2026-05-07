@@ -59,7 +59,7 @@ window.goForward = function(screenId) {
 };
 
 window.goBack = function() {
-    const subScreens = ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen', 'checklist-screen', 'archive-screen', 'stats-screen', 'pharmacy-screen'];
+    const subScreens = ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen', 'checklist-screen', 'archive-screen', 'stats-screen', 'pharmacy-screen', 'health-book-screen'];
     
     const isSubScreenOpen = subScreens.some(id => {
         const el = document.getElementById(id);
@@ -108,7 +108,7 @@ window.addEventListener('popstate', (event) => {
         if (screenEl) screenEl.classList.remove('hidden');
     } else {
         // DODANO: 'stats-screen' do tablicy poniżej!
-        ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen', 'checklist-screen', 'archive-screen', 'stats-screen', 'pharmacy-screen'].forEach(id => {
+        ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen', 'checklist-screen', 'archive-screen', 'stats-screen', 'pharmacy-screen', 'health-book-screen'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
         });
