@@ -646,15 +646,16 @@ window.saveNewMeasurement = async function() {
     if (!valRaw || !currentProfileId) return;
 
     const numericVal = parseFloat(valRaw.replace(',', '.'));
-    if (isNaN(numericVal)) {
-        window.showToast("Podaj poprawną wartość liczbową!");
-        return;
-    }
+    if (isNaN(numericVal)) { window.showToast("Podaj poprawną wartość liczbową!"); return; }
 
     let unit = '';
     if (type === 'Waga') unit = 'kg';
     else if (type === 'Wzrost') unit = 'cm';
     else if (type === 'Temperatura') unit = '°C';
+
+    // ZMIANA: Inteligentny czas
+    const todayStr = new Date().toISOString().split('T')[0];
+    const finalDate = (date === todayStr) ? new Date().toISOString() : `${date}T12:00:00.000Z`;
 
     const { error } = await window.supabaseClient.from('health_measurements').insert([{
         household_id: window.currentUser.household_id,
@@ -664,7 +665,7 @@ window.saveNewMeasurement = async function() {
         value: numericVal,
         unit: unit,
         notes: notes,
-        created_at: `${date}T12:00:00.000Z` 
+        created_at: finalDate // ZMIANA: Używamy nowej zmiennej
     }]);
 
     if (error) { window.showToast("Błąd zapisu: " + error.message); return; }
