@@ -1,0 +1,13 @@
+    <div id="add-log-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
+            <h3 class="text-base font-medium text-neutral-100 mb-1 tracking-wide">Wykonano</h3>
+            <p class="text-xs text-neutral-400 mb-4" id="add-log-subtitle"></p>
+            <input type="hidden" id="add-log-name">
+            <input type="date" id="add-log-date" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm mb-3 focus:outline-none [color-scheme:dark]">
+            <textarea id="add-log-notes" maxlength="500" placeholder="Notatki..." class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm h-20 resize-none focus:outline-none"></textarea>
+            <div class="flex gap-3 mt-6">
+                <button onclick="window.closeAddLogModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
+                <button onclick="window.saveNewLog()" class="flex-1 bg-[#0f5223] text-[#c4eed0] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button>
+            </div>
+        </div>
+    </div>
