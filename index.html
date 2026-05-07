@@ -98,32 +98,38 @@
             <div id="todo-list" class="flex flex-col"></div>
         </div>
 
-<div id="view-profile" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
+<div id="view-profile" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view relative min-h-[90vh]">
             <header class="mb-6 mt-2 flex justify-between items-center">
                 <div>
                     <h1 class="text-xl font-medium text-neutral-100 tracking-wide flex items-center gap-2"><span id="profile-name-title">Ładowanie...</span></h1>
-                    <p class="text-xs text-[#ffb4ab] font-medium">Karta zdrowia</p>
+                    <p class="text-xs text-[#ffb4ab] font-medium">Centrum Zdrowia</p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button onclick="window.toggleHealthView()" id="health-view-toggle-btn" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 flex items-center justify-center active:scale-90 transition-transform text-base" title="Zmień widok">📅</button>
                     <button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl">↻</button>
+                    <button onclick="window.openHealthBook()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 flex items-center justify-center active:scale-90 transition-transform text-base" title="Książeczka Zdrowia">📖</button>
                     <button onclick="window.openPharmacyScreen()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 flex items-center justify-center active:scale-90 transition-transform text-base" title="Domowa Apteczka">💊</button>
-                    <button onclick="window.openNewHealthTaskModal()" class="w-10 h-10 bg-[#8c1d18] text-[#ffdad6] rounded-full hover:bg-[#a8251e] active:scale-95 flex items-center justify-center text-xl pb-1 transition-all">+</button>
                     <button onclick="window.toggleProfileSwitcher()" id="health-header-avatar" class="ml-1 w-10 h-10 rounded-full bg-[#444746] text-neutral-200 flex items-center justify-center font-bold border-2 border-[#131314] shadow-md active:scale-90 transition-transform">?</button>
                 </div>
             </header>
-            
-            <div id="health-calendar-wrapper" class="hidden bg-[#1e1f20] p-4 rounded-[28px] border border-[#333537] mb-6 transition-all">
-                <div class="flex justify-between items-center mb-4">
-                    <button id="cal-prev-btn" onclick="window.changeCalendarMonth(-1)" class="w-8 h-8 flex justify-center items-center rounded-full text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 active:scale-90 transition-colors">&lt;</button>
-                    <div class="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onclick="window.toggleCalendarMode()">
-                        <h3 class="font-medium text-neutral-200 uppercase tracking-widest text-xs flex items-center gap-1" id="calendar-title">Miesiąc Rok <span class="text-[10px] text-neutral-500">🔍</span></h3>
-                    </div>
-                    <button id="cal-next-btn" onclick="window.changeCalendarMonth(1)" class="w-8 h-8 flex justify-center items-center rounded-full text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 active:scale-90 transition-colors">&gt;</button>
-                </div>
-                <div id="calendar-container"></div>
+
+            <div id="health-active-section" class="mb-6 hidden">
+                <h3 class="text-[10px] font-medium text-rose-400 uppercase tracking-widest pl-1 mb-2 flex items-center gap-1.5"><span class="animate-pulse">🔴</span> Teraz trwa</h3>
+                <div id="health-active-list" class="space-y-2"></div>
             </div>
-            <div id="health-tasks-list" class="flex flex-col space-y-2"></div>
+
+            <div id="health-upcoming-section" class="mb-6 hidden">
+                <h3 class="text-[10px] font-medium text-amber-200 uppercase tracking-widest pl-1 mb-2 flex items-center gap-1.5"><span>📅</span> Nadchodzące</h3>
+                <div id="health-upcoming-list" class="space-y-2"></div>
+            </div>
+
+            <div id="health-routine-section" class="mb-20">
+                <h3 class="text-[10px] font-medium text-[#c4eed0] uppercase tracking-widest pl-1 mb-2 flex items-center gap-1.5"><span>🔄</span> Rutyna i cykle</h3>
+                <div id="health-routine-list" class="space-y-2"></div>
+            </div>
+
+            <button onclick="window.openHealthFabMenu()" class="fixed bottom-20 right-4 sm:right-auto sm:ml-[480px] w-14 h-14 bg-[#8c1d18] text-[#ffdad6] rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.4)] border border-rose-500/30 hover:bg-[#a8251e] active:scale-90 flex items-center justify-center text-3xl pb-1 transition-all z-40">
+                +
+            </button>
         </div>
 
         <div id="view-settings-main" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
@@ -344,7 +350,33 @@
             <div id="pharmacy-list" class="space-y-2 pb-10"></div>
         </div>
     </div>
-
+<div id="health-fab-menu" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex justify-center items-end pb-24 px-4 transition-all">
+        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-5 shadow-2xl flex flex-col gap-2.5">
+            <h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest mb-1 pl-2">Dodaj nowy wpis</h3>
+            
+            <button onclick="window.openNewDurationModal()" class="flex items-center gap-4 p-4 rounded-[20px] bg-[#3c1414]/40 border border-[#8c1d18]/50 active:scale-95 transition-all text-left">
+                <span class="text-2xl">🤒</span>
+                <div><h4 class="text-sm font-medium text-[#ffb4ab]">Zgłoś objaw / infekcję</h4><p class="text-[10px] text-neutral-400 mt-0.5">Rozpocznij trwające zdarzenie</p></div>
+            </button>
+            
+            <button onclick="window.openNewEventModal()" class="flex items-center gap-4 p-4 rounded-[20px] bg-amber-900/10 border border-amber-700/30 active:scale-95 transition-all text-left">
+                <span class="text-2xl">📅</span>
+                <div><h4 class="text-sm font-medium text-amber-200">Zaplanuj wydarzenie</h4><p class="text-[10px] text-neutral-400 mt-0.5">Szczepienie, wizyta, badanie</p></div>
+            </button>
+            
+            <button onclick="window.openNewRoutineModal()" class="flex items-center gap-4 p-4 rounded-[20px] bg-[#0f5223]/10 border border-[#0f5223]/30 active:scale-95 transition-all text-left">
+                <span class="text-2xl">🔄</span>
+                <div><h4 class="text-sm font-medium text-[#c4eed0]">Dodaj rutynę</h4><p class="text-[10px] text-neutral-400 mt-0.5">Leki cykliczne, witaminy</p></div>
+            </button>
+            
+            <button onclick="window.openNewMeasurementModal()" class="flex items-center gap-4 p-4 rounded-[20px] bg-[#004a77]/10 border border-[#004a77]/30 active:scale-95 transition-all text-left">
+                <span class="text-2xl">📏</span>
+                <div><h4 class="text-sm font-medium text-[#c2e7ff]">Zanotuj pomiar</h4><p class="text-[10px] text-neutral-400 mt-0.5">Waga, wzrost, temperatura</p></div>
+            </button>
+            
+            <button onclick="window.closeHealthFabMenu()" class="mt-2 text-neutral-500 font-bold py-2 text-xs uppercase tracking-widest active:scale-95">Anuluj</button>
+        </div>
+    </div>
     <div id="new-pharmacy-item-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
         <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
             <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Dodaj do apteczki</h3>
