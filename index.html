@@ -99,9 +99,18 @@
         </div>
 
         <div id="view-profile" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
+            <div id="view-profile" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
             <header class="mb-6 mt-2 flex justify-between items-center">
-                <div><h1 class="text-xl font-medium text-neutral-100 tracking-wide flex items-center gap-2"><span id="profile-name-title">Ładowanie...</span></h1><p class="text-xs text-[#ffb4ab] font-medium">Karta zdrowia</p></div>
-                <div class="flex items-center gap-3"><button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl">↻</button><button onclick="window.openNewHealthTaskModal()" class="w-10 h-10 bg-[#8c1d18] text-[#ffdad6] rounded-full hover:bg-[#a8251e] active:scale-95 flex items-center justify-center text-xl pb-1 transition-all">+</button><button onclick="window.toggleProfileSwitcher()" id="health-header-avatar" class="w-10 h-10 rounded-full bg-[#444746] text-neutral-200 flex items-center justify-center font-bold border-2 border-[#131314] shadow-md active:scale-90 transition-transform">?</button></div>
+                <div>
+                    <h1 class="text-xl font-medium text-neutral-100 tracking-wide flex items-center gap-2"><span id="profile-name-title">Ładowanie...</span></h1>
+                    <p class="text-xs text-[#ffb4ab] font-medium">Karta zdrowia</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl">↻</button>
+                    <button onclick="window.openPharmacyScreen()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 flex items-center justify-center active:scale-90 transition-transform text-base" title="Domowa Apteczka">💊</button>
+                    <button onclick="window.openNewHealthTaskModal()" class="w-10 h-10 bg-[#8c1d18] text-[#ffdad6] rounded-full hover:bg-[#a8251e] active:scale-95 flex items-center justify-center text-xl pb-1 transition-all">+</button>
+                    <button onclick="window.toggleProfileSwitcher()" id="health-header-avatar" class="ml-1 w-10 h-10 rounded-full bg-[#444746] text-neutral-200 flex items-center justify-center font-bold border-2 border-[#131314] shadow-md active:scale-90 transition-transform">?</button>
+                </div>
             </header>
             
             <div class="bg-[#1e1f20] p-4 rounded-[28px] border border-[#333537] mb-6 transition-all">
