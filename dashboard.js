@@ -34,14 +34,17 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
     if (forceRefresh || !window.dashboardCache || (now - window.dashboardCacheTime > 30000)) {
         listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Synchronizacja...</p>`;
         const hid = window.currentUser.household_id; 
-        const [tasksRes, logsRes, healthTasksRes, healthLogsRes, Res, profilesRes] = await Promise.all([
+        
+        // POPRAWKA: naprawiono literówkę w zapytaniu (było 's' i Res)
+        const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes, profilesRes] = await Promise.all([
             window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
             window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }),
             window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
             window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }),
-            window.supabaseClient.from('s').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }),
+            window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }),
             window.supabaseClient.from('profiles').select('*').eq('household_id', hid)
         ]);
+        
         window.dashboardCache = { 
             tasks: tasksRes.data || [], 
             logs: logsRes.data || [], 
@@ -181,11 +184,18 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
             }
         });
         
-        // Zbieranie ZROBIONYCH ZADAŃ TODO
+        // POPRAWKA: Zbieranie ZROBIONYCH ZADAŃ TODO ze wsparciem dla 'completed_at'
         allTodos.filter(t => t.is_completed).forEach(t => {
+            const finalDate = t.completed_at ? new Date(t.completed_at) : new Date(t.created_at);
             historyItems.push({ 
-                table: 'todos', id: t.id, title: t.title, date: new Date(t.created_at), 
-                icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' 
+                table: 'todos', 
+                id: t.id, 
+                title: t.title, 
+                date: finalDate, 
+                icon: '📝', 
+                bg: 'bg-[#004a77]/20', 
+                border: 'border-[#004a77]/50', 
+                user: t.completer_name || '?' 
             });
         });
 
@@ -243,7 +253,7 @@ window.quickCompleteTodoDashboard = async function(id) {
     const { error } = await window.supabaseClient.from('todos')
         .update({ 
             is_completed: true, 
-            completed_at: now, // DODANO: Zapisujemy dokładny moment wykonania
+            completed_at: now, 
             completer_name: window.currentUser.name 
         })
         .eq('id', id);
@@ -258,13 +268,12 @@ window.quickLogTaskDashboard = async function(taskId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const task = window.dashboardCache.tasks.find(t => t.id == taskId);
     
-    // ZMIANA: Pobieramy dokładny, aktualny czas!
     const now = new Date().toISOString(); 
     
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
         task_id: taskId, 
         activity_name: task ? task.name : 'Zadanie', 
-        created_at: now,  // ZMIANA: Wrzucamy dokładny czas zamiast sklejki
+        created_at: now, 
         notes: '', 
         user_id: window.currentUser.id, 
         household_id: window.currentUser.household_id, 
