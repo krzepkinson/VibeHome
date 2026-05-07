@@ -105,6 +105,7 @@
                     <p class="text-xs text-[#ffb4ab] font-medium">Karta zdrowia</p>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button onclick="window.toggleHealthView()" id="health-view-toggle-btn" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 flex items-center justify-center active:scale-90 transition-transform text-base" title="Zmień widok">📅</button>
                     <button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl">↻</button>
                     <button onclick="window.openPharmacyScreen()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 flex items-center justify-center active:scale-90 transition-transform text-base" title="Domowa Apteczka">💊</button>
                     <button onclick="window.openNewHealthTaskModal()" class="w-10 h-10 bg-[#8c1d18] text-[#ffdad6] rounded-full hover:bg-[#a8251e] active:scale-95 flex items-center justify-center text-xl pb-1 transition-all">+</button>
@@ -112,8 +113,14 @@
                 </div>
             </header>
             
-            <div class="bg-[#1e1f20] p-4 rounded-[28px] border border-[#333537] mb-6 transition-all">
-                <div class="flex justify-between items-center mb-4"><button id="cal-prev-btn" onclick="window.changeCalendarMonth(-1)" class="w-8 h-8 flex justify-center items-center rounded-full text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 active:scale-90 transition-colors">&lt;</button><div class="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onclick="window.toggleCalendarMode()"><h3 class="font-medium text-neutral-200 uppercase tracking-widest text-xs flex items-center gap-1" id="calendar-title">Miesiąc Rok <span class="text-[10px] text-neutral-500">🔍</span></h3></div><button id="cal-next-btn" onclick="window.changeCalendarMonth(1)" class="w-8 h-8 flex justify-center items-center rounded-full text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 active:scale-90 transition-colors">&gt;</button></div>
+            <div id="health-calendar-wrapper" class="hidden bg-[#1e1f20] p-4 rounded-[28px] border border-[#333537] mb-6 transition-all">
+                <div class="flex justify-between items-center mb-4">
+                    <button id="cal-prev-btn" onclick="window.changeCalendarMonth(-1)" class="w-8 h-8 flex justify-center items-center rounded-full text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 active:scale-90 transition-colors">&lt;</button>
+                    <div class="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onclick="window.toggleCalendarMode()">
+                        <h3 class="font-medium text-neutral-200 uppercase tracking-widest text-xs flex items-center gap-1" id="calendar-title">Miesiąc Rok <span class="text-[10px] text-neutral-500">🔍</span></h3>
+                    </div>
+                    <button id="cal-next-btn" onclick="window.changeCalendarMonth(1)" class="w-8 h-8 flex justify-center items-center rounded-full text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 active:scale-90 transition-colors">&gt;</button>
+                </div>
                 <div id="calendar-container"></div>
             </div>
             <div id="health-tasks-list" class="flex flex-col space-y-2"></div>
