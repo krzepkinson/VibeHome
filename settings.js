@@ -43,9 +43,65 @@ window.checkNotificationStatus = function() {
 };
 
 window.requestNotificationPermission = async function() {
-    const permission = await Notification.requestPermission();
-    window.checkNotificationStatus();
-    if (permission === "granted") window.showToast("Powiadomienia włączone!");
+    try {
+        const permission = await Notification.requestPermission();
+        window.checkNotificationStatus();
+        
+        if (permission !== "granted") {
+            window.showToast("Brak zgody na powiadomienia.");
+            return;
+        }
+
+        window.showToast("Konfiguruję powiadomienia...");
+
+        // 1. Czekamy na gotowość Service Workera
+        const registration = await navigator.serviceWorker.ready;
+
+        // 2. Pobieramy klucz publiczny VAPID bezpośrednio z pliku config.js!
+        const publicVapidKey = window.CONFIG.VAPID_PUBLIC_KEY;
+        
+        if (!publicVapidKey) {
+            window.showToast("Błąd konfiguracji: Brak klucza VAPID.");
+            return;
+        }
+
+        // Funkcja urlB64ToUint8Array znajduje się w naszym pliku utils.js
+        const applicationServerKey = window.urlB64ToUint8Array(publicVapidKey);
+
+        // 3. Rejestrujemy to konkretne urządzenie w usługach Push
+        const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: applicationServerKey
+        });
+
+        // 4. Wyciągamy wygenerowane klucze i endpoint
+        const subJSON = subscription.toJSON();
+
+        // Usuwamy starą subskrypcję dla tego urządzenia (żeby nie było duplikatów)
+        await window.supabaseClient.from('push_subscriptions')
+            .delete()
+            .eq('endpoint', subJSON.endpoint);
+
+        // 5. Zapisujemy nowe urządzenie do bazy
+        const { error } = await window.supabaseClient.from('push_subscriptions').insert([{
+            user_id: window.currentUser.id,
+            household_id: window.currentUser.household_id,
+            endpoint: subJSON.endpoint,
+            auth_key: subJSON.keys.auth,
+            p256dh_key: subJSON.keys.p256dh
+        }]);
+
+        if (error) {
+            console.error('Błąd zapisu w bazie:', error);
+            window.showToast("Błąd łączenia z bazą!");
+        } else {
+            window.showToast("Powiadomienia włączone i połączone! 🔔");
+        }
+
+    } catch (err) {
+        console.error('Błąd powiadomień:', err);
+        window.showToast("Błąd: " + err.message);
+    }
 };
 
 // --- ZARZĄDZANIE POMIESZCZENIAMI ---
