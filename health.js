@@ -2,8 +2,14 @@
 // LOGIKA: ZDROWIE (health.js)
 // ==========================================
 
-let healthProfiles = []; let healthTasks = []; let healthLogs = [];
-let currentProfileId = null; let currentMonth = new Date().getMonth(); let currentYear = new Date().getFullYear();
+let healthProfiles = []; 
+let healthTasks = []; 
+let healthLogs = [];
+let currentProfileId = null; 
+
+// BEZPIECZNA INICJALIZACJA DATY
+let currentMonth = new Date().getMonth(); 
+let currentYear = new Date().getFullYear();
 let calendarViewMode = 'month'; 
 
 window.initHealthModule = async function() {
@@ -63,9 +69,9 @@ window.renderHealthUI = function() {
     }
     
     nameTitle.innerText = profile.name; 
+    // SPRAWDZENIE GLOBALNEJ FUNKCJI KOLORÓW
+    headerAvatar.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 ${window.getAvatarColor ? window.getAvatarColor(profile.name) : 'bg-rose-600'}`;
     headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
-    headerAvatar.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 ${window.getAvatarColor(profile.name)}`;
-    headerAvatar.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 ${colors[profile.id % colors.length]}`;
     
     window.renderCalendar(); 
     window.renderHealthTasks();
@@ -76,6 +82,12 @@ window.renderCalendar = function() {
     const title = document.getElementById('calendar-title');
     if (!container || !title) return;
     
+    // GWARANCJA POPRAWNOŚCI MIESIĄCA
+    if (isNaN(currentMonth) || isNaN(currentYear)) {
+        currentMonth = new Date().getMonth();
+        currentYear = new Date().getFullYear();
+    }
+
     const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
     title.innerText = `${monthNames[currentMonth]} ${currentYear}`;
     
@@ -108,7 +120,7 @@ window.renderCalendar = function() {
             else if (isToday) dayClass = 'bg-[#ffb4ab] text-[#3c1414] font-bold';
             else if (hasEvents) dayClass = 'bg-rose-900/60 text-rose-200 border border-rose-700 font-bold';
             
-            html += `<div onclick="window.openDayDetails('${dateStr}')" class="aspect-square flex items-center justify-center rounded-xl cursor-pointer transition-all active:scale-90 ${dayClass}"><span class="text-xs">${d}</span></div>`;
+            html += `<div onclick="window.openDayDetails('${dateStr}', 'health')" class="aspect-square flex items-center justify-center rounded-xl cursor-pointer transition-all active:scale-90 ${dayClass}"><span class="text-xs">${d}</span></div>`;
         }
         html += `</div>`;
     }
@@ -126,7 +138,6 @@ window.toggleCalendarMode = function() {
     window.showToast("Widok miesiąca"); 
 };
 
-// ZMODYFIKOWANA LOGIKA STATUSÓW
 window.getHealthStatusString = function(task, activeLog, taskLogs) {
     const today = new Date(); today.setHours(0,0,0,0);
     
@@ -184,13 +195,10 @@ window.renderHealthTasks = function() {
         
         let actionBtn = '';
         
-        // ZMODYFIKOWANA LOGIKA PRZYCISKÓW / BADGE'Y
         if (task.task_type === 'one_time') {
             if (tLogs.length === 0) {
-                // Nie zrobione - pokazujemy przycisk akcji do zrobienia
                 actionBtn = `<button onclick="window.startHealthLog(${task.id}, 'one_time')" class="w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0 shadow-sm">✓</button>`;
             } else {
-                // ZROBIONE - dedykowany UX! Pokazujemy ładną plakietkę zamiast pustego miejsca.
                 actionBtn = `<div class="px-2.5 py-1.5 bg-[#131314] border border-[#333537] rounded-lg flex items-center gap-1.5 shadow-inner">
                                 <span class="text-[#0f5223] text-xs font-bold">✓</span>
                                 <span class="text-[9px] text-neutral-500 font-bold uppercase tracking-widest">Zrobione</span>
@@ -202,7 +210,7 @@ window.renderHealthTasks = function() {
                 ? `<button onclick="window.closeHealthLog(${activeLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button>`
                 : `<button onclick="window.startHealthLog(${task.id}, 'duration')" class="w-8 h-8 rounded-full bg-[#3c1414] text-[#ffb4ab] font-bold text-base flex items-center justify-center active:scale-90 pb-0.5 border border-[#8c1d18]/50 shadow-sm">+</button>`;
         } 
-        else { // cyclical
+        else { 
             actionBtn = `<button onclick="window.startHealthLog(${task.id}, 'cyclical')" class="w-8 h-8 rounded-full bg-[#3c1414] text-[#ffb4ab] font-bold text-base flex items-center justify-center active:scale-90 pb-0.5 border border-[#8c1d18]/50 shadow-sm">+</button>`;
         }
 
@@ -352,9 +360,11 @@ window.deleteHealthTask = function() {
     });
 };
 
+// SZCZEGÓŁY DNIA DLA ZDROWIA (Otwiera ten sam modal, ale ze specyficznymi informacjami)
 window.openDayDetails = function(dateStr) {
     const modal = document.getElementById('day-details-modal'); 
     const list = document.getElementById('day-details-list');
+    document.getElementById('day-details-title').innerText = "Szczegóły Zdrowia";
     document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
     
     const dayLogs = healthLogs.filter(l => { 
@@ -371,17 +381,21 @@ window.openDayDetails = function(dateStr) {
         oneTimeEvents.forEach(t => { 
             const isDone = healthLogs.some(l => l.health_task_id === t.id); 
             itemsHtml += `
-                <div class="px-3 py-2 bg-[#1e1f20] rounded-xl border border-[#004a77]/30 mb-1.5">
-                    <p class="text-sm font-medium text-[#c2e7ff]">📅 ${window.esc(t.name)}</p>
-                    <p class="text-[10px] text-neutral-500 mt-0.5">${isDone ? 'Zrealizowane' : 'Do zrobienia'}</p>
+                <div class="px-3 py-2 bg-[#1e1f20] rounded-xl border border-[#004a77]/30 mb-1.5 flex justify-between items-center">
+                    <div>
+                        <p class="text-sm font-medium text-[#c2e7ff]">📅 ${window.esc(t.name)}</p>
+                        <p class="text-[10px] text-neutral-500 mt-0.5">${isDone ? 'Zrealizowane' : 'Do zrobienia'}</p>
+                    </div>
                 </div>`; 
         });
         dayLogs.forEach(l => { 
             const task = healthTasks.find(t => t.id === l.health_task_id) || { name: 'Usunięte zadanie' }; 
             itemsHtml += `
-                <div class="px-3 py-2 bg-[#131314] rounded-xl border border-[#333537] mb-1.5">
-                    <p class="text-sm font-medium text-neutral-200">${window.esc(task.name)}</p>
-                    <p class="text-[10px] text-neutral-500 mt-0.5">${l.end_date ? 'Zdarzenie zakończone' : 'W trakcie...'}</p>
+                <div class="px-3 py-2 bg-[#131314] rounded-xl border border-[#333537] mb-1.5 flex justify-between items-center">
+                    <div>
+                        <p class="text-sm font-medium text-neutral-200">${window.esc(task.name)}</p>
+                        <p class="text-[10px] text-neutral-500 mt-0.5">${l.end_date ? 'Zdarzenie zakończone' : 'W trakcie...'}</p>
+                    </div>
                 </div>`; 
         });
         list.innerHTML = itemsHtml;
@@ -395,7 +409,7 @@ window.toggleProfileSwitcher = function() {
     const modal = document.getElementById('profile-switcher-modal');
     document.getElementById('switcher-profiles-list').innerHTML = healthProfiles.map(p => `
         <div onclick="window.selectHealthProfile(${p.id})" class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-[#333537] ${p.id === currentProfileId ? 'bg-[#333537] border border-[#a8c7fa]' : ''}">
-            <div class="w-8 h-8 rounded-full ${window.getAvatarColor(p.name)} text-white flex items-center justify-center text-xs font-bold shadow-inner">${window.esc(p.name.charAt(0).toUpperCase())}</div>
+            <div class="w-8 h-8 rounded-full ${window.getAvatarColor ? window.getAvatarColor(p.name) : 'bg-neutral-600'} text-white shadow-inner flex items-center justify-center text-xs font-bold">${window.esc(p.name.charAt(0).toUpperCase())}</div>
             <span class="text-sm text-neutral-200">${window.esc(p.name)}</span>
         </div>
     `).join('');
