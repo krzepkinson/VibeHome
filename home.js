@@ -355,3 +355,57 @@ window.saveNewTask = async function() {
     if (error) { window.showToast("Błąd: " + error.message); return; }
     window.closeNewTaskModal(); window.showToast("Dodano czynność!"); window.loadDashboard();
 };
+window.openEditLogModal = function(logId) {
+    // Szukamy wpisu w naszej zapamiętanej tablicy logów
+    const log = allHomeLogs.find(l => l.id === logId);
+    if (!log) {
+        window.showToast("Nie znaleziono wpisu.");
+        return;
+    }
+
+    // Odpalamy naszą funkcję lazy-loadingu
+    window.loadAndShowModal('edit-log-modal', '/modals/edit-log.html', () => {
+        // Wypełniamy modal danymi z wybranego wpisu
+        document.getElementById('edit-log-id').value = log.id;
+        document.getElementById('edit-log-date').value = log.created_at.split('T')[0];
+        document.getElementById('edit-log-notes').value = log.notes || '';
+        
+        setTimeout(() => {
+            const input = document.getElementById('edit-log-notes');
+            if (input) input.focus();
+        }, 50);
+    });
+};
+
+window.closeEditLogModal = function() {
+    const modal = document.getElementById('edit-log-modal');
+    if (modal) modal.classList.add('hidden');
+};
+
+window.saveEditLog = async function() {
+    const id = document.getElementById('edit-log-id').value;
+    const date = document.getElementById('edit-log-date').value;
+    const notes = document.getElementById('edit-log-notes').value.trim();
+
+    if (!id || !date) return;
+
+    // Aktualizujemy rekord w bazie danych
+    const { error } = await window.supabaseClient.from('activity_logs')
+        .update({ created_at: `${date}T12:00:00.000Z`, notes: notes })
+        .eq('id', id)
+        .eq('household_id', window.currentUser.household_id);
+
+    if (error) {
+        window.showToast("Błąd: " + error.message);
+        return;
+    }
+
+    window.showToast("Wpis zaktualizowany! ✏️");
+    window.closeEditLogModal();
+    
+    // Resetujemy cache, żeby na przeglądzie pojawiły się świeże dane
+    if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+    
+    // Przeładowujemy widok w tle
+    if (typeof window.refreshCurrentView === 'function') await window.refreshCurrentView();
+};
