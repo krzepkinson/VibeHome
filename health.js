@@ -298,344 +298,192 @@ window.openNewHealthTaskModal = function(defaultType = 'cyclical') {
 window.openNewDurationModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('duration'); };
 window.openNewEventModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('one_time'); };
 window.openNewRoutineModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('cyclical'); };
+// ==========================================
+// NOWOŚĆ: KSIĄŻECZKA ZDROWIA I POMIARY
+// ==========================================
+
 window.openNewMeasurementModal = function() { 
     window.closeHealthFabMenu(); 
-    window.showToast("Zapisywanie pomiarów wkrótce!"); 
-};
-window.openHealthBook = function() { 
-    window.showToast("Książeczka zdrowia wkrótce!"); 
-};
-
-window.closeNewHealthTaskModal = function() { document.getElementById('new-health-task-modal').classList.add('hidden'); };
-
-window.toggleHealthInterval = function() { 
-    const type = document.getElementById('h-task-type').value;
-    document.getElementById('h-task-interval-container').classList.toggle('hidden', type !== 'cyclical'); 
-    document.getElementById('h-task-date-container').classList.toggle('hidden', type !== 'one_time'); 
+    document.getElementById('measurement-value').value = '';
+    document.getElementById('measurement-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('measurement-notes').value = '';
+    document.getElementById('new-measurement-modal').classList.remove('hidden'); 
 };
 
-window.saveNewHealthTask = async function() {
-    const n = document.getElementById('h-task-name').value.trim(); 
-    const type = document.getElementById('h-task-type').value;
-    let interval = 0; let remind = 0; let evDate = null;
-    
-    if (type === 'cyclical') { 
-        interval = parseInt(document.getElementById('h-task-interval').value) || 0; 
-        remind = parseInt(document.getElementById('h-task-remind').value) || 0; 
-    } else if (type === 'one_time') { 
-        evDate = document.getElementById('h-task-date').value || null; 
-        remind = parseInt(document.getElementById('h-task-remind-date').value) || 0; 
-    }
-
-    if (!n || !currentProfileId) return;
-    
-    const { error } = await window.supabaseClient.from('health_tasks').insert([{ 
-        profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, 
-        remind_days_before: remind, event_date: evDate, show_in_history: true, is_archived: false, 
-        user_id: window.currentUser.id, household_id: window.currentUser.household_id 
-    }]);
-    
-    if (error) { window.showToast("Błąd: " + error.message); return; }
-    window.closeNewHealthTaskModal(); window.initHealthModule();
+window.closeNewMeasurementModal = function() {
+    document.getElementById('new-measurement-modal').classList.add('hidden');
 };
 
-window.currentHealthSettingsId = null;
+window.saveNewMeasurement = async function() {
+    const type = document.getElementById('measurement-type').value;
+    const valRaw = document.getElementById('measurement-value').value.trim();
+    const date = document.getElementById('measurement-date').value;
+    const notes = document.getElementById('measurement-notes').value.trim();
 
-window.openHealthSettingsScreen = async function(taskId) {
-    window.currentHealthSettingsId = taskId; 
-    const task = healthTasks.find(t => t.id === taskId);
-    document.getElementById('h-settings-title').innerText = task.name; 
-    document.getElementById('set-h-task-name').value = task.name;
-    document.getElementById('set-h-task-interval-container').classList.toggle('hidden', task.task_type !== 'cyclical');
-    document.getElementById('set-h-task-date-container').classList.toggle('hidden', task.task_type !== 'one_time');
-    
-    if (task.task_type === 'cyclical') { 
-        document.getElementById('set-h-task-interval').value = task.interval_days || 0; 
-        document.getElementById('set-h-task-remind').value = task.remind_days_before || 0; 
-    } else if (task.task_type === 'one_time') { 
-        document.getElementById('set-h-task-date').value = task.event_date || ''; 
-        document.getElementById('set-h-task-remind-date').value = task.remind_days_before || 0; 
-    }
-    document.getElementById('set-h-task-history').checked = task.show_in_history !== false;
-    window.renderHealthHistory(); window.goForward('health-settings-screen');
-};
+    if (!valRaw || !currentProfileId) return;
 
-window.closeHealthSettingsScreen = function() { window.goBack(); };
-
-window.saveHealthTaskSettings = async function() {
-    const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
-    const n = document.getElementById('set-h-task-name').value.trim(); 
-    const showHist = document.getElementById('set-h-task-history').checked;
-    
-    let updateData = { name: n, show_in_history: showHist };
-    if (task.task_type === 'cyclical') { 
-        updateData.interval_days = parseInt(document.getElementById('set-h-task-interval').value) || 0; 
-        updateData.remind_days_before = parseInt(document.getElementById('set-h-task-remind').value) || 0; 
-    } else if (task.task_type === 'one_time') { 
-        updateData.event_date = document.getElementById('set-h-task-date').value || null; 
-        updateData.remind_days_before = parseInt(document.getElementById('set-h-task-remind-date').value) || 0; 
-    }
-
-    const { error } = await window.supabaseClient.from('health_tasks').update(updateData).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
-    if (error) { window.showToast("Błąd: " + error.message); return; }
-    window.showToast("Zapisano!"); window.initHealthModule(); window.goBack();
-    setTimeout(() => window.refreshCurrentView(), 150);
-};
-
-window.renderHealthHistory = function() {
-    const logs = healthLogs.filter(l => l.health_task_id === window.currentHealthSettingsId);
-    document.getElementById('h-settings-history-list').innerHTML = logs.map(l => `
-        <div class="bg-[#131314] px-3 py-2 rounded-[12px] flex justify-between items-center border border-[#333537] mb-1.5">
-            <div>
-                <p class="text-xs font-medium text-neutral-200">${new Date(l.start_date).toLocaleDateString('pl-PL')}</p>
-                <p class="text-[9px] text-neutral-500">${l.end_date ? 'do ' + new Date(l.end_date).toLocaleDateString('pl-PL') : 'trwa'}</p>
-            </div>
-            <button onclick="window.deleteHealthLog(${l.id})" class="text-neutral-500 text-sm">🗑️</button>
-        </div>`).join('') || '<p class="text-center py-4 text-neutral-500 text-xs">Brak wpisów.</p>';
-};
-
-window.deleteHealthLog = function(id) {
-    window.customConfirm("Usunąć ten wpis z historii?", async () => {
-        const { error } = await window.supabaseClient.from('health_logs').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        await window.refreshHealthData(); window.renderHealthHistory(); window.renderHealthUI();
-    });
-};
-
-window.deleteHealthTask = function() {
-    window.customConfirm("Zarchiwizować to zdarzenie?", async () => {
-        const { error } = await window.supabaseClient.from('health_tasks').update({ is_archived: true }).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.closeHealthSettingsScreen(); window.initHealthModule();
-    });
-};
-
-window.openDayDetails = function(dateStr) {
-    const modal = document.getElementById('day-details-modal'); 
-    const list = document.getElementById('day-details-list');
-    document.getElementById('day-details-title').innerText = "Szczegóły Zdrowia";
-    document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
-    
-    const dayLogs = healthLogs.filter(l => { 
-        const start = l.start_date.split('T')[0]; 
-        const end = l.end_date ? l.end_date.split('T')[0] : new Date().toISOString().split('T')[0]; 
-        return dateStr >= start && dateStr <= end; 
-    });
-    const oneTimeEvents = healthTasks.filter(t => t.task_type === 'one_time' && t.event_date === dateStr);
-    
-    if (dayLogs.length === 0 && oneTimeEvents.length === 0) { 
-        list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zdarzeń w tym dniu.</p>`; 
-    } else {
-        let itemsHtml = '';
-        oneTimeEvents.forEach(t => { 
-            const isDone = healthLogs.some(l => l.health_task_id === t.id); 
-            itemsHtml += `
-                <div class="px-3 py-2 bg-[#1e1f20] rounded-xl border border-[#004a77]/30 mb-1.5 flex justify-between items-center">
-                    <div>
-                        <p class="text-sm font-medium text-[#c2e7ff]">📅 ${window.esc(t.name)}</p>
-                        <p class="text-[10px] text-neutral-500 mt-0.5">${isDone ? 'Zrealizowane' : 'Do zrobienia'}</p>
-                    </div>
-                </div>`; 
-        });
-        dayLogs.forEach(l => { 
-            const task = healthTasks.find(t => t.id === l.health_task_id) || { name: 'Usunięte zadanie' }; 
-            itemsHtml += `
-                <div class="px-3 py-2 bg-[#131314] rounded-xl border border-[#333537] mb-1.5 flex justify-between items-center">
-                    <div>
-                        <p class="text-sm font-medium text-neutral-200">${window.esc(task.name)}</p>
-                        <p class="text-[10px] text-neutral-500 mt-0.5">${l.end_date ? 'Zdarzenie zakończone' : 'W trakcie...'}</p>
-                    </div>
-                </div>`; 
-        });
-        list.innerHTML = itemsHtml;
-    }
-    modal.classList.remove('hidden');
-};
-
-window.closeDayDetailsModal = function() { document.getElementById('day-details-modal').classList.add('hidden'); };
-
-window.toggleProfileSwitcher = function() {
-    const modal = document.getElementById('profile-switcher-modal');
-    document.getElementById('switcher-profiles-list').innerHTML = healthProfiles.map(p => `
-        <div onclick="window.selectHealthProfile(${p.id})" class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-[#333537] ${p.id === currentProfileId ? 'bg-[#333537] border border-[#a8c7fa]' : ''}">
-            <div class="w-8 h-8 rounded-full ${window.getAvatarColor ? window.getAvatarColor(p.name) : 'bg-neutral-600'} text-white shadow-inner flex items-center justify-center text-xs font-bold">${window.esc(p.name.charAt(0).toUpperCase())}</div>
-            <span class="text-sm text-neutral-200">${window.esc(p.name)}</span>
-        </div>
-    `).join('');
-    modal.classList.remove('hidden');
-};
-
-window.selectHealthProfile = function(id) { currentProfileId = id; window.closeProfileSwitcher(); window.initHealthModule(); };
-window.closeProfileSwitcher = function() { document.getElementById('profile-switcher-modal').classList.add('hidden'); };
-
-// ==========================================
-// MODUŁ: DOMOWA APTECZKA
-// ==========================================
-
-window.openPharmacyScreen = function() {
-    window.goForward('pharmacy-screen');
-    window.loadPharmacyItems();
-};
-
-window.closePharmacyScreen = function() {
-    window.goBack();
-};
-
-window.allPharmacyItems = []; // Zmienna globalna trzymająca całą apteczkę w pamięci
-
-window.loadPharmacyItems = async function() {
-    const listEl = document.getElementById('pharmacy-list');
-    listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Szukam leków...</p>`;
-
-    const { data, error } = await window.supabaseClient.from('pharmacy_items')
-        .select('*')
-        .eq('household_id', window.currentUser.household_id)
-        .order('expiration_date', { ascending: true, nullsFirst: false });
-
-    if (error) { listEl.innerHTML = `<p class="text-center text-[#ffb4ab] text-xs py-10">Błąd pobierania bazy leków.</p>`; return; }
-
-    window.allPharmacyItems = data || [];
-    
-    // Czyścimy input przy wejściu w apteczkę
-    const searchInput = document.getElementById('pharmacy-search-input');
-    if (searchInput) searchInput.value = '';
-
-    window.renderPharmacyList();
-};
-
-// NOWOŚĆ: Błyskawiczne filtrowanie i generowanie ultra-kompaktowego widoku
-window.renderPharmacyList = function() {
-    const listEl = document.getElementById('pharmacy-list');
-    const searchInput = document.getElementById('pharmacy-search-input');
-    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
-
-    if (window.allPharmacyItems.length === 0) {
-        listEl.innerHTML = `
-            <div class="flex flex-col items-center justify-center py-10 text-center">
-                <div class="text-5xl mb-4 opacity-50">🩹</div>
-                <h3 class="text-neutral-200 font-medium text-sm mb-1">Apteczka jest pusta</h3>
-                <p class="text-neutral-500 text-[10px] uppercase tracking-widest">Kliknij "Dodaj" powyżej</p>
-            </div>`;
+    // Zamiana ewentualnego przecinka na kropkę, żeby baza SQL (Numeric) przyjęła liczbę zmiennoprzecinkową
+    const numericVal = parseFloat(valRaw.replace(',', '.'));
+    if (isNaN(numericVal)) {
+        window.showToast("Podaj poprawną wartość liczbową!");
         return;
     }
 
-    // Filtrowanie (instant search) po nazwie LUB przeznaczeniu
-    const filteredData = window.allPharmacyItems.filter(item => {
-        const nameMatch = item.name.toLowerCase().includes(query);
-        const purposeMatch = item.purpose ? item.purpose.toLowerCase().includes(query) : false;
-        return nameMatch || purposeMatch;
-    });
+    let unit = '';
+    if (type === 'Waga') unit = 'kg';
+    else if (type === 'Wzrost') unit = 'cm';
+    else if (type === 'Temperatura') unit = '°C';
 
-    if (filteredData.length === 0) {
-        listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak wyników dla "${window.esc(query)}"</p>`;
-        return;
-    }
-
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const thirtyDaysFromNow = new Date(today);
-    thirtyDaysFromNow.setDate(today.getDate() + 30);
-
-    listEl.innerHTML = filteredData.map(item => {
-        let statusHtml = '';
-        let borderClass = 'border-[#333537]';
-        let opacityClass = '';
-
-        if (item.expiration_date) {
-            const expDate = new Date(item.expiration_date);
-            expDate.setHours(0,0,0,0);
-            
-            const monthStr = String(expDate.getMonth() + 1).padStart(2, '0');
-            const yearStr = expDate.getFullYear();
-            const displayDate = `${monthStr}.${yearStr}`;
-
-            if (expDate < today) {
-                statusHtml = `<span class="text-[9px] font-bold text-[#ffb4ab] bg-[#3c1414] px-1.5 py-0.5 rounded uppercase tracking-wider shadow-sm">⚠ ${displayDate}</span>`;
-                borderClass = 'border-[#8c1d18]/50';
-                opacityClass = 'opacity-60'; 
-            } else if (expDate <= thirtyDaysFromNow) {
-                statusHtml = `<span class="text-[9px] font-bold text-amber-200 bg-amber-900/50 px-1.5 py-0.5 rounded uppercase tracking-wider shadow-sm">⏳ ${displayDate}</span>`;
-                borderClass = 'border-amber-700/50';
-            } else {
-                statusHtml = `<span class="text-[10px] font-medium text-neutral-400">${displayDate}</span>`;
-            }
-        } else {
-            statusHtml = `<span class="text-[9px] text-neutral-600 uppercase tracking-widest">Brak daty</span>`;
-        }
-
-        // ULTRA KOMPAKTOWY KAFELEK ZE SWIPE-TO-DELETE
-        return `
-        <div class="relative overflow-hidden mb-1 rounded-[14px] group ${opacityClass}">
-            <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-4">
-                <button onclick="window.deletePharmacyItem(${item.id})" class="text-[#ffb4ab] text-lg active:scale-90 transition-transform">🗑️</button>
-            </div>
-            <div class="swipe-front relative z-10 flex items-center justify-between p-2.5 bg-[#1e1f20] rounded-[14px] border ${borderClass} w-full transition-transform shadow-sm">
-                <div class="flex flex-col flex-1 min-w-0 pr-2">
-                    <h3 class="font-medium text-neutral-100 text-sm truncate leading-tight">${window.esc(item.name)}</h3>
-                    ${item.purpose ? `<p class="text-[10px] text-neutral-500 truncate leading-tight mt-0.5">${window.esc(item.purpose)}</p>` : ''}
-                </div>
-                <div class="shrink-0 flex items-center gap-2">
-                    ${statusHtml}
-                    <button onclick="window.deletePharmacyItem(${item.id})" class="hidden md:block opacity-0 group-hover:opacity-100 text-neutral-600 hover:text-[#ffb4ab] px-1 text-sm shrink-0 transition-opacity">✕</button>
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-};
-
-window.openNewPharmacyItemModal = function() {
-    document.getElementById('pharmacy-item-name').value = '';
-    document.getElementById('pharmacy-item-exp').value = '';
-    document.getElementById('pharmacy-item-purpose').value = '';
-    document.getElementById('new-pharmacy-item-modal').classList.remove('hidden');
-};
-
-window.closeNewPharmacyItemModal = function() {
-    document.getElementById('new-pharmacy-item-modal').classList.add('hidden');
-};
-
-window.saveNewPharmacyItem = async function() {
-    const name = document.getElementById('pharmacy-item-name').value.trim();
-    const expRaw = document.getElementById('pharmacy-item-exp').value || null; // Wartość z input=month to "YYYY-MM"
-    const purpose = document.getElementById('pharmacy-item-purpose').value.trim() || null;
-
-    if (!name) { window.showToast("Podaj nazwę leku!"); return; }
-
-    let expDateSQL = null;
-    if (expRaw) {
-        // Konwersja YYYY-MM na pełną datę (ostatni dzień danego miesiąca)
-        const parts = expRaw.split('-');
-        if (parts.length === 2) {
-            const year = parseInt(parts[0]);
-            const month = parseInt(parts[1]);
-            // Przekazanie "0" jako dnia do obiektu Date zwraca ostatni dzień poprzedniego miesiąca
-            const lastDay = new Date(year, month, 0).getDate();
-            expDateSQL = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-        }
-    }
-
-    const { error } = await window.supabaseClient.from('pharmacy_items').insert([{
+    const { error } = await window.supabaseClient.from('health_measurements').insert([{
         household_id: window.currentUser.household_id,
+        profile_id: currentProfileId,
         user_id: window.currentUser.id,
-        name: name,
-        expiration_date: expDateSQL,
-        purpose: purpose
+        measurement_type: type,
+        value: numericVal,
+        unit: unit,
+        notes: notes,
+        created_at: `${date}T12:00:00.000Z` // Oszukujemy czas, by zgadzała się data
     }]);
 
     if (error) { window.showToast("Błąd zapisu: " + error.message); return; }
     
-    if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
-    window.closeNewPharmacyItemModal();
-    window.showToast("Lek dodany do apteczki!");
-    window.loadPharmacyItems();
+    window.closeNewMeasurementModal();
+    window.showToast("Pomiar zapisany!");
+    if (window.activeView === 'health-book-screen') window.loadHealthBook();
 };
 
-window.deletePharmacyItem = function(id) {
-    window.customConfirm("Usunąć ten lek z apteczki?", async () => {
-        const { error } = await window.supabaseClient.from('pharmacy_items').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
-        if (error) { window.showToast("Błąd usuwania: " + error.message); return; }
-        
-        window.showToast("Lek wyrzucony! 🗑️");
-        window.loadPharmacyItems();
+window.openHealthBook = function() { 
+    window.goForward('health-book-screen');
+    window.loadHealthBook();
+};
+
+window.closeHealthBook = function() {
+    window.goBack();
+};
+
+window.loadHealthBook = async function() {
+    const tl = document.getElementById('health-book-timeline');
+    tl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Analizowanie historii pacjenta...</p>`;
+
+    const profile = healthProfiles.find(p => p.id === currentProfileId);
+    if (profile) document.getElementById('health-book-subtitle').innerText = `Pacjent: ${profile.name}`;
+
+    // Pobieramy pomiary specjalnie dla Książeczki
+    const { data: measurements } = await window.supabaseClient.from('health_measurements')
+        .select('*')
+        .eq('profile_id', currentProfileId)
+        .order('created_at', { ascending: false });
+
+    // Filtrujemy globalne logi, żeby pokazać tylko te dotyczące bieżącego profilu
+    const profileTaskIds = healthTasks.map(t => t.id);
+    const profileLogs = healthLogs.filter(l => profileTaskIds.includes(l.health_task_id));
+
+    // Zbieramy wszystko do jednej spójnej listy
+    let timelineItems = [];
+
+    // 1. Dorzucamy pomiary
+    (measurements || []).forEach(m => {
+        timelineItems.push({
+            date: new Date(m.created_at),
+            title: `Pomiar: ${m.measurement_type}`,
+            desc: `<span class="text-[#c2e7ff] font-bold text-base">${m.value} ${m.unit || ''}</span> ${m.notes ? `<br><span class="opacity-70">${window.esc(m.notes)}</span>` : ''}`,
+            icon: '📏',
+            color: 'text-[#c2e7ff]',
+            bg: 'bg-[#004a77]/10 border-[#004a77]/30'
+        });
     });
+
+    // 2. Dorzucamy logi (choroby, szczepienia, cykle)
+    profileLogs.forEach(l => {
+        const task = healthTasks.find(t => t.id === l.health_task_id);
+        if (!task) return;
+
+        if (task.task_type === 'duration') {
+            // Rejestrujemy moment rozpoczęcia (np. gorączki)
+            timelineItems.push({
+                date: new Date(l.start_date),
+                title: `Zgłoszono: ${task.name}`,
+                desc: l.notes ? window.esc(l.notes) : 'Początek objawu/kuracji',
+                icon: '🤒',
+                color: 'text-[#ffb4ab]',
+                bg: 'bg-[#3c1414]/30 border-[#8c1d18]/40'
+            });
+            
+            // Rejestrujemy moment zakończenia
+            if (l.end_date) {
+                const days = Math.max(1, Math.ceil((new Date(l.end_date) - new Date(l.start_date)) / 86400000));
+                timelineItems.push({
+                    date: new Date(l.end_date),
+                    title: `Zakończono: ${task.name}`,
+                    desc: `Czas trwania: <b>${days} dni</b>`,
+                    icon: '🏁',
+                    color: 'text-rose-300',
+                    bg: 'bg-rose-900/10 border-rose-800/30'
+                });
+            }
+        } else if (task.task_type === 'one_time') {
+            timelineItems.push({
+                date: new Date(l.start_date),
+                title: task.name,
+                desc: l.notes ? window.esc(l.notes) : 'Wydarzenie medyczne',
+                icon: '📅',
+                color: 'text-amber-200',
+                bg: 'bg-amber-900/10 border-amber-700/30'
+            });
+        } else {
+            timelineItems.push({
+                date: new Date(l.start_date),
+                title: task.name,
+                desc: 'Wykonano z rutyny',
+                icon: '🔄',
+                color: 'text-[#c4eed0]',
+                bg: 'bg-[#0f5223]/10 border-[#0f5223]/30'
+            });
+        }
+    });
+
+    // Sortujemy wszystko od najnowszego do najstarszego
+    timelineItems.sort((a, b) => b.date - a.date);
+
+    if (timelineItems.length === 0) {
+        tl.innerHTML = `<div class="py-10 text-neutral-500 text-xs text-center relative -left-[16px]">Książeczka jest pusta. Dodaj wpisy, by budować historię medyczną.</div>`;
+        return;
+    }
+
+    // Generator renderowania osi czasu
+    let html = '';
+    let lastMonthYear = '';
+
+    timelineItems.forEach(item => {
+        const monthYear = item.date.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' });
+        
+        // Grupowanie miesiącami - ładne bańki z nazwą miesiąca
+        if (monthYear !== lastMonthYear) {
+            html += `
+                <div class="relative -left-7 mb-4 mt-6">
+                    <span class="bg-[#1e1f20] px-3 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-neutral-400 border border-[#333537] shadow-sm">${monthYear}</span>
+                </div>
+            `;
+            lastMonthYear = monthYear;
+        }
+
+        html += `
+            <div class="relative mb-5 last:mb-0">
+                <div class="absolute -left-[22px] top-4 w-2.5 h-2.5 rounded-full ${item.bg.split(' ')[0]} border border-[#333537] shadow-[0_0_8px_rgb(0,0,0,0.5)]"></div>
+                
+                <div class="bg-[#1e1f20] rounded-[20px] border ${item.bg} p-3.5 shadow-sm">
+                    <div class="flex items-start justify-between gap-3 mb-1.5">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="text-base shrink-0">${item.icon}</span>
+                            <h4 class="font-medium text-sm ${item.color} truncate">${window.esc(item.title)}</h4>
+                        </div>
+                        <span class="text-[9px] text-neutral-500 font-medium shrink-0 pt-0.5">${item.date.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                    </div>
+                    <p class="text-[11px] text-neutral-400 leading-relaxed ml-7">${item.desc}</p>
+                </div>
+            </div>
+        `;
+    });
+
+    tl.innerHTML = html;
 };
