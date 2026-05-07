@@ -146,3 +146,38 @@ window.getAvatarColor = function(name) {
     ];
     return colors[hash % colors.length];
 };
+// --- SYSTEM DYNAMICZNEGO ŁADOWANIA MODALI (LAZY LOADING) ---
+window.loadAndShowModal = async function(modalId, filePath, onLoadedCallback) {
+    let modal = document.getElementById(modalId);
+    
+    // Jeśli modala nie ma w pliku index.html, musimy go pobrać
+    if (!modal) {
+        try {
+            const response = await fetch(filePath);
+            if (!response.ok) throw new Error('Błąd pliku HTML');
+            
+            const html = await response.text();
+            
+            // Tworzymy tymczasowy kontener, żeby zamienić tekst na prawdziwy HTML
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = html;
+            
+            // Doklejamy pobrany modal na sam koniec naszego body
+            document.body.appendChild(wrapper.firstElementChild);
+            
+            modal = document.getElementById(modalId);
+        } catch (error) {
+            console.error("Błąd ładowania modala:", error);
+            window.showToast("Błąd ładowania widoku!");
+            return;
+        }
+    }
+    
+    // Pokazujemy modal
+    modal.classList.remove('hidden');
+    
+    // Odpalamy dodatkowe funkcje (np. czyszczenie formularza), jeśli zostały przekazane
+    if (typeof onLoadedCallback === 'function') {
+        onLoadedCallback();
+    }
+};
