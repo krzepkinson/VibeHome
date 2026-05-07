@@ -5,13 +5,15 @@
 let searchTimeout = null;
 
 window.openGlobalSearch = function() {
-    document.getElementById('global-search-input').value = '';
-    document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
-    
-    // Zdejmujemy ukrycie i NATYCHMIAST fokusujemy, by przechytrzyć blokady mobilne
-    document.getElementById('search-modal').classList.remove('hidden');
-    const input = document.getElementById('global-search-input');
-    if (input) input.focus();
+    window.loadAndShowModal('search-modal', '/modals/search.html', () => {
+        document.getElementById('global-search-input').value = '';
+        document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
+        
+        setTimeout(() => {
+            const input = document.getElementById('global-search-input');
+            if (input) input.focus();
+        }, 50);
+    });
 };
 
 window.closeGlobalSearch = function() {
