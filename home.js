@@ -317,11 +317,19 @@ window.saveNewLog = async function() {
 };
 
 window.openNewTaskModal = function() {
-    document.getElementById('new-task-name').value = '';
-    if(typeof window.populateRoomsDropdown === 'function') window.populateRoomsDropdown('new-task-room');
-    document.getElementById('new-task-interval').value = '';
-    document.getElementById('new-task-remind').value = '0';
-    document.getElementById('new-task-modal').classList.remove('hidden');
+    window.loadAndShowModal('new-task-modal', '/modals/new-task.html', () => {
+        // Wszystko w tym bloku wykona się DOPIERO jak plik HTML zostanie pobrany i wklejony do strony
+        document.getElementById('new-task-name').value = '';
+        if(typeof window.populateRoomsDropdown === 'function') window.populateRoomsDropdown('new-task-room');
+        document.getElementById('new-task-interval').value = '';
+        document.getElementById('new-task-remind').value = '0';
+        
+        // Fuksowanie po załadowaniu
+        setTimeout(() => {
+            const input = document.getElementById('new-task-name');
+            if (input) input.focus();
+        }, 50);
+    });
 };
 
 window.closeNewTaskModal = function() { document.getElementById('new-task-modal').classList.add('hidden'); };
