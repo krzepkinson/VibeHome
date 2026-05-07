@@ -34,12 +34,12 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
     if (forceRefresh || !window.dashboardCache || (now - window.dashboardCacheTime > 30000)) {
         listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Synchronizacja...</p>`;
         const hid = window.currentUser.household_id; 
-        const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes, profilesRes] = await Promise.all([
+        const [tasksRes, logsRes, healthTasksRes, healthLogsRes, Res, profilesRes] = await Promise.all([
             window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
             window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }),
             window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
             window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }),
-            window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }),
+            window.supabaseClient.from('s').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }),
             window.supabaseClient.from('profiles').select('*').eq('household_id', hid)
         ]);
         window.dashboardCache = { 
