@@ -59,7 +59,7 @@ window.goForward = function(screenId) {
 };
 
 window.goBack = function() {
-    const subScreens = ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen', 'checklist-screen', 'archive-screen'];
+    const subScreens = ['settings-screen', 'health-settings-screen', 'edit-profile-screen', 'settings-rooms-screen', 'settings-profiles-screen', 'checklist-screen', 'archive-screen', 'stats-screen'];
     
     const isSubScreenOpen = subScreens.some(id => {
         const el = document.getElementById(id);
