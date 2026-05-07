@@ -191,8 +191,15 @@ window.saveNewList = async function() {
 window.toggleTodo = async function(id, currentStatus) {
     if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
     
-    let updateData = { is_completed: !currentStatus };
-    updateData.completer_name = !currentStatus ? window.currentUser.name : null;
+    const now = new Date().toISOString();
+    let updateData = { 
+        is_completed: !currentStatus,
+        // Jeśli zadanie jest właśnie kończone (currentStatus był false), ustaw czas. 
+        // Jeśli jest przywracane do zrobienia, wyczyść czas (null).
+        completed_at: !currentStatus ? now : null,
+        completer_name: !currentStatus ? window.currentUser.name : null
+    };
+
     const { error } = await window.supabaseClient.from('todos')
         .update(updateData).eq('id', id).eq('household_id', window.currentUser.household_id);
         
