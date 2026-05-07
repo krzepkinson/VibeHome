@@ -391,14 +391,14 @@
         </div>
     </div>
     
-    <div id="new-pharmacy-item-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
+<div id="new-pharmacy-item-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
         <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
             <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Dodaj do apteczki</h3>
             <div class="space-y-3">
                 <input type="text" id="pharmacy-item-name" maxlength="100" placeholder="Nazwa leku (np. Ibum Forte)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
                 <div>
-                    <label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Data ważności</label>
-                    <input type="date" id="pharmacy-item-exp" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]">
+                    <label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Data ważności (Miesiąc / Rok)</label>
+                    <input type="month" id="pharmacy-item-exp" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]">
                 </div>
                 <input type="text" id="pharmacy-item-purpose" maxlength="150" placeholder="Na co to jest? (opcjonalnie)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
             </div>
