@@ -2,40 +2,58 @@
 // LOGIKA: ZMIANA WYKONAWCY (user-log.js)
 // ==========================================
 
-window.openChangeUserModal = function(type, id, currentName) {
+window.openChangeUserModal = async function(type, id, currentName) {
     document.getElementById('change-user-type').value = type;
     document.getElementById('change-user-id').value = id;
     
-    let names = new Set();
-    
-    if (window.currentUser && window.currentUser.name) {
-        names.add(window.currentUser.name);
-    }
-    
-    document.querySelectorAll('[data-user-name]').forEach(el => {
-        const n = el.getAttribute('data-user-name');
-        if (n && n !== '?' && n !== 'Ja') {
-            names.add(n);
-        }
-    });
-    
-    if (currentName && currentName !== 'Ja') {
-        names.add(currentName);
-    }
-    
     const listEl = document.getElementById('change-user-list');
-    listEl.innerHTML = Array.from(names).map(name => `
-        <button onclick="window.saveChangedUser('${window.esc(name)}')" class="w-full text-left px-4 py-3 bg-[#1e1f20] border border-[#333537] rounded-[16px] mb-2 text-neutral-200 active:scale-95 transition-colors">
-            <span class="font-medium">${window.esc(name)}</span>
-        </button>
-    `).join('');
-        
+    
+    // 1. Pokazujemy modal od razu z animacją ładowania
+    listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-6 animate-pulse">Szukam domowników...</p>`;
     document.getElementById('change-user-custom').value = '';
     
     document.querySelectorAll('#change-user-modal').forEach(modal => {
         modal.classList.remove('hidden');
     });
 
+    let names = new Set();
+    
+    // 2. Zawsze dodajemy Ciebie (Zalogowanego Użytkownika)
+    if (window.currentUser && window.currentUser.name) {
+        names.add(window.currentUser.name);
+    }
+    
+    // 3. Pobieramy profile z Bazy Danych (koniec z zeskrobywaniem z ekranu!)
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('profiles')
+            .select('name')
+            .eq('household_id', window.currentUser.household_id);
+
+        if (!error && data) {
+            data.forEach(profile => {
+                if (profile.name && profile.name !== '?' && profile.name !== 'Ja') {
+                    names.add(profile.name);
+                }
+            });
+        }
+    } catch (e) {
+        console.error("Błąd pobierania domowników:", e);
+    }
+    
+    // 4. Ewentualnie dodajemy imię, które już tam było wpisane (jeśli ktoś z palca wpisał "Babcia")
+    if (currentName && currentName !== 'Ja' && currentName !== '?') {
+        names.add(currentName);
+    }
+    
+    // 5. Renderujemy gotową listę
+    listEl.innerHTML = Array.from(names).map(name => `
+        <button onclick="window.saveChangedUser('${window.esc(name)}')" class="w-full text-left px-4 py-3 bg-[#1e1f20] border border-[#333537] rounded-[16px] mb-2 text-neutral-200 active:scale-95 transition-colors">
+            <span class="font-medium">${window.esc(name)}</span>
+        </button>
+    `).join('');
+    
+    // 6. Ustawiamy kursor na polu
     setTimeout(() => {
         const input = document.getElementById('change-user-custom');
         if (input) input.focus();
