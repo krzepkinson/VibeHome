@@ -303,9 +303,13 @@ window.saveNewLog = async function() {
     const nt = document.getElementById('add-log-notes').value;
     const taskObj = allHomeTasks.find(t => t.id == taskId);
     
+    // ZMIANA: Inteligentny czas. Jeśli data to dzisiaj - daj dokładny czas. Jeśli z przeszłości - daj 12:00.
+    const todayStr = new Date().toISOString().split('T')[0];
+    const finalDate = (d === todayStr) ? new Date().toISOString() : `${d}T12:00:00.000Z`;
+    
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
         task_id: taskId, activity_name: taskObj ? taskObj.name : 'Zadanie', 
-        created_at: `${d}T12:00:00.000Z`, notes: nt, 
+        created_at: finalDate, notes: nt, 
         user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
     }]);
     
@@ -389,23 +393,19 @@ window.saveEditLog = async function() {
 
     if (!id || !date) return;
 
-    // Aktualizujemy rekord w bazie danych
+    // ZMIANA: Inteligentny czas przy edycji
+    const todayStr = new Date().toISOString().split('T')[0];
+    const finalDate = (date === todayStr) ? new Date().toISOString() : `${date}T12:00:00.000Z`;
+
     const { error } = await window.supabaseClient.from('activity_logs')
-        .update({ created_at: `${date}T12:00:00.000Z`, notes: notes })
+        .update({ created_at: finalDate, notes: notes })
         .eq('id', id)
         .eq('household_id', window.currentUser.household_id);
 
-    if (error) {
-        window.showToast("Błąd: " + error.message);
-        return;
-    }
+    if (error) { window.showToast("Błąd: " + error.message); return; }
 
     window.showToast("Wpis zaktualizowany! ✏️");
     window.closeEditLogModal();
-    
-    // Resetujemy cache, żeby na przeglądzie pojawiły się świeże dane
     if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
-    
-    // Przeładowujemy widok w tle
     if (typeof window.refreshCurrentView === 'function') await window.refreshCurrentView();
 };
