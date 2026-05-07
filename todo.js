@@ -217,9 +217,15 @@ window.archiveChecklist = function(id) {
 };
 
 window.openEditTodoModal = function(id, title) {
-    document.getElementById('edit-todo-id').value = id;
-    document.getElementById('edit-todo-title').value = title;
-    document.getElementById('edit-todo-modal').classList.remove('hidden');
+    window.loadAndShowModal('edit-todo-modal', '/modals/edit-todo.html', () => {
+        document.getElementById('edit-todo-id').value = id;
+        document.getElementById('edit-todo-title').value = title;
+        
+        setTimeout(() => {
+            const input = document.getElementById('edit-todo-title');
+            if (input) input.focus();
+        }, 50);
+    });
 };
 window.closeEditTodoModal = function() { document.getElementById('edit-todo-modal').classList.add('hidden'); };
 
