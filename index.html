@@ -347,29 +347,7 @@
     
     
     <div id="edit-todo-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4"><div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl"><h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Edycja Zadania</h3><input type="hidden" id="edit-todo-id"><input type="text" id="edit-todo-title" maxlength="150" class="w-full p-4 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa] mb-6"><div class="flex gap-3"><button onclick="window.closeEditTodoModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button><button onclick="window.saveEditedTodo()" class="flex-1 bg-[#a8c7fa] text-[#004a77] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button></div></div></div>
-    
-    <div id="new-list-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
-            <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Nowa Lista</h3>
-            <input type="text" id="new-list-title" maxlength="100" placeholder="Np. Wyjazd w Bieszczady 🏔️" class="w-full p-4 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa] mb-3">
-            <select id="new-list-type" onchange="window.toggleListTemplates()" class="w-full p-4 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa] mb-3">
-                <option value="generic">🗂️ Zwykła Lista</option>
-                <option value="shopping">🛒 Lista Zakupów</option>
-                <option value="packing">🧳 Do spakowania</option>
-            </select>
-            <div id="new-list-template-container" class="hidden mb-3">
-                <select id="new-list-template" class="w-full p-4 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-                    <option value="">Własna lista (pusta)</option>
-                    <option value="weekend">Szablon: Wyjazd weekendowy</option>
-                    <option value="week">Szablon: Wyjazd tygodniowy</option>
-                </select>
-            </div>
-            <div class="flex gap-3 mt-6">
-                <button onclick="window.closeNewListModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-                <button onclick="window.saveNewList()" class="flex-1 bg-[#004a77] text-[#c2e7ff] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Stwórz</button>
-            </div>
-        </div>
-    </div>
+
     
     <div id="day-details-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex justify-center items-end sm:items-center p-0 sm:p-4 transition-all"><div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-md p-6 shadow-2xl max-h-[80vh] flex flex-col"><div class="flex justify-between items-center mb-4 pb-2 border-b border-[#333537]"><div><h3 class="text-base font-medium text-neutral-100 tracking-wide" id="day-details-title">Szczegóły Dnia</h3><p class="text-[10px] uppercase tracking-widest text-neutral-400" id="day-details-date">Data</p></div><button onclick="window.closeDayDetailsModal()" class="w-8 h-8 rounded-full bg-[#333537] text-neutral-200 flex items-center justify-center font-medium active:scale-90 transition-transform">✕</button></div><div id="day-details-list" class="space-y-2 overflow-y-auto pb-4"></div></div></div>
     
