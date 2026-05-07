@@ -418,3 +418,121 @@ window.toggleProfileSwitcher = function() {
 
 window.selectHealthProfile = function(id) { currentProfileId = id; window.closeProfileSwitcher(); window.initHealthModule(); };
 window.closeProfileSwitcher = function() { document.getElementById('profile-switcher-modal').classList.add('hidden'); };
+
+// ==========================================
+// MODUŁ: DOMOWA APTECZKA
+// ==========================================
+
+window.openPharmacyScreen = function() {
+    window.goForward('pharmacy-screen');
+    window.loadPharmacyItems();
+};
+
+window.closePharmacyScreen = function() {
+    window.goBack();
+};
+
+window.loadPharmacyItems = async function() {
+    const listEl = document.getElementById('pharmacy-list');
+    listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Szukam leków...</p>`;
+
+    const { data, error } = await window.supabaseClient.from('pharmacy_items')
+        .select('*')
+        .eq('household_id', window.currentUser.household_id)
+        .order('expiration_date', { ascending: true, nullsFirst: false });
+
+    if (error) { listEl.innerHTML = `<p class="text-center text-[#ffb4ab] text-xs py-10">Błąd pobierania bazy leków.</p>`; return; }
+
+    if (!data || data.length === 0) {
+        listEl.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-10 text-center">
+                <div class="text-5xl mb-4 opacity-50">🩹</div>
+                <h3 class="text-neutral-200 font-medium text-sm mb-1">Apteczka jest pusta</h3>
+                <p class="text-neutral-500 text-[10px] uppercase tracking-widest">Kliknij "Dodaj lek" powyżej</p>
+            </div>`;
+        return;
+    }
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const thirtyDaysFromNow = new Date(today);
+    thirtyDaysFromNow.setDate(today.getDate() + 30);
+
+    listEl.innerHTML = data.map(item => {
+        let statusHtml = '';
+        let borderClass = 'border-[#333537]';
+        let opacityClass = '';
+
+        if (item.expiration_date) {
+            const expDate = new Date(item.expiration_date);
+            expDate.setHours(0,0,0,0);
+
+            if (expDate < today) {
+                statusHtml = `<span class="text-[9px] font-bold text-[#ffb4ab] bg-[#3c1414] px-2 py-0.5 rounded uppercase tracking-wider">Przeterminowany</span>`;
+                borderClass = 'border-[#8c1d18]/50';
+                opacityClass = 'opacity-50'; // Przeterminowane lekko przygaszone
+            } else if (expDate <= thirtyDaysFromNow) {
+                statusHtml = `<span class="text-[9px] font-bold text-amber-200 bg-amber-900/50 px-2 py-0.5 rounded uppercase tracking-wider">Wkrótce (do ${expDate.toLocaleDateString('pl-PL')})</span>`;
+                borderClass = 'border-amber-700/50';
+            } else {
+                statusHtml = `<span class="text-[9px] text-neutral-500 uppercase tracking-widest">Ważny do: ${expDate.toLocaleDateString('pl-PL')}</span>`;
+            }
+        } else {
+            statusHtml = `<span class="text-[9px] text-neutral-600 uppercase tracking-widest">Brak daty ważności</span>`;
+        }
+
+        return `
+            <div class="flex items-center justify-between p-3.5 bg-[#1e1f20] rounded-[16px] border ${borderClass} mb-1.5 shadow-sm transition-all ${opacityClass}">
+                <div class="flex-1 min-w-0 pr-3">
+                    <h3 class="font-medium text-neutral-100 text-sm truncate">${window.esc(item.name)}</h3>
+                    ${item.purpose ? `<p class="text-[10px] text-neutral-400 truncate mt-0.5 mb-2">${window.esc(item.purpose)}</p>` : '<div class="h-1"></div>'}
+                    <div>${statusHtml}</div>
+                </div>
+                <button onclick="window.deletePharmacyItem(${item.id})" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-500 hover:text-[#ffb4ab] hover:bg-[#333537] text-sm shrink-0 transition-colors">🗑️</button>
+            </div>`;
+    }).join('');
+};
+
+window.openNewPharmacyItemModal = function() {
+    document.getElementById('pharmacy-item-name').value = '';
+    document.getElementById('pharmacy-item-exp').value = '';
+    document.getElementById('pharmacy-item-purpose').value = '';
+    document.getElementById('new-pharmacy-item-modal').classList.remove('hidden');
+};
+
+window.closeNewPharmacyItemModal = function() {
+    document.getElementById('new-pharmacy-item-modal').classList.add('hidden');
+};
+
+window.saveNewPharmacyItem = async function() {
+    const name = document.getElementById('pharmacy-item-name').value.trim();
+    const exp = document.getElementById('pharmacy-item-exp').value || null;
+    const purpose = document.getElementById('pharmacy-item-purpose').value.trim() || null;
+
+    if (!name) { window.showToast("Podaj nazwę leku!"); return; }
+
+    const { error } = await window.supabaseClient.from('pharmacy_items').insert([{
+        household_id: window.currentUser.household_id,
+        user_id: window.currentUser.id,
+        name: name,
+        expiration_date: exp,
+        purpose: purpose
+    }]);
+
+    if (error) { window.showToast("Błąd zapisu: " + error.message); return; }
+    
+    if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+    window.closeNewPharmacyItemModal();
+    window.showToast("Lek dodany do apteczki!");
+    window.loadPharmacyItems();
+};
+
+window.deletePharmacyItem = function(id) {
+    window.customConfirm("Usunąć ten lek z apteczki?", async () => {
+        const { error } = await window.supabaseClient.from('pharmacy_items').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+        if (error) { window.showToast("Błąd usuwania: " + error.message); return; }
+        
+        window.showToast("Lek wyrzucony! 🗑️");
+        window.loadPharmacyItems();
+    });
+};
