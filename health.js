@@ -88,7 +88,7 @@ window.renderHealthSections = function() {
     const routineList = document.getElementById('health-routine-list');
     const today = new Date(); today.setHours(0,0,0,0);
 
-    // 1. Sekcja: AKTYWNE (duration z end_date == null)
+    // 1. Sekcja: AKTYWNE
     const activeTasks = healthTasks.filter(t => t.task_type === 'duration');
     const currentlyActive = [];
     activeTasks.forEach(t => {
@@ -109,7 +109,7 @@ window.renderHealthSections = function() {
         `).join('');
     }
 
-    // 2. Sekcja: NADCHODZĄCE (one_time w przyszłości)
+    // 2. Sekcja: NADCHODZĄCE
     const upcoming = healthTasks.filter(t => {
         if (t.task_type !== 'one_time' || !t.event_date) return false;
         const evDate = new Date(t.event_date); evDate.setHours(0,0,0,0);
@@ -133,7 +133,7 @@ window.renderHealthSections = function() {
         }).join('');
     }
 
-    // 3. Sekcja: RUTYNA (cyclical)
+    // 3. Sekcja: RUTYNA
     if(routineList) {
         routineList.innerHTML = healthTasks.filter(t => t.task_type === 'cyclical').map(t => {
             const tLogs = healthLogs.filter(l => l.health_task_id === t.id);
@@ -226,13 +226,31 @@ window.getHealthStatusString = function(task, activeLog, taskLogs) {
         return `Zaplanowane: <span class="text-[#c4eed0]">${new Date(task.event_date).toLocaleDateString('pl-PL')}</span>`;
     } 
     else {
-        if (task.interval_days > 0) return `Co ${task.interval_days} dni`;
-        if (!taskLogs || !taskLogs[0]) return 'Jeszcze nie było robione';
-        const last = new Date(taskLogs[0].start_date); last.setHours(0,0,0,0);
-        const diff = Math.floor((today - last) / 86400000);
-        if (diff === 0) return 'Ostatni raz: dzisiaj';
-        if (diff === 1) return 'Ostatni raz: wczoraj';
-        return `Ostatni raz: ${diff} dni temu`;
+        // NOWA, INTELIGENTNA LOGIKA DLA RUTYN (CYKLICZNYCH)
+        if (!taskLogs || taskLogs.length === 0) {
+            return `Ostatnio: <span class="text-neutral-600">nigdy</span> • Następna: <span class="text-[#ffb4ab] font-bold">Teraz</span>`;
+        }
+        
+        const lastDate = new Date(taskLogs[0].start_date); 
+        lastDate.setHours(0,0,0,0);
+        const diffLast = Math.floor((today - lastDate) / 86400000);
+        let lastStr = diffLast === 0 ? 'dziś' : (diffLast === 1 ? 'wczoraj' : `${diffLast} dni temu`);
+        
+        if (!task.interval_days || task.interval_days === 0) {
+            return `Ostatnio: <span class="text-neutral-300">${lastStr}</span>`;
+        }
+        
+        const nextDate = new Date(lastDate);
+        nextDate.setDate(nextDate.getDate() + task.interval_days);
+        const diffNext = Math.ceil((nextDate - today) / 86400000);
+        
+        let nextStr = '';
+        if (diffNext < 0) nextStr = `<span class="text-[#ffb4ab] font-bold">spóźnione ${Math.abs(diffNext)} dni!</span>`;
+        else if (diffNext === 0) nextStr = `<span class="text-amber-400 font-bold">dziś!</span>`;
+        else if (diffNext === 1) nextStr = `<span class="text-[#c4eed0]">jutro</span>`;
+        else nextStr = `<span class="text-neutral-300">za ${diffNext} dni</span>`;
+        
+        return `Ostatnio: <span class="text-neutral-400">${lastStr}</span> • Następna: ${nextStr}`;
     }
 };
 
@@ -497,16 +515,21 @@ window.loadPharmacyItems = async function() {
         if (item.expiration_date) {
             const expDate = new Date(item.expiration_date);
             expDate.setHours(0,0,0,0);
+            
+            // Formatowanie daty na MM.YYYY
+            const monthStr = String(expDate.getMonth() + 1).padStart(2, '0');
+            const yearStr = expDate.getFullYear();
+            const displayDate = `${monthStr}.${yearStr}`;
 
             if (expDate < today) {
-                statusHtml = `<span class="text-[9px] font-bold text-[#ffb4ab] bg-[#3c1414] px-2 py-0.5 rounded uppercase tracking-wider">Przeterminowany</span>`;
+                statusHtml = `<span class="text-[9px] font-bold text-[#ffb4ab] bg-[#3c1414] px-2 py-0.5 rounded uppercase tracking-wider">Przeterminowany (${displayDate})</span>`;
                 borderClass = 'border-[#8c1d18]/50';
                 opacityClass = 'opacity-50'; 
             } else if (expDate <= thirtyDaysFromNow) {
-                statusHtml = `<span class="text-[9px] font-bold text-amber-200 bg-amber-900/50 px-2 py-0.5 rounded uppercase tracking-wider">Wkrótce (do ${expDate.toLocaleDateString('pl-PL')})</span>`;
+                statusHtml = `<span class="text-[9px] font-bold text-amber-200 bg-amber-900/50 px-2 py-0.5 rounded uppercase tracking-wider">Wkrótce (do ${displayDate})</span>`;
                 borderClass = 'border-amber-700/50';
             } else {
-                statusHtml = `<span class="text-[9px] text-neutral-500 uppercase tracking-widest">Ważny do: ${expDate.toLocaleDateString('pl-PL')}</span>`;
+                statusHtml = `<span class="text-[9px] text-neutral-500 uppercase tracking-widest">Ważny do: ${displayDate}</span>`;
             }
         } else {
             statusHtml = `<span class="text-[9px] text-neutral-600 uppercase tracking-widest">Brak daty ważności</span>`;
@@ -537,16 +560,29 @@ window.closeNewPharmacyItemModal = function() {
 
 window.saveNewPharmacyItem = async function() {
     const name = document.getElementById('pharmacy-item-name').value.trim();
-    const exp = document.getElementById('pharmacy-item-exp').value || null;
+    const expRaw = document.getElementById('pharmacy-item-exp').value || null; // Wartość z input=month to "YYYY-MM"
     const purpose = document.getElementById('pharmacy-item-purpose').value.trim() || null;
 
     if (!name) { window.showToast("Podaj nazwę leku!"); return; }
+
+    let expDateSQL = null;
+    if (expRaw) {
+        // Konwersja YYYY-MM na pełną datę (ostatni dzień danego miesiąca)
+        const parts = expRaw.split('-');
+        if (parts.length === 2) {
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]);
+            // Przekazanie "0" jako dnia do obiektu Date zwraca ostatni dzień poprzedniego miesiąca
+            const lastDay = new Date(year, month, 0).getDate();
+            expDateSQL = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        }
+    }
 
     const { error } = await window.supabaseClient.from('pharmacy_items').insert([{
         household_id: window.currentUser.household_id,
         user_id: window.currentUser.id,
         name: name,
-        expiration_date: exp,
+        expiration_date: expDateSQL,
         purpose: purpose
     }]);
 
