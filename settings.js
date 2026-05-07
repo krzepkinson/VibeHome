@@ -283,8 +283,14 @@ window.renderHistory = function() {
     const logs = allHomeLogs.filter(l => l.task_id === window.currentEditingTaskId);
     document.getElementById('settings-history-list').innerHTML = logs.map(l => `
         <div class="bg-[#131314] px-3 py-2 rounded-[12px] flex justify-between items-center border border-[#333537] mb-1.5">
-            <p class="text-xs text-neutral-200">${new Date(l.created_at).toLocaleDateString('pl-PL')}</p>
-            <button onclick="window.deleteLog(${l.id})" class="text-neutral-500 text-xs">🗑️</button>
+            <div class="flex-1 min-w-0 pr-3 cursor-pointer" onclick="window.openEditLogModal(${l.id})">
+                <p class="text-xs text-neutral-200">${new Date(l.created_at).toLocaleDateString('pl-PL')}</p>
+                ${l.notes ? `<p class="text-[9px] text-neutral-500 truncate mt-0.5">${window.esc(l.notes)}</p>` : ''}
+            </div>
+            <div class="flex gap-3 shrink-0">
+                <button onclick="window.openEditLogModal(${l.id})" class="text-neutral-400 hover:text-[#a8c7fa] text-sm active:scale-90 transition-transform">✏️</button>
+                <button onclick="window.deleteLog(${l.id})" class="text-neutral-500 hover:text-[#ffb4ab] text-sm active:scale-90 transition-transform">🗑️</button>
+            </div>
         </div>`).join('') || '<p class="text-neutral-500 text-xs py-4 text-center">Brak historii.</p>';
 };
 
