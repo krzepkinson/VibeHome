@@ -7,10 +7,8 @@ window.Router = (() => {
         'auth':      { onEnter: null },
         'dashboard': { onEnter: () => window.loadDashboardOverview?.(true) },
         'home':      { onEnter: () => window.loadDashboard?.() },
-        // MAPOWANIE: health -> view-profile
         'health':    { screenId: 'view-profile', onEnter: () => window.initHealthModule?.() },
         'todo':      { onEnter: () => window.loadTodos?.() },
-        // MAPOWANIE: settings -> view-settings-main
         'settings':  { screenId: 'view-settings-main', onEnter: () => window.initSettingsModule?.() },
         'archive-screen': { onEnter: () => window.loadArchiveData?.() },
         'pharmacy-screen': { onEnter: () => window.loadPharmacyItems?.() },
@@ -31,7 +29,7 @@ window.Router = (() => {
         const targetScreen = document.getElementById(targetId) || document.getElementById(viewName);
         
         if (!targetScreen) {
-            console.error(`Router: Nie znaleziono widoku: ${viewName} (szukano ID: ${targetId})`);
+            console.error(`Router: Nie znaleziono widoku: ${viewName}`);
             return;
         }
 
