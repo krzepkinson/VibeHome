@@ -22,12 +22,11 @@ window.saveUserName = async function() {
     const name = document.getElementById('settings-user-name').value.trim();
     if(!name) return;
     
-    // ZMIANA: Zapisujemy imię do naszej tabeli 'profiles', a nie do systemu Auth
+    // ZMIANA CELOWNIKA: Używamy teraz kolumny user_id
     const { error } = await window.supabaseClient
         .from('profiles')
         .update({ name: name })
-        .eq('id', window.currentUser.id)
-        .eq('household_id', window.currentUser.household_id);
+        .eq('user_id', window.currentUser.user_id || window.currentUser.id);
 
     if (error) {
         window.showToast("Błąd: " + error.message); 
@@ -35,7 +34,6 @@ window.saveUserName = async function() {
         window.currentUser.name = name; 
         window.showToast("Imię zapisane!"); 
         
-        // Odświeżamy widok domowników na dole ekranu ustawień, żeby od razu było widać zmianę
         if (typeof window.loadAppProfiles === 'function') window.loadAppProfiles();
     }
 };
