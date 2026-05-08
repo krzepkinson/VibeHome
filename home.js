@@ -4,7 +4,6 @@
 
 let allHomeLogs = []; 
 let allHomeTasks = []; 
-// Uczynienie zmiennej globalną, aby components.js miał do niej łatwy dostęp:
 window.currentRoomFilter = null; 
 
 // NOWE ZMIENNE DLA KALENDARZA
@@ -43,7 +42,6 @@ window.loadDashboard = async function() {
     const backBtn = document.getElementById('home-back-btn');
     const hid = window.currentUser.household_id;
     
-    // Zarządzanie UI na podstawie filtrów
     if (window.currentRoomFilter) {
         if (backBtn) { backBtn.classList.remove('hidden'); backBtn.innerHTML = '←'; }
         const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
@@ -74,19 +72,15 @@ window.loadDashboard = async function() {
     allHomeLogs = lRes.data || [];
     const dbRooms = rRes.data || [];
 
-    // Pusty stan
     if (allHomeTasks.length === 0 && !window.currentRoomFilter) {
         list.classList.remove('hidden');
         calWrapper.classList.add('hidden');
-        list.innerHTML = `
-            <div class="flex flex-col items-center justify-center py-16 text-center animate-fade-in px-4">
-                <div class="text-7xl mb-6 opacity-80 drop-shadow-lg">🏠</div>
-                <h3 class="text-neutral-100 font-medium text-xl mb-2 tracking-wide">Twój dom jest pusty</h3>
-                <p class="text-neutral-400 text-xs mb-8 max-w-[260px] leading-relaxed">Dodaj pierwszą czynność, by zacząć dbać o swoją przestrzeń.</p>
-                <button onclick="window.openNewTaskModal()" class="bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
-                    <span class="text-xl pb-1">+</span> Dodaj pierwszą czynność
-                </button>
-            </div>`;
+        list.innerHTML = window.UI.renderEmptyState("Twój dom jest pusty", "Dodaj pierwszą czynność, by zacząć dbać o przestrzeń.") + `
+        <div class="flex justify-center -mt-10">
+            <button onclick="window.openNewTaskModal()" class="bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
+                <span class="text-xl pb-1">+</span> Dodaj pierwszą czynność
+            </button>
+        </div>`;
         return;
     }
 
@@ -133,7 +127,6 @@ window.loadDashboard = async function() {
         return;
     }
 
-    // Renderowanie wybranego pokoju (używamy komponentów zamiast zupy HTML!)
     let tasksToDisplay = window.currentRoomFilter === 'Wszystkie' ? allHomeTasks : allHomeTasks.filter(t => (t.room || 'Inne') === window.currentRoomFilter);
     let scored = tasksToDisplay.map(t => ({ 
         t, 
@@ -141,12 +134,12 @@ window.loadDashboard = async function() {
         score: window.calculatePriority(t, allHomeLogs.find(l => l.task_id === t.id)?.created_at) 
     })).sort((a,b) => b.score - a.score || a.t.name.localeCompare(b.t.name));
 
+    // Używamy komponentu!
     list.innerHTML = scored.length 
         ? scored.map(item => window.UI.renderHomeTaskCard(item)).join('') 
-        : `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym pomieszczeniu.</p>`;
+        : window.UI.renderEmptyState("Brak zadań", "To pomieszczenie jest czyste.");
 };
 
-// NOWOŚĆ: RENDEROWANIE KALENDARZA DOMOWEGO
 window.renderHomeCalendar = function() {
     const container = document.getElementById('home-calendar-container');
     const title = document.getElementById('home-calendar-title');
@@ -200,7 +193,6 @@ window.renderHomeCalendar = function() {
     container.innerHTML = html;
 };
 
-// NOWOŚĆ: SZCZEGÓŁY DNIA DLA DOMU
 window.openHomeDayDetails = function(dateStr) {
     const modal = document.getElementById('day-details-modal'); 
     const list = document.getElementById('day-details-list');
@@ -417,7 +409,6 @@ document.addEventListener('touchstart', (e) => {
     if (swipeItem) {
         touchStartX = e.touches[0].clientX;
         currentSwipeItem = swipeItem;
-        // Resetujemy inne otwarte swipe'y
         document.querySelectorAll('.js-swipe-item').forEach(el => {
             if (el !== swipeItem) el.style.transform = 'translateX(0px)';
         });
@@ -429,7 +420,6 @@ document.addEventListener('touchmove', (e) => {
     const touchX = e.touches[0].clientX;
     const diff = touchX - touchStartX;
 
-    // Przesuwamy tylko w lewo i tylko do -80px
     if (diff < 0 && diff > -100) {
         currentSwipeItem.style.transform = `translateX(${diff}px)`;
     }
@@ -441,9 +431,9 @@ document.addEventListener('touchend', (e) => {
     const diff = touchEndX - touchStartX;
 
     if (diff < -50) {
-        currentSwipeItem.style.transform = 'translateX(-80px)'; // Zostaje otwarte
+        currentSwipeItem.style.transform = 'translateX(-80px)';
     } else {
-        currentSwipeItem.style.transform = 'translateX(0px)'; // Wraca
+        currentSwipeItem.style.transform = 'translateX(0px)';
     }
     currentSwipeItem = null;
 });
@@ -461,10 +451,8 @@ document.addEventListener('click', (e) => {
     // 2. Kliknięcie w kafelek (Ustawienia)
     const taskCard = e.target.closest('.js-swipe-item');
     if (taskCard) {
-        // Zabezpieczenie przed błędem, gdy kliknięto na plusik a event i tak przeszedł wyżej
         if (e.target.closest('.js-add-log')) return;
         
-        // Jeśli kafelek jest przesunięty, zamknij go zamiast otwierać ustawienia
         if (taskCard.style.transform === 'translateX(-80px)') {
             taskCard.style.transform = 'translateX(0px)';
             return;
