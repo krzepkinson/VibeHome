@@ -5,10 +5,11 @@
 window.Router = (() => {
     const viewConfig = {
         'auth':      { onEnter: null },
-        'dashboard': { onEnter: () => window.loadDashboardOverview?.(true) },
+        // TYLKO DASHBOARD ŁADUJEMY Z PLIKU:
+        'dashboard': { file: 'dashboard.html', onEnter: () => window.loadDashboardOverview?.(true) },
+        // RESZTA DZIAŁA PO STAREMU (szuka w index.html)
         'home':      { onEnter: () => window.loadDashboard?.() },
         'health':    { screenId: 'view-profile', onEnter: () => window.initHealthModule?.() },
-        // POPRAWKA: Zmiana loadTodos na initTodoModule
         'todo':      { onEnter: () => window.initTodoModule?.() },
         'settings':  { screenId: 'view-settings-main', onEnter: () => window.initSettingsModule?.() },
         'archive-screen': { onEnter: () => window.loadArchiveData?.() },
@@ -18,25 +19,59 @@ window.Router = (() => {
     };
 
     let activeView = 'auth';
-    let historyStack = [];
+    let loadedViews = new Map(); // Pamięć załadowanych widoków z plików
 
-    window.switchView = function(viewName) {
+    window.switchView = async function(viewName) {
         if (activeView === viewName && viewName !== 'auth') return;
 
-        document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
-        
         const config = viewConfig[viewName];
-        const targetId = config?.screenId || `view-${viewName}`;
-        const targetScreen = document.getElementById(targetId) || document.getElementById(viewName);
-        
-        if (!targetScreen) {
-            console.error(`Router: Nie znaleziono widoku: ${viewName}`);
+        if (!config) {
+            console.error(`Router: Nie znaleziono konfiguracji dla widoku: ${viewName}`);
             return;
         }
 
-        targetScreen.classList.remove('hidden');
+        // Ukrywamy wszystkie ekrany
+        document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
+        
+        // --- TRYB 1: WIDOK Z PLIKU (Lazy Loading) ---
+        if (config.file) {
+            const container = document.getElementById('view-container');
+            if (!loadedViews.has(viewName)) {
+                try {
+                    const response = await fetch(`/views/${config.file}`);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const html = await response.text();
+                    
+                    const wrapper = document.createElement('div');
+                    wrapper.id = `view-${viewName}`;
+                    wrapper.className = 'screen-view transition-all duration-300';
+                    wrapper.innerHTML = html;
+                    
+                    container.appendChild(wrapper);
+                    loadedViews.set(viewName, wrapper);
+                } catch (err) {
+                    console.error(`Błąd ładowania ${config.file}:`, err);
+                    window.showToast("Błąd ładowania interfejsu");
+                    return;
+                }
+            }
+            loadedViews.get(viewName).classList.remove('hidden');
+        } 
+        // --- TRYB 2: WIDOK WBUDOWANY W INDEX.HTML ---
+        else {
+            const targetId = config.screenId || `view-${viewName}`;
+            const targetScreen = document.getElementById(targetId) || document.getElementById(viewName);
+            
+            if (!targetScreen) {
+                console.error(`Router: Brak wbudowanego widoku o ID: ${targetId}`);
+                return;
+            }
+            targetScreen.classList.remove('hidden');
+        }
+
         window.scrollTo(0, 0);
 
+        // Nawigacja dolna
         const nav = document.getElementById('bottom-nav');
         if (nav) {
             const isSubScreen = viewName.includes('-screen');
@@ -51,24 +86,14 @@ window.Router = (() => {
         activeView = viewName;
         window.activeView = viewName;
 
-        if (config && typeof config.onEnter === 'function') {
+        if (typeof config.onEnter === 'function') {
             config.onEnter();
         }
     };
 
-    window.goBack = function() {
-        if (historyStack.length > 0) {
-            const prev = historyStack.pop();
-            window.switchView(prev);
-        } else {
-            window.switchView('dashboard');
-        }
-    };
-
-    window.goForward = function(viewName) {
-        historyStack.push(activeView);
-        window.switchView(viewName);
-    };
+    window.goBack = function() { window.switchView('dashboard'); };
+    
+    window.goForward = function(viewName) { window.switchView(viewName); };
 
     window.refreshCurrentView = function() {
         if (viewConfig[activeView]?.onEnter) {
