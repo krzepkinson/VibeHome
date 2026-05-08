@@ -64,7 +64,8 @@ window.loadDashboard = async function() {
 
     const [tRes, lRes, rRes] = await Promise.all([
         window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-        window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }),
+        // DODANO LIMIT 500
+        window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(500),
         window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name')
     ]);
     
