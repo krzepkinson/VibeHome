@@ -23,7 +23,7 @@ window.openChangeUserModal = async function(type, id, currentName) {
         names.add(window.currentUser.name);
     }
     
-    // 3. Pobieramy profile z Bazy Danych (koniec z zeskrobywaniem z ekranu!)
+    // 3. Pobieramy profile z Bazy Danych
     try {
         const { data, error } = await window.supabaseClient
             .from('profiles')
@@ -41,14 +41,14 @@ window.openChangeUserModal = async function(type, id, currentName) {
         console.error("Błąd pobierania domowników:", e);
     }
     
-    // 4. Ewentualnie dodajemy imię, które już tam było wpisane (jeśli ktoś z palca wpisał "Babcia")
+    // 4. Ewentualnie dodajemy imię, które już tam było wpisane
     if (currentName && currentName !== 'Ja' && currentName !== '?') {
         names.add(currentName);
     }
     
-    // 5. Renderujemy gotową listę
+    // 5. Renderujemy gotową listę za pomocą BEZPIECZNEGO HTML (Delegacja)
     listEl.innerHTML = Array.from(names).map(name => `
-        <button onclick="window.saveChangedUser('${window.esc(name)}')" class="w-full text-left px-4 py-3 bg-[#1e1f20] border border-[#333537] rounded-[16px] mb-2 text-neutral-200 active:scale-95 transition-colors">
+        <button class="js-save-changed-user w-full text-left px-4 py-3 bg-[#1e1f20] border border-[#333537] rounded-[16px] mb-2 text-neutral-200 active:scale-95 transition-colors" data-name="${window.esc(name)}">
             <span class="font-medium">${window.esc(name)}</span>
         </button>
     `).join('');
@@ -118,3 +118,11 @@ window.closeChangeUserModal = function() {
         modal.classList.add('hidden');
     }); 
 };
+
+// ==========================================
+// NASŁUCHIWACZ KLIKNIĘĆ (Delegacja Zdarzeń)
+// ==========================================
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.js-save-changed-user');
+    if (btn) window.saveChangedUser(btn.dataset.name);
+});
