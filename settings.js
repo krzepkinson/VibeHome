@@ -277,7 +277,7 @@ window.saveTaskSettings = async function() {
 };
 
 window.renderHistory = function() {
-    const logs = allHomeLogs.filter(l => l.task_id === window.currentEditingTaskId);
+    const logs = window.HomeModule.getLogs().filter(l => l.task_id === window.currentEditingTaskId);
     document.getElementById('settings-history-list').innerHTML = logs.map(l => `
         <div class="bg-[#131314] px-3 py-2 rounded-[12px] flex justify-between items-center border border-[#333537] mb-1.5">
             <div class="flex-1 min-w-0 pr-3 cursor-pointer" onclick="window.openEditLogModal(${l.id})">
