@@ -112,8 +112,9 @@ window.loadDashboard = async function() {
 
         let html = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">`;
         const allBadge = totalOverdueAll > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${totalOverdueAll}</div>` : '';
+        
         html += `
-            <div onclick="window.filterHomeByRoom('Wszystkie')" class="relative bg-[#004a77]/20 p-4 rounded-[20px] border border-[#004a77]/50 cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24">
+            <div class="js-filter-room relative bg-[#004a77]/20 p-4 rounded-[20px] border border-[#004a77]/50 cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24" data-room="Wszystkie">
                 ${allBadge}<div class="text-2xl mb-1 opacity-80">🗂️</div><h3 class="text-xs font-medium text-[#c2e7ff]">Wszystkie</h3>
                 <p class="text-[9px] text-[#c2e7ff]/70 mt-0.5 uppercase tracking-widest">${allHomeTasks.length} zadań</p>
             </div>`;
@@ -121,7 +122,7 @@ window.loadDashboard = async function() {
         Object.entries(roomStats).sort((a,b) => (a[0] === 'Inne' ? 1 : b[0] === 'Inne' ? -1 : a[0].localeCompare(b[0]))).forEach(([roomName, stats]) => {
             const badge = stats.overdue > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${stats.overdue}</div>` : '';
             html += `
-                <div onclick="window.filterHomeByRoom('${window.esc(roomName)}')" class="relative bg-[#1e1f20] p-4 rounded-[20px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24">
+                <div class="js-filter-room relative bg-[#1e1f20] p-4 rounded-[20px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24" data-room="${window.esc(roomName)}">
                     ${badge}<div class="text-2xl mb-1 opacity-80">${window.esc(stats.icon)}</div><h3 class="text-xs font-medium text-neutral-200">${window.esc(roomName)}</h3>
                     <p class="text-[9px] text-neutral-500 mt-0.5 uppercase tracking-widest">${stats.total} zadań</p>
                 </div>`;
@@ -328,13 +329,11 @@ window.saveNewLog = async function() {
 
 window.openNewTaskModal = function() {
     window.loadAndShowModal('new-task-modal', '/modals/new-task.html', () => {
-        // Wszystko w tym bloku wykona się DOPIERO jak plik HTML zostanie pobrany i wklejony do strony
         document.getElementById('new-task-name').value = '';
         if(typeof window.populateRoomsDropdown === 'function') window.populateRoomsDropdown('new-task-room');
         document.getElementById('new-task-interval').value = '';
         document.getElementById('new-task-remind').value = '0';
         
-        // Fuksowanie po załadowaniu
         setTimeout(() => {
             const input = document.getElementById('new-task-name');
             if (input) input.focus();
@@ -359,17 +358,15 @@ window.saveNewTask = async function() {
     if (error) { window.showToast("Błąd: " + error.message); return; }
     window.closeNewTaskModal(); window.showToast("Dodano czynność!"); window.loadDashboard();
 };
+
 window.openEditLogModal = function(logId) {
-    // Szukamy wpisu w naszej zapamiętanej tablicy logów
     const log = allHomeLogs.find(l => l.id === logId);
     if (!log) {
         window.showToast("Nie znaleziono wpisu.");
         return;
     }
 
-    // Odpalamy naszą funkcję lazy-loadingu
     window.loadAndShowModal('edit-log-modal', '/modals/edit-log.html', () => {
-        // Wypełniamy modal danymi z wybranego wpisu
         document.getElementById('edit-log-id').value = log.id;
         document.getElementById('edit-log-date').value = log.created_at.split('T')[0];
         document.getElementById('edit-log-notes').value = log.notes || '';
@@ -393,7 +390,6 @@ window.saveEditLog = async function() {
 
     if (!id || !date) return;
 
-    // ZMIANA: Inteligentny czas przy edycji
     const todayStr = new Date().toISOString().split('T')[0];
     const finalDate = (date === todayStr) ? new Date().toISOString() : `${date}T12:00:00.000Z`;
 
@@ -409,12 +405,24 @@ window.saveEditLog = async function() {
     if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     if (typeof window.refreshCurrentView === 'function') await window.refreshCurrentView();
 };
-// Globalny nasłuchiwacz kliknięć dla Domu (Delegacja Zdarzeń)
+
+// ==========================================
+// NASŁUCHIWACZ KLIKNIĘĆ (Delegacja Zdarzeń)
+// ==========================================
 document.addEventListener('click', (e) => {
+    // Akcja 1: Otwieranie formularza logowania zadania (plusik)
     const addLogBtn = e.target.closest('.js-add-log');
     if (addLogBtn) {
         e.preventDefault();
         e.stopPropagation();
         window.openAddLogModal(addLogBtn.dataset.id, addLogBtn.dataset.name);
+        return;
+    }
+
+    // Akcja 2: Wybór pokoju z listy (filtry)
+    const filterRoomBtn = e.target.closest('.js-filter-room');
+    if (filterRoomBtn) {
+        window.filterHomeByRoom(filterRoomBtn.dataset.room);
+        return;
     }
 });
