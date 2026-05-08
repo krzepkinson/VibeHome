@@ -37,7 +37,8 @@ window.refreshHealthData = async function() {
     const hid = window.currentUser.household_id;
     const [tRes, lRes] = await Promise.all([
         window.supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId).eq('household_id', hid).eq('is_archived', false),
-        window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false })
+        // DODANO LIMIT 500
+        window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }).limit(500)
     ]);
     healthTasks = tRes.data || []; 
     healthLogs = lRes.data || [];
