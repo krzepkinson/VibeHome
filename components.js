@@ -38,3 +38,46 @@ window.UI = {
         </div>`;
     }
 };
+// Dodaj to do obiektu window.UI = { ... }
+
+renderHomeTaskCard: function(item) {
+    const status = window.getCompactStatus(item.last?.created_at, item.t.interval_days);
+    const roomBadge = currentRoomFilter === 'Wszystkie' ? 
+        `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${window.esc(item.t.room || 'Inne')}</span>` : '';
+
+    return `
+    <div class="relative overflow-hidden rounded-[16px] mb-1.5 group">
+        <div class="absolute inset-0 bg-[#3c1414] flex justify-end items-center px-6">
+            <button class="js-delete-task text-[#ffb4ab] flex flex-col items-center gap-1 active:scale-90 transition-transform" data-id="${item.t.id}" data-name="${window.esc(item.t.name)}">
+                <span class="text-xl">🗑️</span>
+                <span class="text-[8px] font-bold uppercase tracking-tighter">Usuń</span>
+            </button>
+        </div>
+
+        <div class="js-swipe-item relative flex items-center justify-between p-3 bg-[#1e1f20] border border-[#333537] rounded-[16px] transition-transform duration-200 ease-out cursor-pointer active:bg-[#252627]" 
+             data-id="${item.t.id}">
+            
+            <div class="flex-1 min-w-0 pr-2">
+                <h3 class="font-medium text-neutral-100 text-sm flex items-center">
+                    ${window.esc(item.t.name)} ${roomBadge}
+                </h3>
+                <div class="flex items-center gap-3 mt-1">
+                    <p class="text-[10px] text-neutral-500 font-medium">
+                        ${status.label}
+                    </p>
+                    <div class="w-1 h-1 rounded-full bg-[#333537]"></div>
+                    <p class="text-[10px] ${status.color} font-bold uppercase tracking-tight">
+                        ${status.tooltip.replace('.', '')}
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 shrink-0">
+                <button class="js-add-log w-10 h-10 rounded-full bg-[#0f5223]/20 text-[#c4eed0] flex items-center justify-center active:scale-90 text-xl border border-[#0f5223]/50" 
+                        data-id="${item.t.id}" data-name="${window.esc(item.t.name)}">
+                    +
+                </button>
+            </div>
+        </div>
+    </div>`;
+}
