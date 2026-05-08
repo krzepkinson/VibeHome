@@ -5,6 +5,7 @@
 let searchTimeout = null;
 
 window.openGlobalSearch = function() {
+    // 1. Wywołujemy modal korzystając z naszego nowego, bezpiecznego loadera
     window.loadAndShowModal('search-modal', '/modals/search.html', () => {
         document.getElementById('global-search-input').value = '';
         document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
@@ -17,7 +18,8 @@ window.openGlobalSearch = function() {
 };
 
 window.closeGlobalSearch = function() {
-    document.getElementById('search-modal').classList.add('hidden');
+    const modal = document.getElementById('search-modal');
+    if (modal) modal.classList.add('hidden');
 };
 
 window.performGlobalSearch = function(query) {
@@ -46,40 +48,25 @@ window.performGlobalSearch = function(query) {
 
             let results = [];
 
+            // Zbieramy czyste dane do tablicy wyników (żadnego kodu JS!)
             if (tasksRes.data) {
                 tasksRes.data.forEach(t => results.push({ 
-                    id: t.id, 
-                    title: t.name, 
-                    type: 'Dom', 
-                    icon: '🏠', 
-                    action: `window.closeGlobalSearch(); window.switchView('home'); window.filterHomeByRoom('${window.esc(t.room || 'Inne')}'); setTimeout(() => window.openSettingsScreen('${encodeURIComponent(t.name)}'), 150);` 
+                    id: t.id, title: t.name, type: 'Dom', icon: '🏠', extraData: t.room || 'Inne' 
                 }));
             }
             if (healthRes.data) {
                 healthRes.data.forEach(t => results.push({ 
-                    id: t.id, 
-                    title: t.name, 
-                    type: 'Zdrowie', 
-                    icon: '❤️', 
-                    action: `window.closeGlobalSearch(); window.switchView('health'); setTimeout(() => window.openHealthSettingsScreen(${t.id}), 150);` 
+                    id: t.id, title: t.name, type: 'Zdrowie', icon: '❤️', extraData: '' 
                 }));
             }
             if (todosRes.data) {
                 todosRes.data.forEach(t => results.push({ 
-                    id: t.id, 
-                    title: t.title, 
-                    type: 'Zadanie', 
-                    icon: '📝', 
-                    action: `window.closeGlobalSearch(); window.switchView('todo'); setTimeout(() => window.openEditTodoModal(${t.id}, '${window.esc(t.title)}'), 150);` 
+                    id: t.id, title: t.title, type: 'Zadanie', icon: '📝', extraData: '' 
                 }));
             }
             if (listsRes.data) {
                 listsRes.data.forEach(t => results.push({ 
-                    id: t.id, 
-                    title: t.title, 
-                    type: 'Lista', 
-                    icon: '🗂️', 
-                    action: `window.closeGlobalSearch(); window.switchView('todo'); setTimeout(() => window.openChecklistScreen(${t.id}, '${window.esc(t.title)}'), 150);` 
+                    id: t.id, title: t.title, type: 'Lista', icon: '🗂️', extraData: t.list_type || 'generic' 
                 }));
             }
 
@@ -88,8 +75,13 @@ window.performGlobalSearch = function(query) {
                 return;
             }
 
+            // Generujemy czysty HTML z bezpiecznymi atrybutami data-*
             listEl.innerHTML = results.map(r => `
-                <div onclick="${r.action}" class="flex items-center gap-4 p-4 bg-[#1e1f20] hover:bg-[#333537] border border-[#333537] rounded-[16px] mb-2 cursor-pointer active:scale-95 transition-all shadow-sm">
+                <div class="js-search-result flex items-center gap-4 p-4 bg-[#1e1f20] hover:bg-[#333537] border border-[#333537] rounded-[16px] mb-2 cursor-pointer active:scale-95 transition-all shadow-sm"
+                     data-id="${r.id}"
+                     data-title="${window.esc(r.title)}"
+                     data-type="${r.type}"
+                     data-extra="${window.esc(r.extraData)}">
                     <div class="text-2xl">${r.icon}</div>
                     <div class="flex-1 min-w-0">
                         <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(r.title)}</h3>
@@ -105,3 +97,38 @@ window.performGlobalSearch = function(query) {
         }
     }, 400);
 };
+
+// ==========================================
+// NASŁUCHIWACZ KLIKNIĘĆ (EVENT DELEGATION)
+// ==========================================
+document.addEventListener('click', (e) => {
+    const resultItem = e.target.closest('.js-search-result');
+    if (!resultItem) return;
+
+    e.preventDefault();
+    window.closeGlobalSearch();
+
+    const id = parseInt(resultItem.dataset.id);
+    const type = resultItem.dataset.type;
+    const title = resultItem.dataset.title;
+    const extra = resultItem.dataset.extra;
+
+    // Przekierowania zależne od typu klikniętego kafelka
+    if (type === 'Dom') {
+        window.switchView('home');
+        window.filterHomeByRoom(extra); // extra to nazwa pomieszczenia
+        setTimeout(() => window.openSettingsScreen(id), 150);
+    } 
+    else if (type === 'Zdrowie') {
+        window.switchView('health');
+        setTimeout(() => window.openHealthSettingsScreen(id), 150);
+    } 
+    else if (type === 'Zadanie') {
+        window.switchView('todo');
+        setTimeout(() => window.openEditTodoModal(id, title), 150);
+    } 
+    else if (type === 'Lista') {
+        window.switchView('todo');
+        setTimeout(() => window.openChecklistScreen(id, title, extra), 150); // extra to typ listy
+    }
+});
