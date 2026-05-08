@@ -45,12 +45,14 @@ window.finalizeLogin = async function(user) {
         if (!user) throw new Error("Brak danych użytkownika.");
         window.currentUser = { id: user.id };
 
-        // 1. Sprawdzamy profil
-        let { data: profile } = await window.supabaseClient
+        // 1. Sprawdzamy profil BEZPIECZNIE (omijamy błąd przy duplikatach z przeszłości)
+        let { data: profiles } = await window.supabaseClient
             .from('profiles')
             .select('*')
             .eq('user_id', user.id)
-            .maybeSingle();
+            .limit(1);
+            
+        let profile = profiles && profiles.length > 0 ? profiles[0] : null;
 
         // 2. Jeśli profilu nie ma lub nie ma domu, szukamy głębiej
         if (!profile || !profile.household_id) {
@@ -60,9 +62,9 @@ window.finalizeLogin = async function(user) {
                 .from('household_members')
                 .select('household_id')
                 .eq('user_id', user.id)
-                .maybeSingle();
+                .limit(1);
 
-            let targetHouseholdId = memberData?.household_id;
+            let targetHouseholdId = memberData && memberData.length > 0 ? memberData[0].household_id : null;
 
             // Jeśli nadal nie mamy ID domu, to TYLKO WTEDY konfigurujemy nowy
             if (!targetHouseholdId) {
@@ -72,21 +74,21 @@ window.finalizeLogin = async function(user) {
 
             // Teraz, gdy mamy już ID domu (stary lub nowy), upewniamy się, że profil istnieje
             if (!profile) {
-                const { data: newProfile, error: insError } = await window.supabaseClient.from('profiles').insert([{ 
+                const { data: newProfiles, error: insError } = await window.supabaseClient.from('profiles').insert([{ 
                     user_id: user.id, 
                     household_id: targetHouseholdId, 
                     name: 'Ja' 
-                }]).select().single();
+                }]).select();
                 
                 if (insError) throw insError;
-                profile = newProfile;
+                profile = newProfiles[0];
             } else {
-                const { data: updProfile, error: updError } = await window.supabaseClient.from('profiles').update({ 
+                const { data: updProfiles, error: updError } = await window.supabaseClient.from('profiles').update({ 
                     household_id: targetHouseholdId 
-                }).eq('user_id', user.id).select().single();
+                }).eq('id', profile.id).select();
                 
                 if (updError) throw updError;
-                profile = updProfile;
+                profile = updProfiles[0];
             }
         }
 
@@ -95,10 +97,9 @@ window.finalizeLogin = async function(user) {
             throw new Error("Nie udało się uzyskać identyfikatora domu.");
         }
 
-        // 4. Sukces (Upewniamy się, że aplikacja zna Twój Auth UUID)
+        // 4. Sukces (Zachowujemy naturalne, poprawne ID z bazy danych z tabeli profiles)
         window.currentUser = {
             ...profile,
-            id: user.id,
             user_id: user.id
         };
         window.switchView('dashboard');
