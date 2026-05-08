@@ -409,3 +409,12 @@ window.saveEditLog = async function() {
     if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     if (typeof window.refreshCurrentView === 'function') await window.refreshCurrentView();
 };
+// Globalny nasłuchiwacz kliknięć dla Domu (Delegacja Zdarzeń)
+document.addEventListener('click', (e) => {
+    const addLogBtn = e.target.closest('.js-add-log');
+    if (addLogBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.openAddLogModal(addLogBtn.dataset.id, addLogBtn.dataset.name);
+    }
+});
