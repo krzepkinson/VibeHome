@@ -308,7 +308,7 @@ window.deleteLog = function(id) {
             .eq('household_id', window.currentUser.household_id)
             .order('created_at', { ascending: false });
 
-        allHomeLogs = data || [];
+        window.HomeModule.setLogs(data || []);
         window.renderHistory(); 
         
         window.showToast("Usunięto wpis!");
