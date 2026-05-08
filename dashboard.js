@@ -56,7 +56,6 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
 window.renderDashboardUI = function() {
     const listEl = document.getElementById('dashboard-overview-list');
     if (!listEl) return;
-
     const state = window.AppStore.get();
     
     // Taby
@@ -145,28 +144,12 @@ window.renderDashboardUI = function() {
 };
 
 // ==========================================
-// DIAGNOSTYKA I SZYBKIE AKCJE
+// SZYBKIE AKCJE (Naprawa UUID)
 // ==========================================
 
 window.quickLogTaskDashboard = async function(taskId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
-    
-    // Próba konwersji ID na liczbę
     const finalTaskId = isNaN(taskId) ? taskId : Number(taskId);
-    
-    // --- DIAGNOSTYKA ---
-    const payload = { 
-        task_id: finalTaskId, 
-        user_id: window.currentUser.id, 
-        household_id: window.currentUser.household_id 
-    };
-    console.log("DEBUG: Próba zapisu do activity_logs", payload);
-    console.log("DEBUG: Typy danych:", {
-        task_id: typeof payload.task_id,
-        user_id: typeof payload.user_id,
-        household_id: typeof payload.household_id
-    });
-
     const state = window.AppStore.get();
     const task = state.tasks.find(t => t.id == finalTaskId);
 
@@ -174,13 +157,13 @@ window.quickLogTaskDashboard = async function(taskId) {
         task_id: finalTaskId, 
         activity_name: task ? task.name : 'Zadanie', 
         created_at: new Date().toISOString(), 
-        user_id: window.currentUser.id, 
+        // POPRAWKA: Używamy .user_id (UUID), a nie .id (INT)
+        user_id: window.currentUser.user_id, 
         household_id: window.currentUser.household_id, 
         user_name: window.currentUser.name 
     }]);
 
     if (error) { 
-        console.error("Błąd zapisu logu:", error);
         window.showToast("Błąd bazy: " + error.message);
         return; 
     }
@@ -206,7 +189,10 @@ window.quickLogHealthDashboard = async function(taskId) {
     const finalId = isNaN(taskId) ? taskId : Number(taskId);
     const { error } = await window.supabaseClient.from('health_logs').insert([{ 
         health_task_id: finalId, start_date: new Date().toISOString(), end_date: new Date().toISOString(), 
-        user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
+        // POPRAWKA: Używamy .user_id (UUID)
+        user_id: window.currentUser.user_id, 
+        household_id: window.currentUser.household_id, 
+        user_name: window.currentUser.name 
     }]);
     if (error) { window.showToast("Błąd: " + error.message); return; }
     window.invalidateDashboardCache(); window.loadDashboardOverview(true);
