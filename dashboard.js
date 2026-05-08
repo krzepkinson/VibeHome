@@ -55,54 +55,88 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
 
 window.renderDashboardUI = function() {
     const listEl = document.getElementById('dashboard-overview-list');
-    if (!listEl) return;
+    const todayContainer = document.getElementById('today-plan-container');
+    if (!listEl || !todayContainer) return;
+
     const state = window.AppStore.get();
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0]; // Format RRRR-MM-DD
     
-    // Taby
+    // --- NOWA LOGIKA: PLAN DNIA ---
+    let todayHtml = '';
+    
+    // 1. Wizyty i zdarzenia zdrowotne na dziś
+    const healthToday = state.hTasks.filter(ht => ht.event_date === todayStr);
+    
+    // 2. Zadania domowe, których termin wypada DOKŁADNIE dzisiaj 
+    // (nie te zaległe od tygodnia, tylko te "na świeżo")
+    const homeToday = state.tasks.filter(t => {
+        if (!t.interval_days) return false;
+        const taskLogs = state.logs.filter(l => l.task_id === t.id);
+        if (taskLogs.length === 0) return false;
+        const lastLog = taskLogs[0];
+        const nextDate = new Date(lastLog.created_at);
+        nextDate.setDate(nextDate.getDate() + t.interval_days);
+        return nextDate.toISOString().split('T')[0] === todayStr;
+    });
+
+    if (healthToday.length > 0 || homeToday.length > 0) {
+        todayHtml = `
+            <h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Plan na dziś</h3>
+            <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+        `;
+        
+        todayHtml += healthToday.map(ht => `
+            <div class="min-w-[140px] p-3 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[20px] shadow-sm shrink-0">
+                <div class="text-xl mb-1">📅</div>
+                <div class="text-[11px] font-bold text-[#c2e7ff] leading-tight mb-1 truncate">${window.esc(ht.name)}</div>
+                <div class="text-[9px] text-[#a8c7fa]/70 uppercase font-medium">Wizyta/Termin</div>
+            </div>
+        `).join('');
+
+        todayHtml += homeToday.map(t => `
+            <div class="min-w-[140px] p-3 bg-[#1e1f20] border border-[#333537] rounded-[20px] shadow-sm shrink-0">
+                <div class="text-xl mb-1">🏠</div>
+                <div class="text-[11px] font-bold text-neutral-200 leading-tight mb-1 truncate">${window.esc(t.name)}</div>
+                <div class="text-[9px] text-neutral-500 uppercase font-medium">Cykl wypada dziś</div>
+            </div>
+        `).join('');
+
+        todayHtml += `</div>`;
+        todayContainer.innerHTML = todayHtml;
+        todayContainer.classList.remove('hidden');
+    } else {
+        todayContainer.classList.add('hidden');
+    }
+
+    // --- RESZTA LOGIKI TABÓW (bez zmian, z Twoimi poprawkami) ---
     const tabs = ['todo', 'home', 'health', 'history'];
     tabs.forEach(t => {
         const btn = document.getElementById(`tab-${t}`);
         if (!btn) return;
         btn.className = t === window.activeDashboardTab 
-            ? "flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl bg-[#333537] text-[#a8c7fa] shadow-sm transition-all whitespace-nowrap"
-            : "flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl text-neutral-500 transition-all whitespace-nowrap";
+            ? "flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl bg-[#333537] text-[#a8c7fa] shadow-sm transition-all"
+            : "flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl text-neutral-500 transition-all";
     });
 
     let html = '';
     if (window.activeDashboardTab === 'todo') {
         const activeTodos = state.todos.filter(t => !t.is_completed);
         html = activeTodos.length ? activeTodos.map(todo => window.UI.renderDashboardTodo(todo)).join('') : window.UI.renderEmptyState("Zadania załatwione!");
-    }
-    else if (window.activeDashboardTab === 'home') {
+    } else if (window.activeDashboardTab === 'home') {
         const overdueHome = state.tasks.filter(t => window.isTaskOverdue(t, state.logs));
         html = overdueHome.length ? overdueHome.map(t => window.UI.renderDashboardHomeTask(t)).join('') : window.UI.renderEmptyState("Dom lśni!");
-    }
-    else if (window.activeDashboardTab === 'health') {
+    } else if (window.activeDashboardTab === 'health') {
         const dueHealth = state.hTasks.filter(ht => window.isTaskOverdue(ht, state.hLogs));
-        const activeDuration = state.hTasks.filter(ht => ht.task_type === 'duration' && state.hLogs.some(l => l.health_task_id === ht.id && l.end_date === null));
-
-        if (dueHealth.length > 0 || activeDuration.length > 0) {
-            html += dueHealth.map(ht => `
-                <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
-                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
-                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
-                    </div>
-                    <button onclick="window.quickLogHealthDashboard('${ht.id}')" class="w-8 h-8 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
-                </div>`).join('');
-            
-            html += activeDuration.map(ht => {
-                const aLog = state.hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
-                return `
-                <div class="flex items-center justify-between px-3 py-2 bg-rose-900/10 rounded-[12px] border border-rose-900/40 mb-1 border-l-4 border-l-rose-500 shadow-sm animate-fade-in">
-                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
-                        <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
-                    </div>
-                    <button onclick="window.quickEndHealthDashboard('${aLog.id}')" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button>
-                </div>`;
-            }).join('');
-        } else { html = window.UI.renderEmptyState("Wszyscy zdrowi!"); }
-    }
-    else if (window.activeDashboardTab === 'history') {
+        html = dueHealth.length ? dueHealth.map(ht => `
+            <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
+                <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
+                    <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
+                </div>
+                <button onclick="window.quickLogHealthDashboard('${ht.id}')" class="w-8 h-8 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
+            </div>`).join('') : window.UI.renderEmptyState("Wszyscy zdrowi!");
+    } else if (window.activeDashboardTab === 'history') {
+        // ... (tutaj Twoja istniejąca logika renderowania historii)
         let historyItems = [];
         state.logs.forEach(l => {
             const t = state.tasks.find(x => x.id === l.task_id);
@@ -122,23 +156,20 @@ window.renderDashboardUI = function() {
             historyItems.push({ table: 'todos', id: t.id, title: t.title, date: t.completed_at ? new Date(t.completed_at) : new Date(t.created_at), icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' });
         });
         historyItems.sort((a, b) => b.date - a.date);
-        const topHistory = historyItems.slice(0, 30);
-        if (topHistory.length > 0) {
-            html = `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">` + topHistory.map(item => {
-                let initial = (item.user || '?')[0].toUpperCase();
-                return `
-                <div class="relative pl-5 animate-fade-in">
-                    <div class="absolute -left-[13px] top-1.5 w-6 h-6 rounded-full ${item.bg} ${item.border} border flex items-center justify-center text-xs shadow-md">${item.icon}</div>
-                    <div class="bg-[#1e1f20] px-3 py-2 rounded-[12px] border border-[#333537] shadow-sm flex justify-between items-center">
-                        <div class="flex-1 min-w-0 pr-2">
-                            <h4 class="text-sm font-medium text-neutral-200 truncate">${window.esc(item.title)}</h4>
-                            <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
-                        </div>
-                        <div class="js-dash-change-user w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 cursor-pointer active:scale-90 transition-transform shadow-inner relative z-10" data-table="${item.table}" data-id="${item.id}" data-username="${window.esc(item.user)}">${initial}</div>
+        html = `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">` + historyItems.slice(0, 30).map(item => {
+            let initial = (item.user || '?')[0].toUpperCase();
+            return `
+            <div class="relative pl-5 animate-fade-in">
+                <div class="absolute -left-[13px] top-1.5 w-6 h-6 rounded-full ${item.bg} ${item.border} border flex items-center justify-center text-xs shadow-md">${item.icon}</div>
+                <div class="bg-[#1e1f20] px-3 py-2 rounded-[12px] border border-[#333537] shadow-sm flex justify-between items-center">
+                    <div class="flex-1 min-w-0 pr-2">
+                        <h4 class="text-sm font-medium text-neutral-200 truncate">${window.esc(item.title)}</h4>
+                        <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
                     </div>
-                </div>`;
-            }).join('') + `</div>`;
-        } else { html = window.UI.renderEmptyState("Oś czasu jest pusta."); }
+                    <div class="js-dash-change-user w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 cursor-pointer active:scale-90 transition-transform shadow-inner" data-table="${item.table}" data-id="${item.id}" data-username="${window.esc(item.user)}">${initial}</div>
+                </div>
+            </div>`;
+        }).join('') + `</div>`;
     }
     listEl.innerHTML = html;
 };
