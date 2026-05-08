@@ -21,12 +21,22 @@ window.initSettingsModule = function() {
 window.saveUserName = async function() {
     const name = document.getElementById('settings-user-name').value.trim();
     if(!name) return;
-    const { error } = await window.supabaseClient.auth.updateUser({ data: { name: name } });
+    
+    // ZMIANA: Zapisujemy imię do naszej tabeli 'profiles', a nie do systemu Auth
+    const { error } = await window.supabaseClient
+        .from('profiles')
+        .update({ name: name })
+        .eq('id', window.currentUser.id)
+        .eq('household_id', window.currentUser.household_id);
+
     if (error) {
         window.showToast("Błąd: " + error.message); 
     } else { 
         window.currentUser.name = name; 
         window.showToast("Imię zapisane!"); 
+        
+        // Odświeżamy widok domowników na dole ekranu ustawień, żeby od razu było widać zmianę
+        if (typeof window.loadAppProfiles === 'function') window.loadAppProfiles();
     }
 };
 
