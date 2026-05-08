@@ -760,12 +760,12 @@
         </div>
     </div>
     
-    <script src="/utils.js"></script>
+<script src="/utils.js"></script>
     <script src="/components.js"></script>
     <script src="/user-log.js"></script>
     <script src="/household.js"></script>
+    <script src="/router.js"></script> 
     <script src="/auth.js"></script>
-    <script src="/router.js"></script>
     <script src="/dashboard.js"></script>
     <script src="/home.js"></script>
     <script src="/health.js"></script>
@@ -774,5 +774,8 @@
     <script src="/search.js"></script>
     <script src="/stats.js"></script>
 
-</body>
-</html>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            window.checkSession();
+        });
+    </script>
