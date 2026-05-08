@@ -62,32 +62,31 @@
             </div>
         </div>
 
-        <div id="view-dashboard" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
-            <header class="mb-4 mt-2 flex justify-between items-start">
-                <div>
-                    <h1 class="text-2xl font-medium text-neutral-100 tracking-wide">Dzień dobry!</h1>
-                    <p class="text-xs text-neutral-400 mb-5">Twój osobisty kokpit</p>
-                </div>
-                <button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl">↻</button>
-            </header>
-
-            <div onclick="window.openGlobalSearch()" class="flex items-center bg-[#1e1f20] p-3.5 rounded-[20px] border border-[#333537] cursor-pointer active:scale-95 transition-transform mb-6 shadow-sm">
-                <span class="text-lg mr-3 opacity-50">🔍</span>
-                <span class="text-sm text-neutral-500">Szukaj zadań, leków, wpisów...</span>
-            </div>
-
-            <div class="flex p-1 bg-[#1e1f20] rounded-2xl mb-6 border border-[#333537] overflow-x-auto hide-scrollbar">
-                <button onclick="window.switchDashboardTab('todo')" id="tab-todo" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">📝 Zadania</button>
-                <button onclick="window.switchDashboardTab('home')" id="tab-home" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">🔥 Dom</button>
-                <button onclick="window.switchDashboardTab('health')" id="tab-health" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">❤️ Zdrowie</button>
-                <button onclick="window.switchDashboardTab('history')" id="tab-history" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">🕒 Historia</button>
-            </div>
-            <div id="today-plan-container" class="mb-6 hidden">
-            </div>
-
-            <div id="dashboard-overview-list" class="space-y-1"></div>
-            <div id="dashboard-overview-list" class="flex flex-col space-y-4"></div>
+<div id="view-dashboard" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
+    <header class="mb-4 mt-2 flex justify-between items-start">
+        <div>
+            <h1 class="text-2xl font-medium text-neutral-100 tracking-wide">Dzień dobry!</h1>
+            <p class="text-xs text-neutral-400 mb-5">Twój osobisty kokpit</p>
         </div>
+        <button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl">↻</button>
+    </header>
+
+    <div onclick="window.openGlobalSearch()" class="flex items-center bg-[#1e1f20] p-3.5 rounded-[20px] border border-[#333537] cursor-pointer active:scale-95 transition-transform mb-6 shadow-sm">
+        <span class="text-lg mr-3 opacity-50">🔍</span>
+        <span class="text-sm text-neutral-500">Szukaj zadań, leków, wpisów...</span>
+    </div>
+
+    <div class="flex p-1 bg-[#1e1f20] rounded-2xl mb-6 border border-[#333537] overflow-x-auto hide-scrollbar">
+        <button onclick="window.switchDashboardTab('todo')" id="tab-todo" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">📝 Zadania</button>
+        <button onclick="window.switchDashboardTab('home')" id="tab-home" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">🔥 Dom</button>
+        <button onclick="window.switchDashboardTab('health')" id="tab-health" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">❤️ Zdrowie</button>
+        <button onclick="window.switchDashboardTab('history')" id="tab-history" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">🕒 Historia</button>
+    </div>
+
+    <div id="today-plan-container" class="mb-6 hidden"></div>
+
+    <div id="dashboard-overview-list" class="flex flex-col space-y-4"></div>
+</div>
 
         <div id="view-home" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
             <header class="mb-6 flex justify-between items-center mt-2">
