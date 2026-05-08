@@ -7,7 +7,6 @@ window.dashboardCacheTime = 0;
 
 window.switchDashboardTab = function(tab) {
     window.activeDashboardTab = tab;
-    // Renderujemy to, co już mamy w Store, nie czekając na sieć
     window.renderDashboardUI();
 };
 
@@ -15,13 +14,11 @@ window.invalidateDashboardCache = function() {
     window.dashboardCacheTime = 0; 
 };
 
-// GŁÓWNA FUNKCJA ŁADOWANIA (Wywoływana przez Router)
 window.loadDashboardOverview = async function(forceRefresh = false) {
     const listEl = document.getElementById('dashboard-overview-list');
     if (!listEl) return;
 
     const now = Date.now();
-    // Odświeżamy z bazy tylko jeśli wymuszono lub cache wygasł (30s)
     if (forceRefresh || (now - window.dashboardCacheTime > window.CONFIG.CACHE_TTL)) {
         listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Synchronizacja...</p>`;
         const hid = window.currentUser.household_id; 
@@ -37,7 +34,6 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
                 window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name')
             ]);
 
-            // Punkt 12: Zapisujemy pobrane dane do centralnego AppStore
             window.AppStore.set({
                 tasks: tasksRes.data || [],
                 logs: logsRes.data || [],
@@ -54,16 +50,13 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
             window.showToast("Błąd synchronizacji");
         }
     }
-
     window.renderDashboardUI();
 };
 
-// FUNKCJA RENDERUJĄCA (Korzysta wyłącznie z AppStore)
 window.renderDashboardUI = function() {
     const listEl = document.getElementById('dashboard-overview-list');
     if (!listEl) return;
 
-    // 1. Aktualizacja wyglądu przycisków tabów
     const tabs = ['todo', 'home', 'health', 'history'];
     tabs.forEach(t => {
         const btn = document.getElementById(`tab-${t}`);
@@ -73,28 +66,23 @@ window.renderDashboardUI = function() {
             : "flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl text-neutral-500 transition-all whitespace-nowrap";
     });
 
-    // 2. Pobranie stanu z AppStore
     const state = window.AppStore.get();
     const today = new Date(); 
     today.setHours(0,0,0,0);
-    
     let html = '';
 
-    // LOGIKA POSZCZEGÓLNYCH ZAKŁADEK
     if (window.activeDashboardTab === 'todo') {
         const activeTodos = state.todos.filter(t => !t.is_completed);
         html = activeTodos.length 
             ? activeTodos.map(todo => window.UI.renderDashboardTodo(todo)).join('') 
             : window.UI.renderEmptyState("Zadania załatwione!");
     }
-
     else if (window.activeDashboardTab === 'home') {
         const overdueHome = state.tasks.filter(t => window.isTaskOverdue(t, state.logs));
         html = overdueHome.length 
             ? overdueHome.map(t => window.UI.renderDashboardHomeTask(t)).join('') 
             : window.UI.renderEmptyState("Dom lśni!");
     }
-
     else if (window.activeDashboardTab === 'health') {
         const dueHealth = state.hTasks.filter(ht => window.isTaskOverdue(ht, state.hLogs));
         const activeDuration = state.hTasks.filter(ht => ht.task_type === 'duration' && state.hLogs.some(l => l.health_task_id === ht.id && l.end_date === null));
@@ -106,7 +94,7 @@ window.renderDashboardUI = function() {
                 <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
                         <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
-                        <p class="text-[10px] text-[#ffb4ab] mt-0.5">${isOneTime ? 'Czas na wizytę/zabieg!' : 'Zaplanowana dawka'}</p>
+                        <p class="text-[10px] text-[#ffb4ab] mt-0.5">${isOneTime ? 'Czas na wizytę!' : 'Zaplanowana dawka'}</p>
                     </div>
                     <button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-8 h-8 rounded-full ${isOneTime ? 'bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0]' : 'bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab]'} flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
                 </div>`
@@ -118,19 +106,15 @@ window.renderDashboardUI = function() {
                 <div class="flex items-center justify-between px-3 py-2 bg-rose-900/10 rounded-[12px] border border-rose-900/40 mb-1 border-l-4 border-l-rose-500 shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
                         <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
-                        <p class="text-[10px] text-rose-400 mt-0.5">Zdarzenie trwa...</p>
+                        <p class="text-[10px] text-rose-400 mt-0.5">W trakcie...</p>
                     </div>
                     <button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button>
                 </div>`;
             }).join('');
-        } else { 
-            html = window.UI.renderEmptyState("Wszyscy zdrowi!"); 
-        }
+        } else { html = window.UI.renderEmptyState("Wszyscy zdrowi!"); }
     }
-
     else if (window.activeDashboardTab === 'history') {
         let historyItems = [];
-        
         state.logs.forEach(l => {
             const t = state.tasks.find(x => x.id === l.task_id);
             if (!t || t.show_in_history !== false) {
@@ -140,7 +124,6 @@ window.renderDashboardUI = function() {
                 });
             }
         });
-        
         state.hLogs.forEach(l => {
             const ht = state.hTasks.find(x => x.id === l.health_task_id);
             if (!ht || ht.show_in_history !== false) {
@@ -152,7 +135,6 @@ window.renderDashboardUI = function() {
                 });
             }
         });
-        
         state.todos.filter(t => t.is_completed).forEach(t => {
             const finalDate = t.completed_at ? new Date(t.completed_at) : new Date(t.created_at);
             historyItems.push({ 
@@ -171,13 +153,11 @@ window.renderDashboardUI = function() {
                 return `
                 <div class="relative pl-5 animate-fade-in">
                     <div class="absolute -left-[13px] top-1.5 w-6 h-6 rounded-full ${item.bg} ${item.border} border flex items-center justify-center text-xs shadow-md">${item.icon}</div>
-                    
                     <div class="bg-[#1e1f20] px-3 py-2 rounded-[12px] border border-[#333537] shadow-sm flex justify-between items-center">
                         <div class="flex-1 min-w-0 pr-2">
                             <h4 class="text-sm font-medium text-neutral-200 truncate">${window.esc(item.title)}</h4>
                             <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
                         </div>
-                        
                         <div class="js-dash-change-user w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 cursor-pointer active:scale-90 transition-transform shadow-inner relative z-10" 
                              data-table="${item.table}" data-id="${item.id}" data-username="${window.esc(item.user)}">
                             ${initial}
@@ -186,11 +166,8 @@ window.renderDashboardUI = function() {
                 </div>`;
             }).join('');
             html += `</div>`;
-        } else { 
-            html = window.UI.renderEmptyState("Oś czasu jest pusta."); 
-        }
+        } else { html = window.UI.renderEmptyState("Oś czasu jest pusta."); }
     }
-    
     listEl.innerHTML = html;
 };
 
@@ -204,11 +181,10 @@ window.quickCompleteTodoDashboard = async function(id) {
     const { error } = await window.supabaseClient.from('todos')
         .update({ is_completed: true, completed_at: now, completer_name: window.currentUser.name })
         .eq('id', id);
-        
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); 
-    window.showToast('Odhaczone! ✔️'); 
-    window.loadDashboardOverview(true); // Odświeżamy ze Store
+    window.showToast('Zadanie wykonane! ✔️'); 
+    window.loadDashboardOverview(true); 
 };
 
 window.quickLogTaskDashboard = async function(taskId) {
@@ -216,22 +192,15 @@ window.quickLogTaskDashboard = async function(taskId) {
     const state = window.AppStore.get();
     const task = state.tasks.find(t => t.id == taskId);
     const now = new Date().toISOString(); 
-    
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
         task_id: taskId, activity_name: task ? task.name : 'Zadanie', created_at: now, 
-        notes: '', user_id: window.currentUser.id, household_id: window.currentUser.household_id, 
-        user_name: window.currentUser.name 
+        notes: '', user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
     }]);
-    
     if (error) { window.showToast('Błąd: ' + error.message); return; }
-
     if (task && (!task.interval_days || task.interval_days === 0)) {
         await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', taskId);
-        window.showToast('Zadanie jednorazowe zarchiwizowane!');
-    } else { 
-        window.showToast('Zrobione!'); 
     }
-
+    window.showToast('Zapisano! ✔️');
     window.invalidateDashboardCache(); 
     window.loadDashboardOverview(true); 
 };
@@ -243,10 +212,9 @@ window.quickLogHealthDashboard = async function(taskId) {
         health_task_id: taskId, start_date: now, end_date: now, 
         user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
     }]);
-    
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); 
-    window.showToast('Zapisano!'); 
+    window.showToast('Zapisano! ✔️'); 
     window.loadDashboardOverview(true);
 };
 
@@ -254,20 +222,34 @@ window.quickEndHealthDashboard = async function(logId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const { error } = await window.supabaseClient.from('health_logs')
         .update({ end_date: new Date().toISOString(), user_name: window.currentUser.name })
-        .eq('id', logId)
-        .eq('household_id', window.currentUser.household_id);
-        
+        .eq('id', logId).eq('household_id', window.currentUser.household_id);
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); 
-    window.showToast('Zakończono!'); 
+    window.showToast('Zakończono! ✔️'); 
     window.loadDashboardOverview(true);
 };
 
-// Delegacja zdarzeń dla Przeglądu
+// MASTER CLICK LISTENER (DELEGACJA DLA PRZEGLĄDU)
 document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.js-dash-change-user');
-    if (btn) {
+    // 1. Zmiana użytkownika w historii
+    const userBtn = e.target.closest('.js-dash-change-user');
+    if (userBtn) {
         e.preventDefault(); e.stopPropagation();
-        window.openChangeUserModal(btn.dataset.table, btn.dataset.id, btn.dataset.username);
+        window.openChangeUserModal(userBtn.dataset.table, userBtn.dataset.id, userBtn.dataset.username);
+        return;
+    }
+
+    // 2. Odhaczanie To-Do (Przycisk ✓)
+    const todoBtn = e.target.closest('.js-dash-complete-todo');
+    if (todoBtn) {
+        window.quickCompleteTodoDashboard(todoBtn.dataset.id);
+        return;
+    }
+
+    // 3. Odhaczanie zadań domowych (Przycisk ✓)
+    const homeBtn = e.target.closest('.js-dash-log-task');
+    if (homeBtn) {
+        window.quickLogTaskDashboard(homeBtn.dataset.id);
+        return;
     }
 });
