@@ -66,39 +66,27 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
     // ==========================================
     // RENDEROWANIE: ZAKŁADKA TODO
     // ==========================================
-    if (window.activeDashboardTab === 'todo') {
+if (window.activeDashboardTab === 'todo') {
         if (activeTodos.length > 0) {
-            html += activeTodos.map(todo => `
-                <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#a8c7fa] shadow-sm animate-fade-in">
-                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('todo')">
-                        <h3 class="font-medium text-neutral-100 text-sm truncate">${window.esc(todo.title)}</h3>
-                        <p class="text-[10px] text-neutral-500 mt-0.5">${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
-                    </div>
-                    <button onclick="window.quickCompleteTodoDashboard(${todo.id})" class="w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
-                </div>`).join('');
+            // WYWOŁUJEMY TYLKO FUNKCJĘ Z KOMPONENTÓW! ZERO ZUPY HTML!
+            html += activeTodos.map(todo => window.UI.renderDashboardTodo(todo)).join('');
         } else { 
-            html = renderEmptyState("Zadania załatwione!"); 
+            html = window.UI.renderEmptyState("Zadania załatwione!"); 
         }
-    } 
+    }
 
     // ==========================================
     // RENDEROWANIE: ZAKŁADKA DOM
     // ==========================================
-    else if (window.activeDashboardTab === 'home') {
+else if (window.activeDashboardTab === 'home') {
         let overdueHome = tasks.filter(t => window.isTaskOverdue(t, logs));
         if (overdueHome.length > 0) {
-            html += overdueHome.map(t => `
-                <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#ffb4ab] shadow-sm animate-fade-in">
-                    <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('home')">
-                        <h3 class="font-medium text-neutral-100 text-sm">${window.esc(t.name)}</h3>
-                        <p class="text-[10px] text-[#ffb4ab] mt-0.5">Czas na odświeżenie</p>
-                    </div>
-                    <button onclick="window.quickLogTaskDashboard(${t.id})" class="w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
-                </div>`).join('');
+            // CZYSTA LOGIKA BIZNESOWA + WSTRZYKNIĘCIE KOMPONENTU
+            html += overdueHome.map(t => window.UI.renderDashboardHomeTask(t)).join('');
         } else { 
-            html = renderEmptyState("Dom lśni!"); 
+            html = window.UI.renderEmptyState("Dom lśni!"); 
         }
-    } 
+    }
 
     // ==========================================
     // RENDEROWANIE: ZAKŁADKA ZDROWIE
@@ -237,15 +225,6 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
 // ==========================================
 // FUNKCJE POMOCNICZE
 // ==========================================
-
-function renderEmptyState(msg) { 
-    return `
-    <div class="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-        <div class="text-5xl mb-4 opacity-50">✨</div>
-        <h3 class="text-neutral-200 font-medium text-sm mb-1">${msg}</h3>
-        <p class="text-neutral-500 text-[10px] uppercase tracking-widest">Wszystko pod kontrolą</p>
-    </div>`; 
-}
 
 window.quickCompleteTodoDashboard = async function(id) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
