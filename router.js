@@ -8,7 +8,8 @@ window.Router = (() => {
         'dashboard': { onEnter: () => window.loadDashboardOverview?.(true) },
         'home':      { onEnter: () => window.loadDashboard?.() },
         'health':    { screenId: 'view-profile', onEnter: () => window.initHealthModule?.() },
-        'todo':      { onEnter: () => window.loadTodos?.() },
+        // POPRAWKA: Zmiana loadTodos na initTodoModule
+        'todo':      { onEnter: () => window.initTodoModule?.() },
         'settings':  { screenId: 'view-settings-main', onEnter: () => window.initSettingsModule?.() },
         'archive-screen': { onEnter: () => window.loadArchiveData?.() },
         'pharmacy-screen': { onEnter: () => window.loadPharmacyItems?.() },
