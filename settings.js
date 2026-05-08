@@ -54,10 +54,7 @@ window.requestNotificationPermission = async function() {
 
         window.showToast("Konfiguruję powiadomienia...");
 
-        // 1. Czekamy na gotowość Service Workera
         const registration = await navigator.serviceWorker.ready;
-
-        // 2. Pobieramy klucz publiczny VAPID bezpośrednio z pliku config.js!
         const publicVapidKey = window.CONFIG.VAPID_PUBLIC_KEY;
         
         if (!publicVapidKey) {
@@ -65,24 +62,19 @@ window.requestNotificationPermission = async function() {
             return;
         }
 
-        // Funkcja urlB64ToUint8Array znajduje się w naszym pliku utils.js
         const applicationServerKey = window.urlB64ToUint8Array(publicVapidKey);
 
-        // 3. Rejestrujemy to konkretne urządzenie w usługach Push
         const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: applicationServerKey
         });
 
-        // 4. Wyciągamy wygenerowane klucze i endpoint
         const subJSON = subscription.toJSON();
 
-        // Usuwamy starą subskrypcję dla tego urządzenia (żeby nie było duplikatów)
         await window.supabaseClient.from('push_subscriptions')
             .delete()
             .eq('endpoint', subJSON.endpoint);
 
-        // 5. Zapisujemy nowe urządzenie do bazy
         const { error } = await window.supabaseClient.from('push_subscriptions').insert([{
             user_id: window.currentUser.id,
             household_id: window.currentUser.household_id,
@@ -119,8 +111,8 @@ window.loadAppRooms = async function() {
         <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
             <div class="flex items-center gap-3"><span class="text-xl">${window.esc(room.icon || '📦')}</span><span class="text-sm font-medium text-neutral-200">${window.esc(room.name)}</span></div>
             <div class="flex gap-1">
-                <button onclick="window.openEditRoomModal('${encodeURIComponent(room.name)}', '${room.icon}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] text-sm">✏️</button>
-                <button onclick="window.deleteRoom('${encodeURIComponent(room.name)}')" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] text-sm">🗑️</button>
+                <button class="js-edit-room w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] text-sm" data-name="${window.esc(room.name)}" data-icon="${window.esc(room.icon || '📦')}">✏️</button>
+                <button class="js-delete-room w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] text-sm" data-name="${window.esc(room.name)}">🗑️</button>
             </div>
         </div>`).join('');
 };
@@ -142,8 +134,7 @@ window.saveNewRoom = async function() {
     else { window.closeNewRoomModal(); window.showToast('Dodano!'); window.loadAppRooms(); }
 };
 
-window.openEditRoomModal = function(encodedName, icon) {
-    const name = decodeURIComponent(encodedName); 
+window.openEditRoomModal = function(name, icon) {
     document.getElementById('edit-room-old-name').value = name; 
     document.getElementById('edit-room-name').value = name; 
     document.getElementById('edit-room-icon').value = icon || '📦'; 
@@ -166,8 +157,7 @@ window.saveEditRoom = async function() {
     }
 };
 
-window.deleteRoom = function(encodedName) {
-    const name = decodeURIComponent(encodedName); 
+window.deleteRoom = function(name) {
     window.customConfirm(`Usunąć pomieszczenie "${name}"?`, async () => {
         const { error } = await window.supabaseClient.from('rooms').delete().eq('name', name).eq('household_id', window.currentUser.household_id);
         if (error) { window.showToast('Błąd: ' + error.message); return; }
@@ -271,7 +261,6 @@ window.saveTaskSettings = async function() {
     const { error } = await window.supabaseClient.from('tasks').update({ name: n, interval_days: i, room: r, push_enabled: pushEnabled, show_in_history: showHist }).eq('id', window.currentEditingTaskId);
     if (error) { window.showToast("Błąd: " + error.message); return; }
     
-    // Aktualizujemy nazwę w logach (dla czytelności w DB), task_id i tak trzyma relację
     await window.supabaseClient.from('activity_logs').update({ activity_name: n }).eq('task_id', window.currentEditingTaskId);
     
     window.showToast("Zapisano!"); 
@@ -296,8 +285,6 @@ window.renderHistory = function() {
 
 window.deleteLog = function(id) {
     window.customConfirm("Usunąć ten wpis z historii?", async () => {
-        
-        // KROK 1: Usunięcie wpisu z bazy (czekamy na zakończenie)
         const { error } = await window.supabaseClient.from('activity_logs')
             .delete()
             .eq('id', id)
@@ -308,25 +295,19 @@ window.deleteLog = function(id) {
             return; 
         }
 
-        // KROK 2: Pobranie absolutnie świeżych danych (czekamy na odpowiedź)
         const { data } = await window.supabaseClient.from('activity_logs')
             .select('*')
             .eq('household_id', window.currentUser.household_id)
             .order('created_at', { ascending: false });
 
-        // KROK 3: Aktualizacja zmiennej w pamięci
         allHomeLogs = data || [];
-
-        // KROK 4: Renderowanie historii w otwartym okienku ustawień
         window.renderHistory(); 
         
-        // KROK 5: Informacja dla użytkownika i wyczyszczenie cache'u Dashboardu
         window.showToast("Usunięto wpis!");
         if (typeof window.invalidateDashboardCache === 'function') {
             window.invalidateDashboardCache();
         }
 
-        // KROK 6: Odświeżenie głównego widoku pod spodem
         if (typeof window.refreshCurrentView === 'function') {
             await window.refreshCurrentView();
         }
@@ -338,9 +319,9 @@ window.deleteCurrentTask = function() {
         const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', window.currentEditingTaskId); 
         if (error) { window.showToast("Błąd: " + error.message); return; }
         
-        window.showToast("Zarchiwizowano!"); // UX Fix: Powiadomienie
-        window.goBack(); // UX Fix: Zamknięcie okna
-        setTimeout(() => window.refreshCurrentView(), 150); // UX Fix: Opóźnione odświeżenie
+        window.showToast("Zarchiwizowano!");
+        window.goBack();
+        setTimeout(() => window.refreshCurrentView(), 150);
     });
 };
 
@@ -407,3 +388,14 @@ window.closeSettingsScreen = function() {
 window.closeEditProfileScreen = function() { 
     window.goBack(); 
 };
+
+// ==========================================
+// NASŁUCHIWACZ KLIKNIĘĆ (Delegacja Zdarzeń)
+// ==========================================
+document.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('.js-edit-room');
+    if (editBtn) window.openEditRoomModal(editBtn.dataset.name, editBtn.dataset.icon);
+
+    const delBtn = e.target.closest('.js-delete-room');
+    if (delBtn) window.deleteRoom(delBtn.dataset.name);
+});
