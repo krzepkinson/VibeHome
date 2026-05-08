@@ -55,10 +55,26 @@ window.finalizeLogin = async function(user) {
         if (profileError || !profile || !profile.household_id) {
             window.showToast("Konfiguracja nowego domu...");
             
-            // --- POPRAWKA TUTAJ: PRZEKAZUJEMY CAŁY OBIEKT 'user', A NIE TYLKO 'user.id' ---
-            await window.initHousehold(user);
+            // Pobieramy wygenerowany ID domu z funkcji initHousehold
+            const newHouseholdId = await window.initHousehold(user);
             
-            // Pobieramy profil ponownie, żeby upewnić się, że dom się utworzył
+            // --- BRAKUJĄCE OGNIWO LOGIKI ---
+            // Musimy przypisać ten nowy ID domu do profilu użytkownika!
+            if (!profile) {
+                // Jeśli profil w ogóle nie istnieje (nowy użytkownik) - tworzymy go
+                await window.supabaseClient.from('profiles').insert([{ 
+                    user_id: user.id, 
+                    household_id: newHouseholdId, 
+                    name: 'Ja' 
+                }]);
+            } else {
+                // Jeśli profil istniał, ale nie miał przypisanego domu - aktualizujemy go
+                await window.supabaseClient.from('profiles').update({ 
+                    household_id: newHouseholdId 
+                }).eq('user_id', user.id);
+            }
+            
+            // Pobieramy profil ponownie, żeby upewnić się, że wszystko się zapisało
             const retry = await window.supabaseClient
                 .from('profiles')
                 .select('*')
@@ -69,7 +85,6 @@ window.finalizeLogin = async function(user) {
         }
 
         // 3. TARCZA OBRONNA (Guard Clause)
-        // Jeśli na tym etapie nadal nie ma przypisanego domu, przerywamy!
         if (!profile || !profile.household_id) {
             throw new Error("Krytyczny błąd: Nie udało się przypisać do domu.");
         }
