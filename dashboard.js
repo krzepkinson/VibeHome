@@ -3,22 +3,67 @@
 // ==========================================
 
 window.activeDashboardTab = 'todo'; 
-window.dashboardCache = null;
 window.dashboardCacheTime = 0;
 
 window.switchDashboardTab = function(tab) {
     window.activeDashboardTab = tab;
-    window.loadDashboardOverview(false);
+    // Renderujemy to, co już mamy w Store, nie czekając na sieć
+    window.renderDashboardUI();
 };
 
 window.invalidateDashboardCache = function() { 
     window.dashboardCacheTime = 0; 
 };
 
+// GŁÓWNA FUNKCJA ŁADOWANIA (Wywoływana przez Router)
 window.loadDashboardOverview = async function(forceRefresh = false) {
     const listEl = document.getElementById('dashboard-overview-list');
     if (!listEl) return;
-    
+
+    const now = Date.now();
+    // Odświeżamy z bazy tylko jeśli wymuszono lub cache wygasł (30s)
+    if (forceRefresh || (now - window.dashboardCacheTime > window.CONFIG.CACHE_TTL)) {
+        listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Synchronizacja...</p>`;
+        const hid = window.currentUser.household_id; 
+        
+        try {
+            const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes] = await Promise.all([
+                window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
+                window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
+                window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
+                window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }).limit(200),
+                window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }).limit(100),
+                window.supabaseClient.from('profiles').select('*').eq('household_id', hid),
+                window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name')
+            ]);
+
+            // Punkt 12: Zapisujemy pobrane dane do centralnego AppStore
+            window.AppStore.set({
+                tasks: tasksRes.data || [],
+                logs: logsRes.data || [],
+                hTasks: hTasksRes.data || [],
+                hLogs: hLogsRes.data || [],
+                todos: todoRes.data || [],
+                profiles: profilesRes.data || [],
+                rooms: roomsRes.data || []
+            });
+            
+            window.dashboardCacheTime = now;
+        } catch (err) {
+            console.error("Dashboard fetch error:", err);
+            window.showToast("Błąd synchronizacji");
+        }
+    }
+
+    window.renderDashboardUI();
+};
+
+// FUNKCJA RENDERUJĄCA (Korzysta wyłącznie z AppStore)
+window.renderDashboardUI = function() {
+    const listEl = document.getElementById('dashboard-overview-list');
+    if (!listEl) return;
+
+    // 1. Aktualizacja wyglądu przycisków tabów
     const tabs = ['todo', 'home', 'health', 'history'];
     tabs.forEach(t => {
         const btn = document.getElementById(`tab-${t}`);
@@ -28,59 +73,31 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
             : "flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl text-neutral-500 transition-all whitespace-nowrap";
     });
 
-    const now = Date.now();
-    if (forceRefresh || !window.dashboardCache || (now - window.dashboardCacheTime > 30000)) {
-        listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Synchronizacja...</p>`;
-        const hid = window.currentUser.household_id; 
-        
-        const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes, profilesRes] = await Promise.all([
-            window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-            window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
-            window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-            window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }).limit(200),
-            window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }).limit(200),
-            window.supabaseClient.from('profiles').select('*').eq('household_id', hid)
-        ]);
-        
-        window.dashboardCache = { 
-            tasks: tasksRes.data || [], 
-            logs: logsRes.data || [], 
-            hTasks: healthTasksRes.data || [], 
-            hLogs: healthLogsRes.data || [], 
-            allTodos: todoRes.data || [], 
-            profiles: profilesRes.data || [] 
-        };
-        window.dashboardCacheTime = now;
-    }
-
-    const { tasks, logs, hTasks, hLogs, allTodos, profiles } = window.dashboardCache;
-    const activeTodos = allTodos.filter(t => !t.is_completed);
+    // 2. Pobranie stanu z AppStore
+    const state = window.AppStore.get();
     const today = new Date(); 
     today.setHours(0,0,0,0);
     
     let html = '';
 
+    // LOGIKA POSZCZEGÓLNYCH ZAKŁADEK
     if (window.activeDashboardTab === 'todo') {
-        if (activeTodos.length > 0) {
-            html += activeTodos.map(todo => window.UI.renderDashboardTodo(todo)).join('');
-        } else { 
-            html = window.UI.renderEmptyState("Zadania załatwione!"); 
-        }
+        const activeTodos = state.todos.filter(t => !t.is_completed);
+        html = activeTodos.length 
+            ? activeTodos.map(todo => window.UI.renderDashboardTodo(todo)).join('') 
+            : window.UI.renderEmptyState("Zadania załatwione!");
     }
 
     else if (window.activeDashboardTab === 'home') {
-        let overdueHome = tasks.filter(t => window.isTaskOverdue(t, logs));
-        if (overdueHome.length > 0) {
-            html += overdueHome.map(t => window.UI.renderDashboardHomeTask(t)).join('');
-        } else { 
-            html = window.UI.renderEmptyState("Dom lśni!"); 
-        }
+        const overdueHome = state.tasks.filter(t => window.isTaskOverdue(t, state.logs));
+        html = overdueHome.length 
+            ? overdueHome.map(t => window.UI.renderDashboardHomeTask(t)).join('') 
+            : window.UI.renderEmptyState("Dom lśni!");
     }
 
     else if (window.activeDashboardTab === 'health') {
-        const dueHealth = hTasks.filter(ht => window.isTaskOverdue(ht, hLogs));
-        
-        const activeDuration = hTasks.filter(ht => ht.task_type === 'duration' && hLogs.some(l => l.health_task_id === ht.id && l.end_date === null));
+        const dueHealth = state.hTasks.filter(ht => window.isTaskOverdue(ht, state.hLogs));
+        const activeDuration = state.hTasks.filter(ht => ht.task_type === 'duration' && state.hLogs.some(l => l.health_task_id === ht.id && l.end_date === null));
 
         if (dueHealth.length > 0 || activeDuration.length > 0) {
             html += dueHealth.map(ht => {
@@ -96,7 +113,7 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
             }).join('');
             
             html += activeDuration.map(ht => {
-                const aLog = hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
+                const aLog = state.hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
                 return `
                 <div class="flex items-center justify-between px-3 py-2 bg-rose-900/10 rounded-[12px] border border-rose-900/40 mb-1 border-l-4 border-l-rose-500 shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
@@ -114,8 +131,8 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
     else if (window.activeDashboardTab === 'history') {
         let historyItems = [];
         
-        logs.forEach(l => {
-            const t = tasks.find(x => x.id === l.task_id);
+        state.logs.forEach(l => {
+            const t = state.tasks.find(x => x.id === l.task_id);
             if (!t || t.show_in_history !== false) {
                 historyItems.push({ 
                     table: 'activity_logs', id: l.id, title: l.activity_name, date: new Date(l.created_at), 
@@ -124,10 +141,10 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
             }
         });
         
-        hLogs.forEach(l => {
-            const ht = hTasks.find(x => x.id === l.health_task_id);
+        state.hLogs.forEach(l => {
+            const ht = state.hTasks.find(x => x.id === l.health_task_id);
             if (!ht || ht.show_in_history !== false) {
-                const profile = profiles.find(p => p.id === ht?.profile_id);
+                const profile = state.profiles.find(p => p.id === ht?.profile_id);
                 const title = (ht ? ht.name : 'Zdarzenie') + (profile ? ` (${profile.name})` : '');
                 historyItems.push({ 
                     table: 'health_logs', id: l.id, title: title, date: l.end_date ? new Date(l.end_date) : new Date(l.start_date), 
@@ -136,17 +153,11 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
             }
         });
         
-        allTodos.filter(t => t.is_completed).forEach(t => {
+        state.todos.filter(t => t.is_completed).forEach(t => {
             const finalDate = t.completed_at ? new Date(t.completed_at) : new Date(t.created_at);
             historyItems.push({ 
-                table: 'todos', 
-                id: t.id, 
-                title: t.title, 
-                date: finalDate, 
-                icon: '📝', 
-                bg: 'bg-[#004a77]/20', 
-                border: 'border-[#004a77]/50', 
-                user: t.completer_name || '?' 
+                table: 'todos', id: t.id, title: t.title, date: finalDate, 
+                icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' 
             });
         });
 
@@ -154,7 +165,7 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
         const topHistory = historyItems.slice(0, 30);
 
         if (topHistory.length > 0) {
-            html += `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">`;
+            html = `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">`;
             html += topHistory.map(item => {
                 let initial = (item.user || '?')[0].toUpperCase();
                 return `
@@ -184,40 +195,31 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
 };
 
 // ==========================================
-// FUNKCJE POMOCNICZE
+// FUNKCJE POMOCNICZE (SZYBKIE AKCJE)
 // ==========================================
 
 window.quickCompleteTodoDashboard = async function(id) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
-    
     const now = new Date().toISOString();
     const { error } = await window.supabaseClient.from('todos')
-        .update({ 
-            is_completed: true, 
-            completed_at: now, 
-            completer_name: window.currentUser.name 
-        })
+        .update({ is_completed: true, completed_at: now, completer_name: window.currentUser.name })
         .eq('id', id);
         
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); 
     window.showToast('Odhaczone! ✔️'); 
-    window.loadDashboardOverview();
+    window.loadDashboardOverview(true); // Odświeżamy ze Store
 };
 
 window.quickLogTaskDashboard = async function(taskId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
-    const task = window.dashboardCache.tasks.find(t => t.id == taskId);
-    
+    const state = window.AppStore.get();
+    const task = state.tasks.find(t => t.id == taskId);
     const now = new Date().toISOString(); 
     
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
-        task_id: taskId, 
-        activity_name: task ? task.name : 'Zadanie', 
-        created_at: now, 
-        notes: '', 
-        user_id: window.currentUser.id, 
-        household_id: window.currentUser.household_id, 
+        task_id: taskId, activity_name: task ? task.name : 'Zadanie', created_at: now, 
+        notes: '', user_id: window.currentUser.id, household_id: window.currentUser.household_id, 
         user_name: window.currentUser.name 
     }]);
     
@@ -225,31 +227,27 @@ window.quickLogTaskDashboard = async function(taskId) {
 
     if (task && (!task.interval_days || task.interval_days === 0)) {
         await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', taskId);
-        window.showToast('Zadanie jednorazowe zarchiwizowane! ✔️');
+        window.showToast('Zadanie jednorazowe zarchiwizowane!');
     } else { 
-        window.showToast('Zrobione! ✔️'); 
+        window.showToast('Zrobione!'); 
     }
 
     window.invalidateDashboardCache(); 
-    window.loadDashboardOverview(); 
+    window.loadDashboardOverview(true); 
 };
 
 window.quickLogHealthDashboard = async function(taskId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const now = new Date().toISOString();
     const { error } = await window.supabaseClient.from('health_logs').insert([{ 
-        health_task_id: taskId, 
-        start_date: now, 
-        end_date: now, 
-        user_id: window.currentUser.id, 
-        household_id: window.currentUser.household_id, 
-        user_name: window.currentUser.name 
+        health_task_id: taskId, start_date: now, end_date: now, 
+        user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
     }]);
     
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); 
-    window.showToast('Zapisano! ✔️'); 
-    window.loadDashboardOverview();
+    window.showToast('Zapisano!'); 
+    window.loadDashboardOverview(true);
 };
 
 window.quickEndHealthDashboard = async function(logId) {
@@ -261,16 +259,15 @@ window.quickEndHealthDashboard = async function(logId) {
         
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); 
-    window.showToast('Zakończono! ✔️'); 
-    window.loadDashboardOverview();
+    window.showToast('Zakończono!'); 
+    window.loadDashboardOverview(true);
 };
 
 // Delegacja zdarzeń dla Przeglądu
 document.addEventListener('click', (e) => {
     const btn = e.target.closest('.js-dash-change-user');
     if (btn) {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         window.openChangeUserModal(btn.dataset.table, btn.dataset.id, btn.dataset.username);
     }
 });
