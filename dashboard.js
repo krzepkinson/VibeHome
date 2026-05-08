@@ -216,7 +216,8 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
                             <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</p>
                         </div>
                         
-                        <div onclick="event.preventDefault(); event.stopPropagation(); window.openChangeUserModal('${item.table}', ${item.id}, '${window.esc(item.user)}')" 
+                        <div class="js-dash-change-user w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 cursor-pointer active:scale-90 transition-transform shadow-inner relative z-10" 
+     data-table="${item.table}" data-id="${item.id}" data-username="${window.esc(item.user)}">
                              class="w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 cursor-pointer active:scale-90 transition-transform shadow-inner relative z-10" 
                              data-user-name="${window.esc(item.user)}">
                             ${initial}
@@ -323,3 +324,12 @@ window.quickEndHealthDashboard = async function(logId) {
     window.showToast('Zakończono! ✔️'); 
     window.loadDashboardOverview();
 };
+// Delegacja zdarzeń dla Przeglądu
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.js-dash-change-user');
+    if (btn) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.openChangeUserModal(btn.dataset.table, btn.dataset.id, btn.dataset.username);
+    }
+});
