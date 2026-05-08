@@ -470,7 +470,7 @@ window.closeHealthBook = function() { window.goBack(); };
 window.loadHealthBook = async function() {
     const tl = document.getElementById('health-book-timeline');
     if (!tl) return;
-    tl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Analizowanie...</p>`;
+    tl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Analizowanie danych...</p>`;
     
     try {
         const profile = healthProfiles.find(p => p.id === currentProfileId);
@@ -479,7 +479,6 @@ window.loadHealthBook = async function() {
             if (subtitle) subtitle.innerText = `Pacjent: ${profile.name}`;
         }
 
-        // Pobieranie pomiarów
         const { data: measurements, error: mError } = await window.supabaseClient
             .from('health_measurements')
             .select('*')
@@ -488,36 +487,46 @@ window.loadHealthBook = async function() {
 
         if (mError) throw mError;
 
-        // BEZPIECZNIK: Upewniamy się, że mamy tablice
         const tasks = healthTasks || [];
         const logs = healthLogs || [];
         
-        // Filtrowanie logów tylko dla tego profilu
+        // Filtrujemy logi tylko dla osoby, którą aktualnie przeglądamy
         const profileLogs = logs.filter(l => tasks.some(t => t.id === l.health_task_id));
         
         let timelineItems = [];
 
-        // 1. Pomiary
+        // 1. POMIARY (Waga, Temperatura itp.)
         (measurements || []).forEach(m => {
             timelineItems.push({
                 date: new Date(m.created_at),
                 title: `Pomiar: ${m.measurement_type}`,
-                desc: `<span class="text-[#c2e7ff] font-bold text-base">${m.value} ${m.unit || ''}</span>`,
+                desc: `Wynik: <span class="text-[#c2e7ff] font-bold">${m.value} ${m.unit || ''}</span>${m.notes ? `<br><span class="text-[10px] opacity-70">${window.esc(m.notes)}</span>` : ''}`,
                 icon: '📏',
                 color: 'text-[#c2e7ff]',
                 bg: 'bg-[#004a77]/10 border-[#004a77]/30'
             });
         });
 
-        // 2. Logi medyczne
+        // 2. LOGI MEDYCZNE (Leki, Kąpiele, Objawy)
         profileLogs.forEach(l => {
             const task = tasks.find(t => t.id === l.health_task_id);
             if (!task) return;
 
+            // Budujemy czytelny opis: Kto wykonał czynność
+            const wykonawca = l.user_name || 'Domownik';
+            let szczegoly = '';
+            
+            if (task.task_type === 'duration') {
+                szczegoly = l.end_date ? `Zdarzenie trwało do ${new Date(l.end_date).toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'})}` : 'Zdarzenie nadal trwa';
+            } else {
+                szczegoly = `Zarejestrowano wykonanie zadania`;
+            }
+
             timelineItems.push({
                 date: new Date(l.start_date),
                 title: task.name,
-                desc: task.task_type === 'duration' ? (l.end_date ? 'Zdarzenie zakończone' : 'W trakcie') : 'Wykonano wpis',
+                // Tutaj personalizujemy opis wpisu
+                desc: `<span class="text-neutral-400">Pacjent:</span> ${window.esc(profile.name)}<br><span class="text-neutral-400">Wpisał(a):</span> ${window.esc(wykonawca)}`,
                 icon: task.task_type === 'duration' ? '🤒' : '🔄',
                 color: task.task_type === 'duration' ? 'text-[#ffb4ab]' : 'text-[#c4eed0]',
                 bg: task.task_type === 'duration' ? 'bg-[#3c1414]/30 border-[#8c1d18]/40' : 'bg-[#0f5223]/10 border-[#0f5223]/30'
@@ -527,7 +536,7 @@ window.loadHealthBook = async function() {
         timelineItems.sort((a, b) => b.date - a.date);
 
         if (timelineItems.length === 0) {
-            tl.innerHTML = `<div class="py-10 text-neutral-500 text-xs text-center">Brak danych dla tego profilu.</div>`;
+            tl.innerHTML = `<div class="py-10 text-neutral-500 text-xs text-center">Brak wpisów w książeczce dla: ${profile.name}</div>`;
             return;
         }
 
@@ -544,8 +553,8 @@ window.loadHealthBook = async function() {
         tl.innerHTML = html;
 
     } catch (err) {
-        console.error("Błąd Książeczki Zdrowia:", err);
-        tl.innerHTML = `<p class="text-center text-rose-400 text-xs py-10">Błąd ładowania danych: ${err.message}</p>`;
+        console.error("Błąd ładowania Książeczki:", err);
+        tl.innerHTML = `<p class="text-center text-rose-400 text-xs py-10">Błąd: ${err.message}</p>`;
     }
 };
 
