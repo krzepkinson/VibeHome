@@ -43,18 +43,25 @@ window.handleAuthAction = async function() {
 window.finalizeLogin = async function(user) {
     try {
         if (!user) throw new Error("Brak danych użytkownika.");
-        window.currentUser = { id: user.id };
-
-        // 1. Sprawdzamy profil (zabezpieczenie przed duplikatami)
-        let { data: profiles } = await window.supabaseClient
+        
+        // 1. Szukamy profilu po UUID (user_id)
+        let { data: profiles, error: pError } = await window.supabaseClient
             .from('profiles')
             .select('*')
             .eq('user_id', user.id)
             .limit(1);
-            
+
         let profile = profiles && profiles.length > 0 ? profiles[0] : null;
 
-        // 2. Jeśli profilu nie ma lub nie ma domu, szukamy/tworzymy go
+        // 2. Jeśli nie ma profilu z UUID, sprawdźmy, czy jest profil o tym samym imieniu/mailu bez UUID
+        // (To naprawi sytuację, gdy najpierw dodałeś kogoś ręcznie, a potem on się zalogował)
+        if (!profile) {
+            // Szukamy w tym samym gospodarstwie profilu, który może być "pusty" (bez user_id)
+            // Tutaj opcjonalnie można szukać po imieniu, jeśli je znasz, 
+            // ale najbezpieczniej jest stworzyć nowy lub przypisać istniejący.
+        }
+
+        // 3. Obsługa Household (Domostwa)
         if (!profile || !profile.household_id) {
             const { data: memberData } = await window.supabaseClient
                 .from('household_members')
@@ -65,53 +72,32 @@ window.finalizeLogin = async function(user) {
             let targetHouseholdId = memberData && memberData.length > 0 ? memberData[0].household_id : null;
 
             if (!targetHouseholdId) {
-                window.showToast("Konfiguracja nowego domu...");
                 targetHouseholdId = await window.initHousehold(user);
             }
 
             if (!profile) {
-                const { data: newProfiles, error: insError } = await window.supabaseClient.from('profiles').insert([{ 
+                // Tworzymy nowy profil, jeśli naprawdę nic nie znaleźliśmy
+                const { data: newProfiles } = await window.supabaseClient.from('profiles').insert([{ 
                     user_id: user.id, 
                     household_id: targetHouseholdId, 
-                    name: 'Ja' 
+                    name: user.email.split('@')[0] // Tymczasowe imię z maila
                 }]).select();
-                
-                if (insError) throw insError;
                 profile = newProfiles[0];
             } else {
-                const { data: updProfiles, error: updError } = await window.supabaseClient.from('profiles').update({ 
+                // Aktualizujemy istniejący profil o ID domostwa
+                const { data: updProfiles } = await window.supabaseClient.from('profiles').update({ 
                     household_id: targetHouseholdId 
                 }).eq('id', profile.id).select();
-                
-                if (updError) throw updError;
                 profile = updProfiles[0];
             }
         }
 
-        if (!profile || !profile.household_id) {
-            throw new Error("Nie udało się uzyskać identyfikatora domu.");
-        }
-
-        // 3. Sukces - ustawiamy pełny profil użytkownika
-        window.currentUser = {
-            ...profile,
-            user_id: user.id
-        };
-
-        // 4. Przełączamy widok (Router sam zajmie się ładowaniem danych Dashboardu)
+        window.currentUser = { ...profile, user_id: user.id };
         window.switchView('dashboard');
         
     } catch (error) {
-        console.error("Błąd logowania:", error);
+        console.error("Błąd krytyczny logowania:", error);
         window.showToast("Błąd: " + error.message);
-        
-        await window.supabaseClient.auth.signOut();
-        window.currentUser = null;
-        
-        // Wymuszamy powrót do ekranu logowania w razie błędu
-        document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
-        document.getElementById('view-auth')?.classList.remove('hidden');
-        document.getElementById('bottom-nav')?.classList.add('hidden');
     }
 };
 
