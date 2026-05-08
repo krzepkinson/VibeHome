@@ -147,7 +147,7 @@ window.loadDashboard = async function() {
                     <p class="text-[10px] ${status.color} mt-0.5">${status.label}</p>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">
-                    <button onclick="window.openAddLogModal(${item.t.id}, '${window.esc(item.t.name)}')" class="w-8 h-8 rounded-full bg-[#0f5223]/20 text-[#c4eed0] flex items-center justify-center active:scale-90 pb-0.5 text-base border border-[#0f5223]/50">+</button>
+                    <button class="js-add-log w-8 h-8 rounded-full bg-[#0f5223]/20 text-[#c4eed0] flex items-center justify-center active:scale-90 pb-0.5 text-base border border-[#0f5223]/50" data-id="${item.t.id}" data-name="${window.esc(item.t.name)}">+</button>
                     <button onclick="window.openSettingsScreen(${item.t.id})" class="w-8 h-8 rounded-full bg-[#333537]/50 text-neutral-400 flex items-center justify-center active:scale-90 text-xs">⚙️</button>
                 </div>
             </div>`;
