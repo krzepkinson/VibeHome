@@ -47,24 +47,41 @@ window.closeConfirmModal = function(result) {
     window._confirmCallback = null;
 };
 
-window.isTaskOverdue = function(task, logs) {
-    const lastLog = logs.find(l => l.task_id === task.id);
-    
-    // ZMIANA: Jeśli zadanie ma interwał 0, jest "do zrobienia", dopóki nie ma logu
-    if (!task.interval_days || task.interval_days === 0) {
-        return !lastLog; 
-    }
-    
-    if (!lastLog) return true;
-    
-    const lastDate = new Date(lastLog.created_at); 
-    lastDate.setHours(0, 0, 0, 0);
-    const nextDate = new Date(lastDate); 
-    nextDate.setDate(nextDate.getDate() + task.interval_days);
-    const today = new Date(); 
+window.isTaskOverdue = function(task, logsArray) {
+    const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    return nextDate <= today;
+
+    // Znajdź logi powiązane z tym zadaniem (obsługa kluczy z Domu i ze Zdrowia)
+    // Zakładamy, że logsArray jest posortowane od najnowszego (co robimy w zapytaniach SQL)
+    const taskLogs = logsArray.filter(l => l.task_id === task.id || l.health_task_id === task.id);
+    const lastLog = taskLogs[0]; 
+
+    // 1. ZADANIA JEDNORAZOWE (np. Zdarzenia Zdrowotne)
+    if (task.task_type === 'one_time') {
+        if (taskLogs.length > 0) return false; // Już zrobione, więc nie zalega
+        if (!task.event_date) return false;
+        
+        const evDate = new Date(task.event_date);
+        evDate.setHours(0, 0, 0, 0);
+        return evDate <= today;
+    }
+
+    // 2. ZADANIA CYKLICZNE (Domowe "interval_days" oraz Zdrowotne "cyclical")
+    if (task.interval_days && task.interval_days > 0) {
+        if (!lastLog) return true; // Nigdy nie robione = trzeba to zrobić (zaległe)
+        
+        // Łapiemy datę z odpowiedniej kolumny (Dom vs Zdrowie)
+        const lastDateStr = lastLog.created_at || lastLog.start_date;
+        if (!lastDateStr) return true;
+
+        const nextDate = new Date(lastDateStr);
+        nextDate.setHours(0, 0, 0, 0);
+        nextDate.setDate(nextDate.getDate() + task.interval_days);
+        
+        return nextDate <= today;
+    }
+
+    return false; // Pozostałe przypadki (np. zadania archiwizowane, bez interwału)
 };
 
 // --- SYSTEM PULL-TO-REFRESH ---
