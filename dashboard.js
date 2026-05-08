@@ -78,24 +78,7 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
     }
 
     else if (window.activeDashboardTab === 'health') {
-        const dueHealth = hTasks.filter(ht => {
-            if (ht.task_type === 'cyclical' && ht.interval_days) {
-                const lastLog = hLogs.find(l => l.health_task_id === ht.id);
-                if (!lastLog) return true;
-                const next = new Date(lastLog.start_date); 
-                next.setHours(0,0,0,0); 
-                next.setDate(next.getDate() + ht.interval_days);
-                return next <= today;
-            }
-            if (ht.task_type === 'one_time' && ht.event_date) {
-                const tLogs = hLogs.filter(l => l.health_task_id === ht.id);
-                if (tLogs.length > 0) return false; 
-                const evDate = new Date(ht.event_date); 
-                evDate.setHours(0,0,0,0);
-                return evDate <= today; 
-            }
-            return false;
-        });
+        const dueHealth = hTasks.filter(ht => window.isTaskOverdue(ht, hLogs));
         
         const activeDuration = hTasks.filter(ht => ht.task_type === 'duration' && hLogs.some(l => l.health_task_id === ht.id && l.end_date === null));
 
