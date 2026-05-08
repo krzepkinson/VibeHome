@@ -42,6 +42,11 @@ window.handleAuthAction = async function() {
 
 window.finalizeLogin = async function(user) {
     try {
+        // --- KLUCZOWA POPRAWKA ---
+        // Ustawiamy tymczasowy obiekt currentUser. Funkcja initHousehold prawdopodobnie 
+        // korzysta z window.currentUser.id, a my wcześniej przenieśliśmy to na sam koniec.
+        window.currentUser = { id: user.id };
+
         // 1. Próbujemy pobrać profil użytkownika
         let { data: profile, error: profileError } = await window.supabaseClient
             .from('profiles')
@@ -70,7 +75,7 @@ window.finalizeLogin = async function(user) {
             throw new Error("Krytyczny błąd: Nie udało się przypisać do domu.");
         }
 
-        // 4. Sukces - przypisujemy dane i wpuszczamy do aplikacji
+        // 4. Sukces - przypisujemy PEŁNE dane (podmieniając tymczasowy obiekt)
         window.currentUser = profile;
         window.switchView('dashboard');
         
@@ -79,7 +84,6 @@ window.finalizeLogin = async function(user) {
         window.showToast("Błąd konfiguracji: " + error.message);
         
         // --- AWARYJNE WYLOGOWANIE ---
-        // Niszczymy "pustą" sesję, żeby użytkownik nie wszedł do aplikacji bez domu
         await window.supabaseClient.auth.signOut();
         window.currentUser = null;
         
