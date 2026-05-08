@@ -469,75 +469,84 @@ window.closeHealthBook = function() { window.goBack(); };
 
 window.loadHealthBook = async function() {
     const tl = document.getElementById('health-book-timeline');
+    if (!tl) return;
     tl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Analizowanie...</p>`;
     
-    const profile = healthProfiles.find(p => p.id === currentProfileId);
-    if (profile) document.getElementById('health-book-subtitle').innerText = `Pacjent: ${profile.name}`;
+    try {
+        const profile = healthProfiles.find(p => p.id === currentProfileId);
+        if (profile) {
+            const subtitle = document.getElementById('health-book-subtitle');
+            if (subtitle) subtitle.innerText = `Pacjent: ${profile.name}`;
+        }
 
-    const { data: measurements } = await window.supabaseClient.from('health_measurements').select('*').eq('profile_id', currentProfileId).order('created_at', { ascending: false });
-    
-    // Pobieramy logi tylko dla aktualnie wybranego profilu w zdrowiu
-    const profileLogs = healthLogs.filter(l => healthTasks.some(t => t.id === l.health_task_id));
-    
-    let timelineItems = [];
+        // Pobieranie pomiarów
+        const { data: measurements, error: mError } = await window.supabaseClient
+            .from('health_measurements')
+            .select('*')
+            .eq('profile_id', currentProfileId)
+            .order('created_at', { ascending: false });
 
-    // 1. Dodajemy pomiary
-    (measurements || []).forEach(m => {
-        timelineItems.push({
-            date: new Date(m.created_at),
-            title: `Pomiar: ${m.measurement_type}`,
-            desc: `<span class="text-[#c2e7ff] font-bold text-base">${m.value} ${m.unit || ''}</span> ${m.notes ? `<br><span class="opacity-70">${window.esc(m.notes)}</span>` : ''}`,
-            icon: '📏',
-            color: 'text-[#c2e7ff]',
-            bg: 'bg-[#004a77]/10 border-[#004a77]/30'
-        });
-    });
+        if (mError) throw mError;
 
-    // 2. Dodajemy logi medyczne
-    profileLogs.forEach(l => {
-        const task = healthTasks.find(t => t.id === l.health_task_id);
-        if (!task) return;
+        // BEZPIECZNIK: Upewniamy się, że mamy tablice
+        const tasks = healthTasks || [];
+        const logs = healthLogs || [];
+        
+        // Filtrowanie logów tylko dla tego profilu
+        const profileLogs = logs.filter(l => tasks.some(t => t.id === l.health_task_id));
+        
+        let timelineItems = [];
 
-        if (task.task_type === 'duration') {
+        // 1. Pomiary
+        (measurements || []).forEach(m => {
             timelineItems.push({
-                date: new Date(l.start_date),
-                title: `Zgłoszono: ${task.name}`,
-                desc: l.end_date ? `Zakończono: ${new Date(l.end_date).toLocaleDateString('pl-PL')}` : 'Nadal trwa',
-                icon: '🤒',
-                color: 'text-[#ffb4ab]',
-                bg: 'bg-[#3c1414]/30 border-[#8c1d18]/40'
+                date: new Date(m.created_at),
+                title: `Pomiar: ${m.measurement_type}`,
+                desc: `<span class="text-[#c2e7ff] font-bold text-base">${m.value} ${m.unit || ''}</span>`,
+                icon: '📏',
+                color: 'text-[#c2e7ff]',
+                bg: 'bg-[#004a77]/10 border-[#004a77]/30'
             });
-        } else {
-            // POPRAWKA: Dodano brakujący klucz 'desc'
+        });
+
+        // 2. Logi medyczne
+        profileLogs.forEach(l => {
+            const task = tasks.find(t => t.id === l.health_task_id);
+            if (!task) return;
+
             timelineItems.push({
                 date: new Date(l.start_date),
                 title: task.name,
-                desc: 'Wykonano zaplanowane działanie',
-                icon: '🔄',
-                color: 'text-[#c4eed0]',
-                bg: 'bg-[#0f5223]/10 border-[#0f5223]/30'
+                desc: task.task_type === 'duration' ? (l.end_date ? 'Zdarzenie zakończone' : 'W trakcie') : 'Wykonano wpis',
+                icon: task.task_type === 'duration' ? '🤒' : '🔄',
+                color: task.task_type === 'duration' ? 'text-[#ffb4ab]' : 'text-[#c4eed0]',
+                bg: task.task_type === 'duration' ? 'bg-[#3c1414]/30 border-[#8c1d18]/40' : 'bg-[#0f5223]/10 border-[#0f5223]/30'
             });
+        });
+
+        timelineItems.sort((a, b) => b.date - a.date);
+
+        if (timelineItems.length === 0) {
+            tl.innerHTML = `<div class="py-10 text-neutral-500 text-xs text-center">Brak danych dla tego profilu.</div>`;
+            return;
         }
-    });
 
-    timelineItems.sort((a, b) => b.date - a.date);
+        let html = '';
+        let lastMonthYear = '';
+        timelineItems.forEach(item => {
+            const monthYear = item.date.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' });
+            if (monthYear !== lastMonthYear) {
+                html += window.UI.renderHealthBookSeparator(monthYear);
+                lastMonthYear = monthYear;
+            }
+            html += window.UI.renderHealthBookTimelineItem(item);
+        });
+        tl.innerHTML = html;
 
-    if (timelineItems.length === 0) {
-        tl.innerHTML = `<div class="py-10 text-neutral-500 text-xs text-center relative -left-[16px]">Książeczka jest pusta.</div>`;
-        return;
+    } catch (err) {
+        console.error("Błąd Książeczki Zdrowia:", err);
+        tl.innerHTML = `<p class="text-center text-rose-400 text-xs py-10">Błąd ładowania danych: ${err.message}</p>`;
     }
-
-    let html = '';
-    let lastMonthYear = '';
-    timelineItems.forEach(item => {
-        const monthYear = item.date.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' });
-        if (monthYear !== lastMonthYear) {
-            html += window.UI.renderHealthBookSeparator(monthYear);
-            lastMonthYear = monthYear;
-        }
-        html += window.UI.renderHealthBookTimelineItem(item);
-    });
-    tl.innerHTML = html;
 };
 
 document.addEventListener('click', (e) => {
