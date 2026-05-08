@@ -95,8 +95,12 @@ window.finalizeLogin = async function(user) {
             throw new Error("Nie udało się uzyskać identyfikatora domu.");
         }
 
-        // 4. Sukces
-        window.currentUser = profile;
+        // 4. Sukces (Upewniamy się, że aplikacja zna Twój Auth UUID)
+        window.currentUser = {
+            ...profile,
+            id: user.id,
+            user_id: user.id
+        };
         window.switchView('dashboard');
         
     } catch (error) {
