@@ -67,8 +67,6 @@ window.renderDashboardUI = function() {
     });
 
     const state = window.AppStore.get();
-    const today = new Date(); 
-    today.setHours(0,0,0,0);
     let html = '';
 
     if (window.activeDashboardTab === 'todo') {
@@ -90,25 +88,27 @@ window.renderDashboardUI = function() {
         if (dueHealth.length > 0 || activeDuration.length > 0) {
             html += dueHealth.map(ht => {
                 const isOneTime = ht.task_type === 'one_time';
+                // POPRAWKA: Dodano cudzysłowy wokół '${ht.id}'
                 return `
                 <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
                         <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
                         <p class="text-[10px] text-[#ffb4ab] mt-0.5">${isOneTime ? 'Czas na wizytę!' : 'Zaplanowana dawka'}</p>
                     </div>
-                    <button onclick="window.quickLogHealthDashboard(${ht.id})" class="w-8 h-8 rounded-full ${isOneTime ? 'bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0]' : 'bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab]'} flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
+                    <button onclick="window.quickLogHealthDashboard('${ht.id}')" class="w-8 h-8 rounded-full ${isOneTime ? 'bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0]' : 'bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab]'} flex items-center justify-center active:scale-90 text-base font-bold shrink-0">✓</button>
                 </div>`
             }).join('');
             
             html += activeDuration.map(ht => {
                 const aLog = state.hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
+                // POPRAWKA: Dodano cudzysłowy wokół '${aLog.id}'
                 return `
                 <div class="flex items-center justify-between px-3 py-2 bg-rose-900/10 rounded-[12px] border border-rose-900/40 mb-1 border-l-4 border-l-rose-500 shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
                         <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
                         <p class="text-[10px] text-rose-400 mt-0.5">W trakcie...</p>
                     </div>
-                    <button onclick="window.quickEndHealthDashboard(${aLog.id})" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button>
+                    <button onclick="window.quickEndHealthDashboard('${aLog.id}')" class="px-3 py-1.5 rounded-full bg-rose-900/40 border border-rose-800/60 text-rose-200 text-[10px] font-bold uppercase tracking-wider active:scale-90 shrink-0">Zakończ</button>
                 </div>`;
             }).join('');
         } else { html = window.UI.renderEmptyState("Wszyscy zdrowi!"); }
@@ -178,9 +178,16 @@ window.renderDashboardUI = function() {
 window.quickCompleteTodoDashboard = async function(id) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const now = new Date().toISOString();
+    
+    // ZABEZPIECZENIE: Sprawdzamy czy ID to UUID (jeśli Twoja baza tego wymaga)
+    if (id.length < 5) {
+        console.error("ID nie wygląda na UUID:", id);
+    }
+
     const { error } = await window.supabaseClient.from('todos')
         .update({ is_completed: true, completed_at: now, completer_name: window.currentUser.name })
         .eq('id', id);
+
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); 
     window.showToast('Zadanie wykonane! ✔️'); 
@@ -192,11 +199,23 @@ window.quickLogTaskDashboard = async function(taskId) {
     const state = window.AppStore.get();
     const task = state.tasks.find(t => t.id == taskId);
     const now = new Date().toISOString(); 
+
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
-        task_id: taskId, activity_name: task ? task.name : 'Zadanie', created_at: now, 
-        notes: '', user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
+        task_id: taskId, 
+        activity_name: task ? task.name : 'Zadanie', 
+        created_at: now, 
+        notes: '', 
+        user_id: window.currentUser.id, 
+        household_id: window.currentUser.household_id, 
+        user_name: window.currentUser.name 
     }]);
-    if (error) { window.showToast('Błąd: ' + error.message); return; }
+
+    if (error) { 
+        console.error("Błąd zapisu logu:", error);
+        window.showToast('Błąd UUID: Sprawdź ID zadania!'); 
+        return; 
+    }
+
     if (task && (!task.interval_days || task.interval_days === 0)) {
         await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', taskId);
     }
@@ -229,9 +248,8 @@ window.quickEndHealthDashboard = async function(logId) {
     window.loadDashboardOverview(true);
 };
 
-// MASTER CLICK LISTENER (DELEGACJA DLA PRZEGLĄDU)
+// MASTER CLICK LISTENER
 document.addEventListener('click', (e) => {
-    // 1. Zmiana użytkownika w historii
     const userBtn = e.target.closest('.js-dash-change-user');
     if (userBtn) {
         e.preventDefault(); e.stopPropagation();
@@ -239,14 +257,13 @@ document.addEventListener('click', (e) => {
         return;
     }
 
-    // 2. Odhaczanie To-Do (Przycisk ✓)
     const todoBtn = e.target.closest('.js-dash-complete-todo');
     if (todoBtn) {
+        // dataset.id zawsze zwraca stringa, co jest poprawne dla Supabase
         window.quickCompleteTodoDashboard(todoBtn.dataset.id);
         return;
     }
 
-    // 3. Odhaczanie zadań domowych (Przycisk ✓)
     const homeBtn = e.target.closest('.js-dash-log-task');
     if (homeBtn) {
         window.quickLogTaskDashboard(homeBtn.dataset.id);
