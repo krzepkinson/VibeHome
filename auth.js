@@ -42,9 +42,6 @@ window.handleAuthAction = async function() {
 
 window.finalizeLogin = async function(user) {
     try {
-        // --- KLUCZOWA POPRAWKA ---
-        // Ustawiamy tymczasowy obiekt currentUser. Funkcja initHousehold prawdopodobnie 
-        // korzysta z window.currentUser.id, a my wcześniej przenieśliśmy to na sam koniec.
         window.currentUser = { id: user.id };
 
         // 1. Próbujemy pobrać profil użytkownika
@@ -57,7 +54,9 @@ window.finalizeLogin = async function(user) {
         // 2. Jeśli nie ma profilu lub domu, uruchamiamy proces tworzenia
         if (profileError || !profile || !profile.household_id) {
             window.showToast("Konfiguracja nowego domu...");
-            await window.initHousehold(user.id);
+            
+            // --- POPRAWKA TUTAJ: PRZEKAZUJEMY CAŁY OBIEKT 'user', A NIE TYLKO 'user.id' ---
+            await window.initHousehold(user);
             
             // Pobieramy profil ponownie, żeby upewnić się, że dom się utworzył
             const retry = await window.supabaseClient
@@ -75,7 +74,7 @@ window.finalizeLogin = async function(user) {
             throw new Error("Krytyczny błąd: Nie udało się przypisać do domu.");
         }
 
-        // 4. Sukces - przypisujemy PEŁNE dane (podmieniając tymczasowy obiekt)
+        // 4. Sukces - przypisujemy dane i wpuszczamy do aplikacji
         window.currentUser = profile;
         window.switchView('dashboard');
         
@@ -87,7 +86,6 @@ window.finalizeLogin = async function(user) {
         await window.supabaseClient.auth.signOut();
         window.currentUser = null;
         
-        // Wymuszamy powrót do ekranu logowania
         document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
         const authView = document.getElementById('view-auth');
         if (authView) authView.classList.remove('hidden');
@@ -114,7 +112,6 @@ window.logoutUser = async function() {
     await supabaseClient.auth.signOut();
     window.currentUser = null;
     
-    // Czyścimy cache przy wylogowaniu dla bezpieczeństwa
     if (typeof window.invalidateDashboardCache === 'function') {
         window.invalidateDashboardCache();
     }
