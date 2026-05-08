@@ -35,13 +35,15 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
         listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Synchronizacja...</p>`;
         const hid = window.currentUser.household_id; 
         
-        // POPRAWKA: naprawiono literówkę w zapytaniu (było 's' i Res)
-        const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes, profilesRes] = await Promise.all([
+const [tasksRes, logsRes, healthTasksRes, healthLogsRes, todoRes, profilesRes] = await Promise.all([
             window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-            window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }),
+            // DODANO LIMIT 200 (Wystarczy dla osi czasu i wyliczeń zaległości na głównym)
+            window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
             window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-            window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }),
-            window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }),
+            // DODANO LIMIT 200
+            window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }).limit(200),
+            // DODANO LIMIT 200 (Nie pobieramy też zarchiwizowanych, starych todo!)
+            window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }).limit(200),
             window.supabaseClient.from('profiles').select('*').eq('household_id', hid)
         ]);
         
