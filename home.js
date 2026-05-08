@@ -4,7 +4,8 @@
 
 let allHomeLogs = []; 
 let allHomeTasks = []; 
-let currentRoomFilter = null; 
+// Uczynienie zmiennej globalną, aby components.js miał do niej łatwy dostęp:
+window.currentRoomFilter = null; 
 
 // NOWE ZMIENNE DLA KALENDARZA
 let homeViewMode = 'list'; 
@@ -26,13 +27,13 @@ window.changeHomeMonth = function(offset) {
 };
 
 window.filterHomeByRoom = function(room) {
-    currentRoomFilter = room;
+    window.currentRoomFilter = room;
     if (window.activeView !== 'home') window.switchView('home'); 
     else window.loadDashboard();
 };
 
 window.clearRoomFilter = function() {
-    currentRoomFilter = null;
+    window.currentRoomFilter = null;
     window.loadDashboard(); 
 };
 
@@ -43,10 +44,10 @@ window.loadDashboard = async function() {
     const hid = window.currentUser.household_id;
     
     // Zarządzanie UI na podstawie filtrów
-    if (currentRoomFilter) {
+    if (window.currentRoomFilter) {
         if (backBtn) { backBtn.classList.remove('hidden'); backBtn.innerHTML = '←'; }
         const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
-        if (h1) h1.innerText = currentRoomFilter; if (p) p.innerText = 'Lista zadań';
+        if (h1) h1.innerText = window.currentRoomFilter; if (p) p.innerText = 'Lista zadań';
         calWrapper.classList.add('hidden');
         list.classList.remove('hidden');
     } else {
@@ -73,7 +74,8 @@ window.loadDashboard = async function() {
     allHomeLogs = lRes.data || [];
     const dbRooms = rRes.data || [];
 
-    if (allHomeTasks.length === 0 && !currentRoomFilter) {
+    // Pusty stan
+    if (allHomeTasks.length === 0 && !window.currentRoomFilter) {
         list.classList.remove('hidden');
         calWrapper.classList.add('hidden');
         list.innerHTML = `
@@ -89,7 +91,7 @@ window.loadDashboard = async function() {
     }
 
     // RENDEROWANIE KALENDARZA LUB LISTY POKOJÓW
-    if (!currentRoomFilter) {
+    if (!window.currentRoomFilter) {
         if (homeViewMode === 'calendar') {
             window.renderHomeCalendar();
             return;
@@ -131,28 +133,17 @@ window.loadDashboard = async function() {
         return;
     }
 
-    let tasksToDisplay = currentRoomFilter === 'Wszystkie' ? allHomeTasks : allHomeTasks.filter(t => (t.room || 'Inne') === currentRoomFilter);
+    // Renderowanie wybranego pokoju (używamy komponentów zamiast zupy HTML!)
+    let tasksToDisplay = window.currentRoomFilter === 'Wszystkie' ? allHomeTasks : allHomeTasks.filter(t => (t.room || 'Inne') === window.currentRoomFilter);
     let scored = tasksToDisplay.map(t => ({ 
         t, 
         last: allHomeLogs.find(l => l.task_id === t.id), 
         score: window.calculatePriority(t, allHomeLogs.find(l => l.task_id === t.id)?.created_at) 
     })).sort((a,b) => b.score - a.score || a.t.name.localeCompare(b.t.name));
 
-    list.innerHTML = scored.length ? scored.map(item => {
-        const status = window.getCompactStatus(item.last?.created_at, item.t.interval_days);
-        const roomBadge = currentRoomFilter === 'Wszystkie' ? `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${window.esc(item.t.room || 'Inne')}</span>` : '';
-        return `
-            <div class="flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1 shadow-sm">
-                <div class="flex-1 cursor-pointer pr-2" onclick="window.showToast('${window.esc(status.tooltip)}')">
-                    <h3 class="font-medium text-neutral-100 text-sm flex items-center">${window.esc(item.t.name)} ${roomBadge}</h3>
-                    <p class="text-[10px] ${status.color} mt-0.5">${status.label}</p>
-                </div>
-                <div class="flex items-center gap-1.5 shrink-0">
-                    <button class="js-add-log w-8 h-8 rounded-full bg-[#0f5223]/20 text-[#c4eed0] flex items-center justify-center active:scale-90 pb-0.5 text-base border border-[#0f5223]/50" data-id="${item.t.id}" data-name="${window.esc(item.t.name)}">+</button>
-                    <button onclick="window.openSettingsScreen(${item.t.id})" class="w-8 h-8 rounded-full bg-[#333537]/50 text-neutral-400 flex items-center justify-center active:scale-90 text-xs">⚙️</button>
-                </div>
-            </div>`;
-    }).join('') : `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym pomieszczeniu.</p>`;
+    list.innerHTML = scored.length 
+        ? scored.map(item => window.UI.renderHomeTaskCard(item)).join('') 
+        : `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym pomieszczeniu.</p>`;
 };
 
 // NOWOŚĆ: RENDEROWANIE KALENDARZA DOMOWEGO
@@ -304,7 +295,6 @@ window.saveNewLog = async function() {
     const nt = document.getElementById('add-log-notes').value;
     const taskObj = allHomeTasks.find(t => t.id == taskId);
     
-    // ZMIANA: Inteligentny czas. Jeśli data to dzisiaj - daj dokładny czas. Jeśli z przeszłości - daj 12:00.
     const todayStr = new Date().toISOString().split('T')[0];
     const finalDate = (d === todayStr) ? new Date().toISOString() : `${d}T12:00:00.000Z`;
     
@@ -406,20 +396,92 @@ window.saveEditLog = async function() {
     if (typeof window.refreshCurrentView === 'function') await window.refreshCurrentView();
 };
 
+window.deleteTaskFromHome = function(id, name) {
+    window.customConfirm(`Czy na pewno usunąć "${name}"?`, async () => {
+        const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', id);
+        if (error) { window.showToast("Błąd usuwania"); return; }
+        window.showToast("Usunięto!");
+        window.loadDashboard();
+    });
+};
+
 // ==========================================
-// NASŁUCHIWACZ KLIKNIĘĆ (Delegacja Zdarzeń)
+// GESTY SWIPE I NASŁUCHIWACZ KLIKNIĘĆ
 // ==========================================
+
+let touchStartX = 0;
+let currentSwipeItem = null;
+
+document.addEventListener('touchstart', (e) => {
+    const swipeItem = e.target.closest('.js-swipe-item');
+    if (swipeItem) {
+        touchStartX = e.touches[0].clientX;
+        currentSwipeItem = swipeItem;
+        // Resetujemy inne otwarte swipe'y
+        document.querySelectorAll('.js-swipe-item').forEach(el => {
+            if (el !== swipeItem) el.style.transform = 'translateX(0px)';
+        });
+    }
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+    if (!currentSwipeItem) return;
+    const touchX = e.touches[0].clientX;
+    const diff = touchX - touchStartX;
+
+    // Przesuwamy tylko w lewo i tylko do -80px
+    if (diff < 0 && diff > -100) {
+        currentSwipeItem.style.transform = `translateX(${diff}px)`;
+    }
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+    if (!currentSwipeItem) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchEndX - touchStartX;
+
+    if (diff < -50) {
+        currentSwipeItem.style.transform = 'translateX(-80px)'; // Zostaje otwarte
+    } else {
+        currentSwipeItem.style.transform = 'translateX(0px)'; // Wraca
+    }
+    currentSwipeItem = null;
+});
+
+// ROZBUDOWANA OBSŁUGA KLIKNIĘĆ
 document.addEventListener('click', (e) => {
-    // Akcja 1: Otwieranie formularza logowania zadania (plusik)
+    // 1. Plusik (Logowanie)
     const addLogBtn = e.target.closest('.js-add-log');
     if (addLogBtn) {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         window.openAddLogModal(addLogBtn.dataset.id, addLogBtn.dataset.name);
         return;
     }
 
-    // Akcja 2: Wybór pokoju z listy (filtry)
+    // 2. Kliknięcie w kafelek (Ustawienia)
+    const taskCard = e.target.closest('.js-swipe-item');
+    if (taskCard) {
+        // Zabezpieczenie przed błędem, gdy kliknięto na plusik a event i tak przeszedł wyżej
+        if (e.target.closest('.js-add-log')) return;
+        
+        // Jeśli kafelek jest przesunięty, zamknij go zamiast otwierać ustawienia
+        if (taskCard.style.transform === 'translateX(-80px)') {
+            taskCard.style.transform = 'translateX(0px)';
+            return;
+        }
+        
+        window.openSettingsScreen(taskCard.dataset.id);
+        return;
+    }
+
+    // 3. Usuwanie (kosz, tło swipe)
+    const deleteBtn = e.target.closest('.js-delete-task');
+    if (deleteBtn) {
+        window.deleteTaskFromHome(deleteBtn.dataset.id, deleteBtn.dataset.name);
+        return;
+    }
+    
+    // 4. Pokoje (filtry na górze widoku)
     const filterRoomBtn = e.target.closest('.js-filter-room');
     if (filterRoomBtn) {
         window.filterHomeByRoom(filterRoomBtn.dataset.room);
