@@ -47,7 +47,7 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
             window.dashboardCacheTime = now;
         } catch (err) {
             console.error("Dashboard fetch error:", err);
-            window.showToast("Błąd synchronizacji");
+            window.showToast("Błąd synchronizacji: " + err.message);
         }
     }
     window.renderDashboardUI();
@@ -88,7 +88,6 @@ window.renderDashboardUI = function() {
         if (dueHealth.length > 0 || activeDuration.length > 0) {
             html += dueHealth.map(ht => {
                 const isOneTime = ht.task_type === 'one_time';
-                // POPRAWKA: Dodano cudzysłowy wokół '${ht.id}'
                 return `
                 <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
@@ -101,7 +100,6 @@ window.renderDashboardUI = function() {
             
             html += activeDuration.map(ht => {
                 const aLog = state.hLogs.find(l => l.health_task_id === ht.id && l.end_date === null);
-                // POPRAWKA: Dodano cudzysłowy wokół '${aLog.id}'
                 return `
                 <div class="flex items-center justify-between px-3 py-2 bg-rose-900/10 rounded-[12px] border border-rose-900/40 mb-1 border-l-4 border-l-rose-500 shadow-sm animate-fade-in">
                     <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('health')">
@@ -124,6 +122,7 @@ window.renderDashboardUI = function() {
                 });
             }
         });
+        // (Reszta logiki historii pozostaje bez zmian...)
         state.hLogs.forEach(l => {
             const ht = state.hTasks.find(x => x.id === l.health_task_id);
             if (!ht || ht.show_in_history !== false) {
@@ -179,46 +178,46 @@ window.quickCompleteTodoDashboard = async function(id) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const now = new Date().toISOString();
     
-    // ZABEZPIECZENIE: Sprawdzamy czy ID to UUID (jeśli Twoja baza tego wymaga)
-    if (id.length < 5) {
-        console.error("ID nie wygląda na UUID:", id);
-    }
+    // Konwersja na Number, jeśli to liczba
+    const finalId = isNaN(id) ? id : Number(id);
 
     const { error } = await window.supabaseClient.from('todos')
         .update({ is_completed: true, completed_at: now, completer_name: window.currentUser.name })
-        .eq('id', id);
+        .eq('id', finalId);
 
-    if (error) { window.showToast('Błąd: ' + error.message); return; }
+    if (error) { window.showToast('Błąd bazy: ' + error.message); return; }
     window.invalidateDashboardCache(); 
-    window.showToast('Zadanie wykonane! ✔️'); 
+    window.showToast('Odhaczone! ✔️'); 
     window.loadDashboardOverview(true); 
 };
 
 window.quickLogTaskDashboard = async function(taskId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const state = window.AppStore.get();
-    const task = state.tasks.find(t => t.id == taskId);
-    const now = new Date().toISOString(); 
-
+    
+    // Konwersja na Number
+    const finalTaskId = isNaN(taskId) ? taskId : Number(taskId);
+    const task = state.tasks.find(t => t.id == finalTaskId);
+    
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
-        task_id: taskId, 
+        task_id: finalTaskId, 
         activity_name: task ? task.name : 'Zadanie', 
-        created_at: now, 
-        notes: '', 
+        created_at: new Date().toISOString(), 
         user_id: window.currentUser.id, 
         household_id: window.currentUser.household_id, 
         user_name: window.currentUser.name 
     }]);
 
     if (error) { 
-        console.error("Błąd zapisu logu:", error);
-        window.showToast('Błąd UUID: Sprawdź ID zadania!'); 
+        console.error("Błąd zapisu:", error);
+        window.showToast('Błąd: ' + error.message); 
         return; 
     }
 
     if (task && (!task.interval_days || task.interval_days === 0)) {
-        await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', taskId);
+        await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', finalTaskId);
     }
+    
     window.showToast('Zapisano! ✔️');
     window.invalidateDashboardCache(); 
     window.loadDashboardOverview(true); 
@@ -226,22 +225,22 @@ window.quickLogTaskDashboard = async function(taskId) {
 
 window.quickLogHealthDashboard = async function(taskId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
-    const now = new Date().toISOString();
+    const finalId = isNaN(taskId) ? taskId : Number(taskId);
     const { error } = await window.supabaseClient.from('health_logs').insert([{ 
-        health_task_id: taskId, start_date: now, end_date: now, 
+        health_task_id: finalId, start_date: new Date().toISOString(), end_date: new Date().toISOString(), 
         user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
     }]);
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); 
-    window.showToast('Zapisano! ✔️'); 
     window.loadDashboardOverview(true);
 };
 
 window.quickEndHealthDashboard = async function(logId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+    const finalId = isNaN(logId) ? logId : Number(logId);
     const { error } = await window.supabaseClient.from('health_logs')
         .update({ end_date: new Date().toISOString(), user_name: window.currentUser.name })
-        .eq('id', logId).eq('household_id', window.currentUser.household_id);
+        .eq('id', finalId).eq('household_id', window.currentUser.household_id);
     if (error) { window.showToast('Błąd: ' + error.message); return; }
     window.invalidateDashboardCache(); 
     window.showToast('Zakończono! ✔️'); 
@@ -259,7 +258,6 @@ document.addEventListener('click', (e) => {
 
     const todoBtn = e.target.closest('.js-dash-complete-todo');
     if (todoBtn) {
-        // dataset.id zawsze zwraca stringa, co jest poprawne dla Supabase
         window.quickCompleteTodoDashboard(todoBtn.dataset.id);
         return;
     }
