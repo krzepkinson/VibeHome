@@ -42,71 +42,73 @@ window.handleAuthAction = async function() {
 
 window.finalizeLogin = async function(user) {
     try {
+        if (!user) throw new Error("Brak danych użytkownika.");
         window.currentUser = { id: user.id };
 
-        // 1. Próbujemy pobrać profil użytkownika
-        let { data: profile, error: profileError } = await window.supabaseClient
+        // 1. Sprawdzamy profil
+        let { data: profile } = await window.supabaseClient
             .from('profiles')
             .select('*')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
 
-        // 2. Jeśli nie ma profilu lub domu, uruchamiamy proces tworzenia
-        if (profileError || !profile || !profile.household_id) {
-            window.showToast("Konfiguracja nowego domu...");
-            
-            // Pobieramy wygenerowany ID domu z funkcji initHousehold
-            const newHouseholdId = await window.initHousehold(user);
-            
-            // --- BRAKUJĄCE OGNIWO LOGIKI ---
-            // Musimy przypisać ten nowy ID domu do profilu użytkownika!
-            if (!profile) {
-                // Jeśli profil w ogóle nie istnieje (nowy użytkownik) - tworzymy go
-                await window.supabaseClient.from('profiles').insert([{ 
-                    user_id: user.id, 
-                    household_id: newHouseholdId, 
-                    name: 'Ja' 
-                }]);
-            } else {
-                // Jeśli profil istniał, ale nie miał przypisanego domu - aktualizujemy go
-                await window.supabaseClient.from('profiles').update({ 
-                    household_id: newHouseholdId 
-                }).eq('user_id', user.id);
-            }
-            
-            // Pobieramy profil ponownie, żeby upewnić się, że wszystko się zapisało
-            const retry = await window.supabaseClient
-                .from('profiles')
-                .select('*')
-                .eq('user_id', user.id)
-                .single();
-                
-            profile = retry.data;
-        }
-
-        // 3. TARCZA OBRONNA (Guard Clause)
+        // 2. Jeśli profilu nie ma lub nie ma domu, szukamy głębiej
         if (!profile || !profile.household_id) {
-            throw new Error("Krytyczny błąd: Nie udało się przypisać do domu.");
+            
+            // Sprawdzamy czy użytkownik jest już członkiem jakiegoś domu (naprawa dla istniejących kont)
+            const { data: memberData } = await window.supabaseClient
+                .from('household_members')
+                .select('household_id')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            let targetHouseholdId = memberData?.household_id;
+
+            // Jeśli nadal nie mamy ID domu, to TYLKO WTEDY konfigurujemy nowy
+            if (!targetHouseholdId) {
+                window.showToast("Konfiguracja nowego domu...");
+                targetHouseholdId = await window.initHousehold(user);
+            }
+
+            // Teraz, gdy mamy już ID domu (stary lub nowy), upewniamy się, że profil istnieje
+            if (!profile) {
+                const { data: newProfile, error: insError } = await window.supabaseClient.from('profiles').insert([{ 
+                    user_id: user.id, 
+                    household_id: targetHouseholdId, 
+                    name: 'Ja' 
+                }]).select().single();
+                
+                if (insError) throw insError;
+                profile = newProfile;
+            } else {
+                const { data: updProfile, error: updError } = await window.supabaseClient.from('profiles').update({ 
+                    household_id: targetHouseholdId 
+                }).eq('user_id', user.id).select().single();
+                
+                if (updError) throw updError;
+                profile = updProfile;
+            }
         }
 
-        // 4. Sukces - przypisujemy dane i wpuszczamy do aplikacji
+        // 3. Ostateczna Tarcza Obronna
+        if (!profile || !profile.household_id) {
+            throw new Error("Nie udało się uzyskać identyfikatora domu.");
+        }
+
+        // 4. Sukces
         window.currentUser = profile;
         window.switchView('dashboard');
         
     } catch (error) {
-        console.error("Błąd podczas finalizacji logowania:", error);
-        window.showToast("Błąd konfiguracji: " + error.message);
+        console.error("Błąd logowania:", error);
+        window.showToast("Błąd: " + error.message);
         
-        // --- AWARYJNE WYLOGOWANIE ---
         await window.supabaseClient.auth.signOut();
         window.currentUser = null;
         
         document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
-        const authView = document.getElementById('view-auth');
-        if (authView) authView.classList.remove('hidden');
-        
-        const bottomNav = document.getElementById('bottom-nav');
-        if (bottomNav) bottomNav.classList.add('hidden');
+        document.getElementById('view-auth')?.classList.remove('hidden');
+        document.getElementById('bottom-nav')?.classList.add('hidden');
     }
 };
 
@@ -126,10 +128,6 @@ window.checkSession = async function() {
 window.logoutUser = async function() {
     await supabaseClient.auth.signOut();
     window.currentUser = null;
-    
-    if (typeof window.invalidateDashboardCache === 'function') {
-        window.invalidateDashboardCache();
-    }
-    
+    if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     window.switchView('auth');
 };
