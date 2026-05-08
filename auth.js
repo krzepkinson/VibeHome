@@ -41,24 +41,55 @@ window.handleAuthAction = async function() {
 };
 
 window.finalizeLogin = async function(user) {
-    if (!user) return;
     try {
-        const userName = user.user_metadata?.name || user.email.split('@')[0];
-        
-        // Czyste przekazanie delegacji do osobnego pliku:
-        const hid = await window.initHousehold(user);
+        // 1. Próbujemy pobrać profil użytkownika
+        let { data: profile, error: profileError } = await window.supabaseClient
+            .from('profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
 
-        window.currentUser = { id: user.id, email: user.email, name: userName, household_id: hid };
-        
-        // Wypełnienie pola w ustawieniach
-        const nameInput = document.getElementById('settings-user-name');
-        if (nameInput) nameInput.value = userName;
+        // 2. Jeśli nie ma profilu lub domu, uruchamiamy proces tworzenia
+        if (profileError || !profile || !profile.household_id) {
+            window.showToast("Konfiguracja nowego domu...");
+            await window.initHousehold(user.id);
+            
+            // Pobieramy profil ponownie, żeby upewnić się, że dom się utworzył
+            const retry = await window.supabaseClient
+                .from('profiles')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+                
+            profile = retry.data;
+        }
 
-        document.getElementById('auth-email').value = '';
-        document.getElementById('auth-password').value = '';
+        // 3. TARCZA OBRONNA (Guard Clause)
+        // Jeśli na tym etapie nadal nie ma przypisanego domu, przerywamy!
+        if (!profile || !profile.household_id) {
+            throw new Error("Krytyczny błąd: Nie udało się przypisać do domu.");
+        }
+
+        // 4. Sukces - przypisujemy dane i wpuszczamy do aplikacji
+        window.currentUser = profile;
         window.switchView('dashboard');
-    } catch (error) { 
-        window.showToast('Błąd ładowania: ' + error.message); 
+        
+    } catch (error) {
+        console.error("Błąd podczas finalizacji logowania:", error);
+        window.showToast("Błąd konfiguracji: " + error.message);
+        
+        // --- AWARYJNE WYLOGOWANIE ---
+        // Niszczymy "pustą" sesję, żeby użytkownik nie wszedł do aplikacji bez domu
+        await window.supabaseClient.auth.signOut();
+        window.currentUser = null;
+        
+        // Wymuszamy powrót do ekranu logowania
+        document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
+        const authView = document.getElementById('view-auth');
+        if (authView) authView.classList.remove('hidden');
+        
+        const bottomNav = document.getElementById('bottom-nav');
+        if (bottomNav) bottomNav.classList.add('hidden');
     }
 };
 
