@@ -167,7 +167,7 @@ window.UI = {
         </div>`;
     },
 
-renderHealthBookTimelineItem: function(item) {
+    renderHealthBookTimelineItem: function(item) {
         return `
         <div class="relative mb-5 last:mb-0">
             <div class="absolute -left-[22px] top-4 w-2.5 h-2.5 rounded-full ${item.bg.split(' ')[0]} border border-[#333537] shadow-[0_0_8px_rgb(0,0,0,0.5)]"></div>
@@ -183,3 +183,4 @@ renderHealthBookTimelineItem: function(item) {
             </div>
         </div>`;
     }
+};
