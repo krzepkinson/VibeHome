@@ -122,14 +122,19 @@ window.finalizeLogin = async function(user) {
 
 window.checkSession = async function() {
     try {
-        // POPRAWKA: Dodano window. przed supabaseClient
+        // Sprawdzamy czy klient w ogóle istnieje, żeby uniknąć błędu na starcie
+        if (!window.supabaseClient) {
+            console.warn("Czekam na Supabase...");
+            return false;
+        }
+
         const { data: { session } } = await window.supabaseClient.auth.getSession();
         if (session) { 
             await window.finalizeLogin(session.user); 
             return true; 
         }
     } catch (e) { 
-        console.error("Sesja wygasła:", e); 
+        console.error("Błąd sesji:", e); 
     }
     return false;
 };
