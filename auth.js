@@ -24,12 +24,10 @@ window.handleAuthAction = async function() {
     
     try {
         if (isLoginMode) {
-            // POPRAWKA: Dodano window. przed supabaseClient
             const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
             if (error) throw error;
             await window.finalizeLogin(data.user);
         } else {
-            // POPRAWKA: Dodano window. przed supabaseClient
             const { data, error } = await window.supabaseClient.auth.signUp({ email, password });
             if (error) throw error;
             window.showToast('Konto utworzone!');
@@ -47,7 +45,7 @@ window.finalizeLogin = async function(user) {
         if (!user) throw new Error("Brak danych użytkownika.");
         window.currentUser = { id: user.id };
 
-        // 1. Sprawdzamy profil BEZPIECZNIE (omijamy błąd przy duplikatach z przeszłości)
+        // 1. Sprawdzamy profil (zabezpieczenie przed duplikatami)
         let { data: profiles } = await window.supabaseClient
             .from('profiles')
             .select('*')
@@ -56,10 +54,8 @@ window.finalizeLogin = async function(user) {
             
         let profile = profiles && profiles.length > 0 ? profiles[0] : null;
 
-        // 2. Jeśli profilu nie ma lub nie ma domu, szukamy głębiej
+        // 2. Jeśli profilu nie ma lub nie ma domu, szukamy/tworzymy go
         if (!profile || !profile.household_id) {
-            
-            // Sprawdzamy czy użytkownik jest już członkiem jakiegoś domu (naprawa dla istniejących kont)
             const { data: memberData } = await window.supabaseClient
                 .from('household_members')
                 .select('household_id')
@@ -68,13 +64,11 @@ window.finalizeLogin = async function(user) {
 
             let targetHouseholdId = memberData && memberData.length > 0 ? memberData[0].household_id : null;
 
-            // Jeśli nadal nie mamy ID domu, to TYLKO WTEDY konfigurujemy nowy
             if (!targetHouseholdId) {
                 window.showToast("Konfiguracja nowego domu...");
                 targetHouseholdId = await window.initHousehold(user);
             }
 
-            // Teraz, gdy mamy już ID domu (stary lub nowy), upewniamy się, że profil istnieje
             if (!profile) {
                 const { data: newProfiles, error: insError } = await window.supabaseClient.from('profiles').insert([{ 
                     user_id: user.id, 
@@ -94,26 +88,27 @@ window.finalizeLogin = async function(user) {
             }
         }
 
-        // 3. Ostateczna Tarcza Obronna
         if (!profile || !profile.household_id) {
             throw new Error("Nie udało się uzyskać identyfikatora domu.");
         }
 
-        // 4. Sukces (Upewniamy się, że aplikacja zna Twój Auth UUID)
+        // 3. Sukces - ustawiamy pełny profil użytkownika
         window.currentUser = {
             ...profile,
             user_id: user.id
         };
+
+        // 4. Przełączamy widok (Router sam zajmie się ładowaniem danych Dashboardu)
         window.switchView('dashboard');
         
     } catch (error) {
         console.error("Błąd logowania:", error);
         window.showToast("Błąd: " + error.message);
         
-        // POPRAWKA: Dodano window. przed supabaseClient
         await window.supabaseClient.auth.signOut();
         window.currentUser = null;
         
+        // Wymuszamy powrót do ekranu logowania w razie błędu
         document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
         document.getElementById('view-auth')?.classList.remove('hidden');
         document.getElementById('bottom-nav')?.classList.add('hidden');
@@ -122,9 +117,9 @@ window.finalizeLogin = async function(user) {
 
 window.checkSession = async function() {
     try {
-        // Sprawdzamy czy klient w ogóle istnieje, żeby uniknąć błędu na starcie
+        // Bezpiecznik: jeśli klient jeszcze nie istnieje, nie robimy nic
         if (!window.supabaseClient) {
-            console.warn("Czekam na Supabase...");
+            console.warn("Supabase jeszcze się ładuje...");
             return false;
         }
 
@@ -140,9 +135,13 @@ window.checkSession = async function() {
 };
 
 window.logoutUser = async function() {
-    // POPRAWKA: Dodano window. przed supabaseClient
     await window.supabaseClient.auth.signOut();
     window.currentUser = null;
-    if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+    
+    // Czyścimy cache przeglądu przy wylogowaniu
+    if (typeof window.invalidateDashboardCache === 'function') {
+        window.invalidateDashboardCache();
+    }
+    
     window.switchView('auth');
 };
