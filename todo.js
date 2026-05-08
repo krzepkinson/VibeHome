@@ -83,7 +83,7 @@ window.loadTodosAndLists = async function() {
             if (isDone) avatarClass = 'bg-[#0f5223]/30 border-[#0f5223]/50 text-[#c4eed0]';
             else if (window.getAvatarColor) avatarClass += ' border-[#131314] text-white shadow-inner';
 
-            let userBadge = `<div onclick="event.stopPropagation(); window.openChangeUserModal('${badgeType}', ${todo.id}, '${window.esc(currentName)}')" class="w-6 h-6 rounded-full ${avatarClass} border text-[10px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform font-bold" data-user-name="${window.esc(currentName)}">${initial}</div>`;
+            let userBadge = `<div class="js-change-user w-6 h-6 rounded-full ${avatarClass} border text-[10px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform font-bold" data-type="${badgeType}" data-id="${todo.id}" data-username="${window.esc(currentName)}">${initial}</div>`;
 
             return `
             <div class="relative overflow-hidden mb-1.5 rounded-[16px] group ${isDone ? 'opacity-50' : ''}">
@@ -91,7 +91,7 @@ window.loadTodosAndLists = async function() {
                     <button onclick="window.archiveTodo(${todo.id})" class="text-[#ffb4ab] text-xl active:scale-90 transition-transform">🗑️</button>
                 </div>
                 <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] cursor-pointer w-full transition-transform">
-                    <div class="flex items-center gap-2 flex-1 min-w-0" onclick="window.openEditTodoModal(${todo.id}, '${window.esc(todo.title)}')">
+                    <div class="js-edit-todo flex items-center gap-2 flex-1 min-w-0" data-id="${todo.id}" data-title="${window.esc(todo.title)}">
                         <div onclick="event.stopPropagation(); window.toggleTodo(${todo.id}, ${isDone})" class="w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
                             ${isDone ? '<span class="text-[#0f5223] text-xs font-bold">✓</span>' : ''}
                         </div>
@@ -350,3 +350,30 @@ window.clearCompletedItems = async function() {
         window.loadChecklistItems();
     });
 };
+// Globalny nasłuchiwacz kliknięć dla Zadań (Delegacja Zdarzeń)
+document.addEventListener('click', (e) => {
+    // 1. Sprawdzamy najgłębsze elementy (najpierw zmiana osoby)
+    const changeUserBtn = e.target.closest('.js-change-user');
+    if (changeUserBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.openChangeUserModal(changeUserBtn.dataset.type, changeUserBtn.dataset.id, changeUserBtn.dataset.username);
+        return; // Przerywamy, żeby nie odpaliła się edycja zadania pod spodem!
+    }
+
+    // 2. Kliknięcie w zadanie (edycja)
+    const editTodoBtn = e.target.closest('.js-edit-todo');
+    if (editTodoBtn) {
+        e.preventDefault();
+        window.openEditTodoModal(editTodoBtn.dataset.id, editTodoBtn.dataset.title);
+        return;
+    }
+
+    // 3. Kliknięcie w listę (otwieranie)
+    const openChecklistBtn = e.target.closest('.js-open-checklist');
+    if (openChecklistBtn) {
+        e.preventDefault();
+        window.openChecklistScreen(openChecklistBtn.dataset.id, openChecklistBtn.dataset.title, openChecklistBtn.dataset.type);
+        return;
+    }
+});
