@@ -55,7 +55,7 @@ window.loadTodosAndLists = async function() {
                 <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
                     <button onclick="window.archiveChecklist(${list.id})" class="text-[#ffb4ab] text-xl active:scale-90 transition-transform">🗑️</button>
                 </div>
-                <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 cursor-pointer w-full transition-transform" onclick="window.openChecklistScreen(${list.id}, '${window.esc(list.title)}', '${list.list_type || 'generic'}')">
+                <div class="js-open-checklist swipe-front relative z-10 flex items-center justify-between p-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 cursor-pointer w-full transition-transform" data-id="${list.id}" data-title="${window.esc(list.title)}" data-type="${list.list_type || 'generic'}">
                     <div class="flex items-center gap-3 min-w-0">
                         <span class="text-lg shrink-0">${lType.icon}</span>
                         <span class="text-sm font-medium text-[#c2e7ff] truncate">${window.esc(list.title)}</span>
