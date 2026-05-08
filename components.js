@@ -39,7 +39,7 @@ window.UI = {
 
     renderHomeTaskCard: function(item) {
         const status = window.getCompactStatus(item.last?.created_at, item.t.interval_days);
-        const roomBadge = window.currentRoomFilter === 'Wszystkie' ? 
+        const roomBadge = window.HomeModule.getRoomFilter() === 'Wszystkie' ? 
             `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${window.esc(item.t.room || 'Inne')}</span>` : '';
 
         return `
