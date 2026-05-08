@@ -779,3 +779,12 @@
             window.checkSession();
         });
     </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('SW zarejestrowany!'))
+                .catch(err => console.log('Błąd SW:', err));
+        });
+    }
+</script>
