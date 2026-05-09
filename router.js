@@ -13,10 +13,10 @@ window.Router = (() => {
         'settings':  { file: 'settings.html', onEnter: () => window.initSettingsModule?.() },
         
         // EKRANY PODRZĘDNE (Wbudowane w index.html)
-        'archive-screen': { onEnter: () => window.loadArchiveData?.() },
+        'archive-screen': { file: 'archive.html', onEnter: () => window.loadArchiveData?.() },
         'pharmacy-screen': { file: 'pharmacy.html', onEnter: () => window.loadPharmacyItems?.() },
         'health-book-screen': { file: 'health-book.html', onEnter: () => window.loadHealthBook?.() },
-        'stats-screen': { onEnter: () => window.loadStats?.() },
+        'stats-screen': { file: 'stats.html', onEnter: () => window.loadStats?.() },
         'checklist-screen': { onEnter: null },
         'settings-rooms-screen': { onEnter: null },
         'settings-profiles-screen': { onEnter: null },
