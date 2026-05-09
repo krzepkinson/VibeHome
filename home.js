@@ -38,28 +38,34 @@ window.HomeModule = (() => {
     };
 
     window.loadDashboard = async function() {
-        const list = document.getElementById('dashboard-list');
+        // POPRAWKA: Szukamy kontenera listy (stare ID lub nowe ID z home.html)
+        const list = document.getElementById('dashboard-list') || document.getElementById('home-task-list');
         const calWrapper = document.getElementById('home-calendar-wrapper');
         const backBtn = document.getElementById('home-back-btn');
         const hid = window.currentUser.household_id;
         
         if (roomFilter) {
-            if (backBtn) { backBtn.classList.remove('hidden'); backBtn.innerHTML = '←'; }
+            // POPRAWKA: Przycisk powrotu musi wywoływać czyszczenie filtra
+            if (backBtn) { 
+                backBtn.classList.remove('hidden'); 
+                backBtn.innerHTML = '←'; 
+                backBtn.onclick = (e) => { e.preventDefault(); window.clearRoomFilter(); };
+            }
             const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
             if (h1) h1.innerText = roomFilter; if (p) p.innerText = 'Lista zadań';
-            calWrapper.classList.add('hidden');
-            list.classList.remove('hidden');
+            if (calWrapper) calWrapper.classList.add('hidden');
+            if (list) list.classList.remove('hidden');
         } else {
             if (backBtn) backBtn.classList.add('hidden');
             const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
             if (h1) h1.innerText = 'Dom'; if (p) p.innerText = 'Zarządzanie przestrzenią';
             
             if (viewMode === 'calendar') {
-                list.classList.add('hidden');
-                calWrapper.classList.remove('hidden');
+                if (list) list.classList.add('hidden');
+                if (calWrapper) calWrapper.classList.remove('hidden');
             } else {
-                calWrapper.classList.add('hidden');
-                list.classList.remove('hidden');
+                if (calWrapper) calWrapper.classList.add('hidden');
+                if (list) list.classList.remove('hidden');
             }
         }
 
@@ -74,14 +80,16 @@ window.HomeModule = (() => {
         const dbRooms = rRes.data || [];
 
         if (tasks.length === 0 && !roomFilter) {
-            list.classList.remove('hidden');
-            calWrapper.classList.add('hidden');
-            list.innerHTML = window.UI.renderEmptyState("Twój dom jest pusty", "Dodaj pierwszą czynność, by zacząć dbać o przestrzeń.") + `
-            <div class="flex justify-center -mt-10">
-                <button onclick="window.openNewTaskModal()" class="bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
-                    <span class="text-xl pb-1">+</span> Dodaj pierwszą czynność
-                </button>
-            </div>`;
+            if (list) {
+                list.classList.remove('hidden');
+                if (calWrapper) calWrapper.classList.add('hidden');
+                list.innerHTML = window.UI.renderEmptyState("Twój dom jest pusty", "Dodaj pierwszą czynność, by zacząć dbać o przestrzeń.") + `
+                <div class="flex justify-center -mt-10">
+                    <button onclick="window.openNewTaskModal()" class="bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
+                        <span class="text-xl pb-1">+</span> Dodaj pierwszą czynność
+                    </button>
+                </div>`;
+            }
             return;
         }
 
@@ -123,7 +131,7 @@ window.HomeModule = (() => {
                         <p class="text-[9px] text-neutral-500 mt-0.5 uppercase tracking-widest">${stats.total} zadań</p>
                     </div>`;
             });
-            list.innerHTML = html + `</div>`;
+            if (list) list.innerHTML = html + `</div>`;
             return;
         }
 
@@ -182,9 +190,11 @@ window.HomeModule = (() => {
             return a.t.name.localeCompare(b.t.name);
         });
 
-        list.innerHTML = scored.length 
-            ? scored.map(item => window.UI.renderHomeTaskCard(item)).join('') 
-            : window.UI.renderEmptyState("Brak zadań", "To pomieszczenie jest czyste.");
+        if (list) {
+            list.innerHTML = scored.length 
+                ? scored.map(item => window.UI.renderHomeTaskCard(item)).join('') 
+                : window.UI.renderEmptyState("Brak zadań", "To pomieszczenie jest czyste.");
+        }
             
         // --- KONIEC ZMIENIONEGO BLOKU ---
     };
