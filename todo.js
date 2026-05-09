@@ -4,6 +4,7 @@
 
 window.TodoModule = (() => {
     let currentChecklistId = null;
+    let currentChecklistTitle = '';
     let currentChecklistType = 'generic';
 
     // KONFIGURACJA TYPÓW LIST I SZABLONÓW
@@ -22,6 +23,22 @@ window.TodoModule = (() => {
         await window.loadTodosAndLists();
     };
 
+    // NOWA FUNKCJA: Wywoływana przez Router, gdy checklist.html jest już gotowy w DOM
+    window.initChecklistUI = function() {
+        const titleEl = document.getElementById('checklist-screen-title');
+        if (!titleEl) return;
+
+        const lType = window.LIST_TYPES[currentChecklistType] || window.LIST_TYPES.generic;
+        titleEl.innerText = currentChecklistTitle; 
+        
+        const clearBtn = document.getElementById('checklist-clear-btn');
+        if (clearBtn) {
+            clearBtn.innerText = lType.clearLabel;
+        }
+        
+        window.loadChecklistItems();
+    };
+
     window.loadTodosAndLists = async function() {
         const listEl = document.getElementById('todo-list');
         if (!listEl) return;
@@ -30,18 +47,8 @@ window.TodoModule = (() => {
         const hid = window.currentUser.household_id;
 
         const [todosRes, listsRes] = await Promise.all([
-            window.supabaseClient.from('todos')
-                .select('*')
-                .eq('household_id', hid)
-                .eq('is_archived', false)
-                .order('is_completed', { ascending: true })
-                .order('created_at', { ascending: false })
-                .limit(200),
-            window.supabaseClient.from('checklists')
-                .select('*')
-                .eq('household_id', hid)
-                .eq('is_archived', false)
-                .order('created_at', { ascending: false })
+            window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('is_completed', { ascending: true }).order('created_at', { ascending: false }).limit(200),
+            window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false })
         ]);
 
         const todos = todosRes.data || []; 
@@ -62,7 +69,6 @@ window.TodoModule = (() => {
                             <span class="text-lg shrink-0">${lType.icon}</span>
                             <span class="text-sm font-medium text-[#c2e7ff] truncate">${window.esc(list.title)}</span>
                         </div>
-                        <button onclick="event.stopPropagation(); window.archiveChecklist(${list.id})" class="hidden md:block opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-[#ffb4ab] px-2 text-sm shrink-0 transition-opacity">🗑️</button>
                     </div>
                 </div>`;
             }).join('');
@@ -79,11 +85,8 @@ window.TodoModule = (() => {
                 let currentName = isDone ? (todo.completer_name || 'Ja') : (todo.creator_name || 'Ja');
                 let initial = currentName[0].toUpperCase();
                 let badgeType = isDone ? 'todos' : 'todos_creator';
-                
                 let avatarClass = window.getAvatarColor ? window.getAvatarColor(currentName) : 'bg-[#333537] border-[#444746] text-neutral-300';
                 if (isDone) avatarClass = 'bg-[#0f5223]/30 border-[#0f5223]/50 text-[#c4eed0]';
-                else if (window.getAvatarColor) avatarClass += ' border-[#131314] text-white shadow-inner';
-
                 let userBadge = `<div class="js-change-user w-6 h-6 rounded-full ${avatarClass} border text-[10px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform font-bold" data-type="${badgeType}" data-id="${todo.id}" data-username="${window.esc(currentName)}">${initial}</div>`;
 
                 return `
@@ -99,7 +102,6 @@ window.TodoModule = (() => {
                             <span class="text-sm truncate flex-1 ${isDone ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(todo.title)}</span>
                             ${userBadge}
                         </div>
-                        <button onclick="event.stopPropagation(); window.archiveTodo(${todo.id})" class="hidden md:block opacity-0 group-hover:opacity-100 text-neutral-500 hover:text-[#ffb4ab] pl-3 text-sm shrink-0 transition-opacity">🗑️</button>
                     </div>
                 </div>`;
             }).join('');
@@ -110,127 +112,47 @@ window.TodoModule = (() => {
     window.openNewTodoModal = function() { 
         window.loadAndShowModal('new-todo-modal', '/modals/new-todo.html', () => {
             document.getElementById('new-todo-title').value = ''; 
-            setTimeout(() => { const input = document.getElementById('new-todo-title'); if (input) input.focus(); }, 50);
+            setTimeout(() => document.getElementById('new-todo-title')?.focus(), 50);
         });
     };
     window.closeNewTodoModal = function() { document.getElementById('new-todo-modal').classList.add('hidden'); };
 
-    window.openNewListModal = function() { 
-        window.loadAndShowModal('new-list-modal', '/modals/new-list.html', () => {
-            document.getElementById('new-list-title').value = ''; 
-            document.getElementById('new-list-type').value = 'generic'; 
-            window.toggleListTemplates();
-            setTimeout(() => { const input = document.getElementById('new-list-title'); if (input) input.focus(); }, 50);
-        });
-    };
-    window.closeNewListModal = function() { document.getElementById('new-list-modal').classList.add('hidden'); };
-
-    window.toggleListTemplates = function() {
-        const type = document.getElementById('new-list-type').value;
-        document.getElementById('new-list-template-container').classList.toggle('hidden', type !== 'packing');
-        document.getElementById('new-list-template').value = '';
-    };
-
     window.saveNewTodo = async function() {
         const title = document.getElementById('new-todo-title').value.trim(); 
         if (!title) return;
-        const { error } = await window.supabaseClient.from('todos').insert([{ 
-            title: title, 
-            user_id: window.currentUser.user_id, // POPRAWKA: user_id zamiast id
-            household_id: window.currentUser.household_id, 
-            is_completed: false, is_archived: false, creator_name: window.currentUser.name 
-        }]);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.closeNewTodoModal(); window.showToast("Zadanie dodane!"); window.loadTodosAndLists();
-    };
-
-    window.saveNewList = async function() {
-        const title = document.getElementById('new-list-title').value.trim(); 
-        const listType = document.getElementById('new-list-type').value;
-        const template = document.getElementById('new-list-template').value;
-        if (!title) return;
-        const { data: newList, error } = await window.supabaseClient.from('checklists').insert([{ 
-            title: title, list_type: listType, 
-            user_id: window.currentUser.user_id, // POPRAWKA: user_id zamiast id
-            household_id: window.currentUser.household_id, is_archived: false 
-        }]).select().single();
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        if (listType === 'packing' && template && window.PACKING_TEMPLATES[template]) {
-            const itemsToInsert = window.PACKING_TEMPLATES[template].map(content => ({
-                checklist_id: newList.id, 
-                user_id: window.currentUser.user_id, // POPRAWKA: user_id zamiast id
-                household_id: window.currentUser.household_id, content: content, is_completed: false
-            }));
-            await window.supabaseClient.from('checklist_items').insert(itemsToInsert);
-        }
-        window.closeNewListModal(); window.showToast("Lista utworzona!"); window.loadTodosAndLists();
-    };
-
-    window.toggleTodo = async function(id, currentStatus) {
-        if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
-        const now = new Date().toISOString();
-        let updateData = { is_completed: !currentStatus, completed_at: !currentStatus ? now : null, completer_name: !currentStatus ? window.currentUser.name : null };
-        const { error } = await window.supabaseClient.from('todos').update(updateData).eq('id', id).eq('household_id', window.currentUser.household_id);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.loadTodosAndLists();
-    };
-
-    window.archiveTodo = function(id) {
-        window.customConfirm("Zarchiwizować to zadanie?", async () => {
-            const { error } = await window.supabaseClient.from('todos').update({ is_archived: true }).eq('id', id);
-            if (error) { window.showToast("Błąd: " + error.message); return; }
-            window.showToast("Zarchiwizowano!"); window.loadTodosAndLists();
-        });
-    };
-
-    window.archiveChecklist = function(id) {
-        window.customConfirm("Zarchiwizować całą listę?", async () => {
-            const { error } = await window.supabaseClient.from('checklists').update({ is_archived: true }).eq('id', id);
-            if (error) { window.showToast("Błąd: " + error.message); return; }
-            window.showToast("Lista zarchiwizowana!"); window.loadTodosAndLists();
-        });
-    };
-
-    window.openEditTodoModal = function(id, title) {
-        window.loadAndShowModal('edit-todo-modal', '/modals/edit-todo.html', () => {
-            document.getElementById('edit-todo-id').value = id;
-            document.getElementById('edit-todo-title').value = title;
-            setTimeout(() => { const input = document.getElementById('edit-todo-title'); if (input) input.focus(); }, 50);
-        });
-    };
-    window.closeEditTodoModal = function() { document.getElementById('edit-todo-modal').classList.add('hidden'); };
-
-    window.saveEditedTodo = async function() {
-        const id = document.getElementById('edit-todo-id').value;
-        const title = document.getElementById('edit-todo-title').value.trim();
-        if(!title) return;
-        const { error } = await window.supabaseClient.from('todos').update({ title: title }).eq('id', id);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.closeEditTodoModal(); window.showToast("Zapisano zmiany!"); window.loadTodosAndLists();
+        const { error } = await window.supabaseClient.from('todos').insert([{ title, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, is_completed: false, is_archived: false, creator_name: window.currentUser.name }]);
+        if (error) window.showToast("Błąd: " + error.message);
+        else { window.closeNewTodoModal(); window.showToast("Zadanie dodane!"); window.loadTodosAndLists(); }
     };
 
     window.openChecklistScreen = function(id, title, type) {
+        // 1. Tylko zapisujemy dane do pamięci podręcznej modułu
         currentChecklistId = id; 
+        currentChecklistTitle = title;
         currentChecklistType = type || 'generic';
-        const lType = window.LIST_TYPES[currentChecklistType] || window.LIST_TYPES.generic;
-        document.getElementById('checklist-screen-title').innerText = title; 
-        const clearBtn = document.getElementById('checklist-clear-btn');
-        if (clearBtn) clearBtn.innerText = lType.clearLabel;
-        window.loadChecklistItems(); 
+        
+        // 2. Przełączamy widok - Router zajmie się resztą i wywoła initChecklistUI
         window.goForward('checklist-screen');
     };
-    window.closeChecklistScreen = function() { window.goBack(); };
 
     window.loadChecklistItems = async function() {
         const listEl = document.getElementById('checklist-items-list');
-        if (!listEl) return;
+        if (!listEl || !currentChecklistId) return;
         listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Ładowanie...</p>`;
+        
         const { data } = await window.supabaseClient.from('checklist_items').select('*').eq('checklist_id', currentChecklistId).order('created_at', { ascending: true });
         const items = data || [];
-        const hasCompleted = items.some(i => i.is_completed);
         const clearBtn = document.getElementById('checklist-clear-btn');
-        if (clearBtn) { if (hasCompleted) clearBtn.classList.remove('hidden'); else clearBtn.classList.add('hidden'); }
-        if (items.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Lista jest pusta. Dodaj coś poniżej.</p>`; return; }
+        if (clearBtn) {
+            const hasCompleted = items.some(i => i.is_completed);
+            clearBtn.classList.toggle('hidden', !hasCompleted);
+        }
+        
+        if (items.length === 0) {
+            listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Lista jest pusta. Dodaj coś poniżej.</p>`;
+            return;
+        }
+
         listEl.innerHTML = items.map(item => `
             <div class="relative overflow-hidden mb-1 rounded-[12px] group ${item.is_completed ? 'opacity-50' : ''}">
                 <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-4">
@@ -243,7 +165,6 @@ window.TodoModule = (() => {
                         </div>
                         <span class="text-sm truncate ${item.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(item.content)}</span>
                     </div>
-                    <button onclick="window.deleteChecklistItem(${item.id})" class="hidden md:block opacity-0 group-hover:opacity-100 text-neutral-600 hover:text-[#ffb4ab] px-2 text-sm shrink-0 transition-opacity">✕</button>
                 </div>
             </div>`).join('');
     };
@@ -253,51 +174,44 @@ window.TodoModule = (() => {
         const content = input.value.trim();
         if (!content || !currentChecklistId) return; 
         input.value = ''; 
-        const { error } = await window.supabaseClient.from('checklist_items').insert([{ 
-            checklist_id: currentChecklistId, 
-            user_id: window.currentUser.user_id, // POPRAWKA: user_id zamiast id
-            household_id: window.currentUser.household_id, content: content, is_completed: false 
-        }]);
+        const { error } = await window.supabaseClient.from('checklist_items').insert([{ checklist_id: currentChecklistId, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, content, is_completed: false }]);
         if (error) window.showToast("Błąd: " + error.message);
         window.loadChecklistItems();
     };
 
     window.toggleChecklistItem = async function(id, currentStatus) {
         if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
-        const { error } = await window.supabaseClient.from('checklist_items').update({ is_completed: !currentStatus }).eq('id', id);
-        if (error) window.showToast("Błąd: " + error.message);
+        await window.supabaseClient.from('checklist_items').update({ is_completed: !currentStatus }).eq('id', id);
         window.loadChecklistItems();
     };
 
     window.deleteChecklistItem = async function(id) {
-        const { error } = await window.supabaseClient.from('checklist_items').delete().eq('id', id);
-        if (error) window.showToast("Błąd: " + error.message);
+        await window.supabaseClient.from('checklist_items').delete().eq('id', id);
         window.loadChecklistItems();
     };
 
     window.clearCompletedItems = async function() {
-        if (!currentChecklistId) return;
         const lType = window.LIST_TYPES[currentChecklistType] || window.LIST_TYPES.generic;
         window.customConfirm(`Czy na pewno wykonać: ${lType.clearLabel}?`, async () => {
-            const { error } = await window.supabaseClient.from('checklist_items').delete().eq('checklist_id', currentChecklistId).eq('is_completed', true).eq('household_id', window.currentUser.household_id);
-            if (error) { window.showToast("Błąd: " + error.message); return; }
-            window.showToast("Lista oczyszczona!");
+            await window.supabaseClient.from('checklist_items').delete().eq('checklist_id', currentChecklistId).eq('is_completed', true);
             window.loadChecklistItems();
+        });
+    };
+
+    window.archiveChecklist = function(id) {
+        window.customConfirm("Zarchiwizować całą listę?", async () => {
+            await window.supabaseClient.from('checklists').update({ is_archived: true }).eq('id', id);
+            window.loadTodosAndLists();
         });
     };
 
     // Globalny nasłuchiwacz kliknięć dla Zadań
     document.addEventListener('click', (e) => {
-        const changeUserBtn = e.target.closest('.js-change-user');
-        if (changeUserBtn) {
-            e.preventDefault(); e.stopPropagation();
-            window.openChangeUserModal(changeUserBtn.dataset.type, changeUserBtn.dataset.id, changeUserBtn.dataset.username);
-            return;
-        }
-        const editTodoBtn = e.target.closest('.js-edit-todo');
-        if (editTodoBtn) { e.preventDefault(); window.openEditTodoModal(editTodoBtn.dataset.id, editTodoBtn.dataset.title); return; }
         const openChecklistBtn = e.target.closest('.js-open-checklist');
-        if (openChecklistBtn) { e.preventDefault(); window.openChecklistScreen(openChecklistBtn.dataset.id, openChecklistBtn.dataset.title, openChecklistBtn.dataset.type); return; }
+        if (openChecklistBtn) {
+            e.preventDefault();
+            window.openChecklistScreen(openChecklistBtn.dataset.id, openChecklistBtn.dataset.title, openChecklistBtn.dataset.type);
+        }
     });
 
     return { init: window.initTodoModule };
