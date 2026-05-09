@@ -1,0 +1,13 @@
+<div class="fixed inset-0 z-[60] bg-[#131314] flex flex-col transition-all duration-300 animate-fade-in">
+    <div class="p-4 sm:p-6 border-b border-[#333537] flex items-center gap-3 bg-[#1e1f20]">
+        <button onclick="window.goBack()" class="text-neutral-400 text-2xl active:scale-90 transition-transform pb-1 px-2">←</button>
+        <div class="flex-1">
+            <h1 class="text-lg font-medium text-neutral-100">Domowa Apteczka</h1>
+            <p class="text-[10px] text-neutral-500 uppercase tracking-widest">Spis leków i terminów</p>
+        </div>
+        <button onclick="window.openNewPharmacyModal()" class="w-10 h-10 bg-[#e3e3e3] text-[#131314] rounded-full flex items-center justify-center text-2xl pb-1 shadow-md active:scale-90 transition-transform">+</button>
+    </div>
+    <div class="p-4 sm:p-6 flex-1 overflow-y-auto no-scrollbar">
+        <div id="pharmacy-list" class="space-y-1"></div>
+    </div>
+</div>
