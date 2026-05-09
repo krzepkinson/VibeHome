@@ -120,28 +120,6 @@
         </div>
     </div>
 
-    <div id="pharmacy-screen" class="hidden fixed inset-0 bg-[#131314] z-50 overflow-y-auto flex flex-col transition-all duration-300 screen-view">
-        <div class="max-w-xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col pt-8">
-            <button onclick="window.closePharmacyScreen()" class="flex items-center text-neutral-400 text-sm font-medium mb-6 active:scale-95 w-fit hover:text-neutral-200 transition-colors">
-                <span class="mr-2 text-lg">←</span> Wróć
-            </button>
-            <div class="flex justify-between items-center mb-4">
-                <div>
-                    <h2 class="text-xl font-medium text-neutral-100 tracking-wide">💊 Domowa Apteczka</h2>
-                    <p class="text-xs text-neutral-400">Kontroluj daty ważności leków</p>
-                </div>
-                <button onclick="window.openNewPharmacyItemModal()" class="bg-[#e3e3e3] text-[#131314] text-[10px] uppercase font-bold px-3 py-1.5 rounded-full active:scale-95 transition-all">+ Dodaj</button>
-            </div>
-            
-            <div class="relative mb-4">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">🔍</span>
-                <input type="text" id="pharmacy-search-input" oninput="window.renderPharmacyList()" placeholder="Szukaj leku lub na co on jest..." class="w-full pl-9 pr-4 py-3 rounded-[16px] bg-[#1e1f20] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa] transition-colors">
-            </div>
-
-            <div id="pharmacy-list" class="space-y-1 pb-10"></div>
-        </div>
-    </div>
-
     <div id="archive-screen" class="hidden fixed inset-0 bg-[#131314] z-50 overflow-y-auto flex flex-col transition-all duration-300 screen-view">
         <div class="max-w-xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col pt-8">
             <button onclick="window.goBack()" class="flex items-center text-neutral-400 text-sm font-medium mb-6 active:scale-95 w-fit hover:text-neutral-200 transition-colors">
@@ -336,24 +314,6 @@
             <button onclick="window.deleteHealthTask()" class="w-full bg-[#3c1414] text-[#ffb4ab] font-medium py-3.5 rounded-full border border-[#8c1d18]/30 mb-6 text-sm active:scale-95 transition-transform">Usuń zdarzenie</button>
         </div>
     </div>
-
-    <div id="health-book-screen" class="hidden fixed inset-0 bg-[#131314] z-50 overflow-y-auto flex flex-col transition-all duration-300 screen-view">
-        <div class="max-w-xl mx-auto w-full p-4 sm:p-6 flex-1 flex flex-col pt-8">
-            <button onclick="window.closeHealthBook()" class="flex items-center text-neutral-400 text-sm font-medium mb-6 active:scale-95 w-fit hover:text-neutral-200 transition-colors">
-                <span class="mr-2 text-lg">←</span> Wróć
-            </button>
-            <div class="flex justify-between items-center mb-6">
-                <div>
-                    <h2 class="text-xl font-medium text-neutral-100 tracking-wide flex items-center gap-2">📖 Książeczka Zdrowia</h2>
-                    <p class="text-xs text-neutral-400" id="health-book-subtitle">Historia medyczna</p>
-                </div>
-            </div>
-            
-            <div id="health-book-timeline" class="relative border-l border-[#333537] ml-3 pl-4 pb-10">
-                </div>
-        </div>
-    </div>
-
 
     <div id="confirm-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex justify-center items-center p-4">
         <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
