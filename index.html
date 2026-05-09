@@ -61,35 +61,6 @@
                 <button id="auth-toggle-btn" onclick="window.toggleAuthMode()" class="w-full text-center text-sm text-neutral-400 font-medium active:scale-95 transition-transform">Nie masz konta? <span class="text-[#a8c7fa]">Zarejestruj się</span></button>
             </div>
         </div>
-
-        <div id="view-home" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
-            <header class="mb-6 flex justify-between items-center mt-2">
-                <div class="flex items-center gap-3">
-                    <button id="home-back-btn" onclick="window.goBack()" class="hidden w-8 h-8 rounded-full bg-[#333537] text-neutral-200 flex items-center justify-center active:scale-90">→</button>
-                    <div>
-                        <h1 class="text-xl font-medium text-neutral-100 tracking-wide">Dom</h1>
-                        <p class="text-xs text-neutral-400">Zarządzanie przestrzenią</p>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="window.toggleHomeView()" id="home-view-toggle-btn" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-base" title="Zmień widok">📅</button>
-                    <button onclick="window.openStatsScreen()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-base" title="Statystyki">📊</button>
-                    <button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl">↻</button>
-                    <button onclick="window.openNewTaskModal()" class="w-10 h-10 bg-[#004a77] text-[#c2e7ff] rounded-full hover:bg-[#005c94] active:scale-95 flex items-center justify-center text-xl pb-1 transition-all">+</button>
-                </div>
-            </header>
-            
-            <div id="home-calendar-wrapper" class="hidden bg-[#1e1f20] p-4 rounded-[28px] border border-[#333537] mb-6 transition-all">
-                <div class="flex justify-between items-center mb-4">
-                    <button onclick="window.changeHomeMonth(-1)" class="w-8 h-8 flex justify-center items-center rounded-full text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 active:scale-90 transition-colors">&lt;</button>
-                    <h3 class="font-medium text-neutral-200 uppercase tracking-widest text-xs flex items-center gap-1" id="home-calendar-title">Miesiąc Rok</h3>
-                    <button onclick="window.changeHomeMonth(1)" class="w-8 h-8 flex justify-center items-center rounded-full text-neutral-400 hover:bg-[#333537] hover:text-neutral-200 active:scale-90 transition-colors">&gt;</button>
-                </div>
-                <div id="home-calendar-container"></div>
-            </div>
-
-            <div id="dashboard-list" class="flex flex-col space-y-2"></div>
-        </div>
         
         <div id="view-todo" class="hidden max-w-xl mx-auto p-4 sm:p-6 transition-all duration-300 screen-view">
             <header class="mb-6 flex justify-between items-center mt-2">
