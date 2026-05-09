@@ -16,9 +16,10 @@ window.UI = {
 
     // --- 2. KOMPONENTY: DOM I PRZEGLĄD ---
     renderDashboardTodo: function(todo) {
+        // POPRAWKA: Usunięto onclick
         return `
         <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#a8c7fa] shadow-sm animate-fade-in">
-            <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('todo')">
+            <div class="js-dash-nav flex-1 cursor-pointer pr-2" data-view="todo">
                 <h3 class="font-medium text-neutral-100 text-sm truncate">${window.esc(todo.title)}</h3>
                 <p class="text-[10px] text-neutral-500 mt-0.5">${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
             </div>
@@ -27,9 +28,10 @@ window.UI = {
     },
 
     renderDashboardHomeTask: function(task) {
+        // POPRAWKA: Usunięto onclick
         return `
         <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#ffb4ab] shadow-sm animate-fade-in">
-            <div class="flex-1 cursor-pointer pr-2" onclick="window.switchView('home')">
+            <div class="js-dash-nav flex-1 cursor-pointer pr-2" data-view="home">
                 <h3 class="font-medium text-neutral-100 text-sm">${window.esc(task.name)}</h3>
                 <p class="text-[10px] text-[#ffb4ab] mt-0.5">Czas na odświeżenie</p>
             </div>
@@ -184,7 +186,6 @@ window.UI = {
         </div>`;
     },
 
-    // POPRAWKA AUDYTU: Nowy komponent dla Dashboardu
     renderDashboardHealthTask: function(ht) {
         return `
         <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
