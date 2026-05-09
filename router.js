@@ -46,7 +46,7 @@ window.Router = (() => {
             const container = document.getElementById('view-container');
             if (!loadedViews.has(viewName)) {
                 try {
-                    // POPRAWKA AUDYTU: Zabezpieczenie przed trwałym cache'owaniem starych widoków
+                    // POPRAWKA CACHE: Dodajemy wersję do URL, aby wymusić odświeżenie plików po aktualizacji
                     const appVersion = (window.CONFIG && window.CONFIG.VERSION) ? window.CONFIG.VERSION : Date.now();
                     const response = await fetch(`/views/${config.file}?v=${appVersion}`);
                     
@@ -63,6 +63,8 @@ window.Router = (() => {
                 } catch (err) {
                     console.error(`Błąd ładowania ${config.file}:`, err);
                     window.showToast("Błąd ładowania interfejsu");
+                    // POPRAWKA BŁĘDU 404: Jeśli plik się nie załaduje, wracamy do bezpiecznego widoku, aby ekran nie był pusty!
+                    window.switchView('dashboard', false); 
                     return;
                 }
             }
@@ -82,7 +84,7 @@ window.Router = (() => {
 
         window.scrollTo(0, 0);
 
-        // --- ZMIANA: Dodawanie do Historii Przeglądarki (URL) ---
+        // --- Dodawanie do Historii Przeglądarki (URL) ---
         if (pushToHistory && viewName !== 'auth') {
             const newUrl = viewName === 'dashboard' ? '/' : `/?view=${viewName}`;
             window.history.pushState({ view: viewName }, '', newUrl);
@@ -108,7 +110,7 @@ window.Router = (() => {
         }
     };
 
-    // --- ZMIANA: Wykorzystanie natywnego systemu przeglądarki ---
+    // --- Wykorzystanie natywnego systemu przeglądarki ---
     window.goBack = function() { 
         if (window.history.length > 1) {
             window.history.back(); // Zleca przeglądarce wykonanie akcji "Wstecz" (uruchomi popstate)
@@ -127,7 +129,7 @@ window.Router = (() => {
         }
     };
 
-    // --- NOWOŚĆ: Nasłuchiwanie gestów systemowych wstecz/dalej ---
+    // --- Nasłuchiwanie gestów systemowych wstecz/dalej ---
     window.addEventListener('popstate', (e) => {
         // e.state zawiera to, co włożyliśmy przez pushState ({ view: 'home' })
         if (e.state && e.state.view) {
