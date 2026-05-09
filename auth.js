@@ -53,15 +53,7 @@ window.finalizeLogin = async function(user) {
 
         let profile = profiles && profiles.length > 0 ? profiles[0] : null;
 
-        // 2. Jeśli nie ma profilu z UUID, sprawdźmy, czy jest profil o tym samym imieniu/mailu bez UUID
-        // (To naprawi sytuację, gdy najpierw dodałeś kogoś ręcznie, a potem on się zalogował)
-        if (!profile) {
-            // Szukamy w tym samym gospodarstwie profilu, który może być "pusty" (bez user_id)
-            // Tutaj opcjonalnie można szukać po imieniu, jeśli je znasz, 
-            // ale najbezpieczniej jest stworzyć nowy lub przypisać istniejący.
-        }
-
-        // 3. Obsługa Household (Domostwa)
+        // 2. Obsługa Household (Domostwa) i ewentualne tworzenie profilu
         if (!profile || !profile.household_id) {
             const { data: memberData } = await window.supabaseClient
                 .from('household_members')
@@ -76,7 +68,7 @@ window.finalizeLogin = async function(user) {
             }
 
             if (!profile) {
-                // Tworzymy nowy profil, jeśli naprawdę nic nie znaleźliśmy
+                // Tworzymy nowy profil, jeśli nie znaleźliśmy go w Kroku 1
                 const { data: newProfiles } = await window.supabaseClient.from('profiles').insert([{ 
                     user_id: user.id, 
                     household_id: targetHouseholdId, 
