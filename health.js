@@ -43,16 +43,37 @@ window.refreshHealthData = async function() {
     healthLogs = lRes.data || [];
 };
 
+// --- ZMIANA: RENDEROWANIE Z PASKIEM PROFILI (PILLS) ---
 window.renderHealthUI = function() {
     const profile = healthProfiles.find(p => p.id === currentProfileId);
-    const headerAvatar = document.getElementById('health-header-avatar');
-    const nameTitle = document.getElementById('profile-name-title');
     const calWrapper = document.getElementById('health-calendar-wrapper');
     const sectionsWrapper = document.getElementById('health-sections-wrapper');
 
+    // Renderowanie paska profili (pills) z sugestii Claude'a
+    const pillsContainer = document.getElementById('health-profile-pills');
+    if (pillsContainer && healthProfiles.length > 0) {
+        pillsContainer.innerHTML = healthProfiles.map(p => {
+            const isActive = p.id === currentProfileId;
+            const color = window.getAvatarColor ? window.getAvatarColor(p.name) : 'bg-neutral-600';
+            const activeClass = isActive
+                ? `${color} text-white border-transparent shadow-md scale-105`
+                : 'bg-[#1e1f20] text-neutral-400 border-[#333537]';
+            return `
+            <button class="js-select-health-profile flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all active:scale-95 ${activeClass}" data-id="${p.id}">
+                <span class="font-bold">${window.esc(p.name.charAt(0).toUpperCase())}</span>
+                <span>${window.esc(p.name)}</span>
+            </button>`;
+        }).join('');
+        pillsContainer.classList.remove('hidden');
+    } else if (pillsContainer) {
+        pillsContainer.classList.add('hidden');
+    }
+
     if (!profile) {
-        nameTitle.innerText = "Karta zdrowia"; 
-        headerAvatar.innerText = "?";
+        const nameTitle = document.getElementById('profile-name-title');
+        const headerAvatar = document.getElementById('health-header-avatar');
+        if (nameTitle) nameTitle.innerText = "Karta zdrowia"; 
+        if (headerAvatar) headerAvatar.innerText = "?";
         if (calWrapper) calWrapper.classList.add('hidden');
         if (sectionsWrapper) {
             sectionsWrapper.innerHTML = `
@@ -68,9 +89,15 @@ window.renderHealthUI = function() {
         return; 
     }
     
-    nameTitle.innerText = profile.name; 
-    headerAvatar.className = `ml-1 w-9 h-9 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 text-xs ${window.getAvatarColor ? window.getAvatarColor(profile.name) : 'bg-rose-600'}`;
-    headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
+    const nameTitle = document.getElementById('profile-name-title');
+    const headerAvatar = document.getElementById('health-header-avatar');
+    if (nameTitle) nameTitle.innerText = profile.name; 
+    
+    // Dla kompatybilności wstecznej - jeśli stary awatar dalej wisi w HTML
+    if (headerAvatar) {
+        headerAvatar.className = `ml-1 w-9 h-9 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 text-xs ${window.getAvatarColor ? window.getAvatarColor(profile.name) : 'bg-rose-600'}`;
+        headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
+    }
 
     if (healthViewMode === 'calendar') {
         if(calWrapper) calWrapper.classList.remove('hidden');
@@ -220,14 +247,13 @@ window.startHealthLog = async function(taskId, type) {
 
     if (error) { window.showToast("Błąd: " + error.message); return; }
 
-    // --- DODANE OBLICZANIE NASTĘPNEGO TERMINU ---
+    // Obliczanie następnego terminu
     const task = healthTasks.find(t => t.id == taskId);
     if (task && task.task_type === 'cyclical' && task.interval_days > 0) {
         const nextDate = new Date(now);
         nextDate.setDate(nextDate.getDate() + task.interval_days);
         await window.supabaseClient.from('health_tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', taskId);
     }
-    // ----------------------------------------------
 
     window.showToast("Zapisano!"); 
     await window.refreshHealthData(); window.renderHealthUI(); 
@@ -267,7 +293,7 @@ window.saveNewHealthTask = async function() {
     const n = document.getElementById('h-task-name').value.trim(); 
     const type = document.getElementById('h-task-type').value;
     let interval = 0; let remind = 0; let evDate = null;
-    let initialDue = null; // DODANE
+    let initialDue = null; 
 
     if (type === 'cyclical') { 
         interval = parseInt(document.getElementById('h-task-interval').value) || 0; 
@@ -283,7 +309,6 @@ window.saveNewHealthTask = async function() {
     
     if (!n || !currentProfileId) return;
 
-    // POPRAWKA: Dodano pole next_due_at dla powiadomień serwerowych
     const { error } = await window.supabaseClient.from('health_tasks').insert([{ 
         profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, 
         remind_days_before: remind, event_date: evDate, show_in_history: true, is_archived: false, 
@@ -381,13 +406,26 @@ window.openDayDetails = function(dateStr) {
 };
 
 window.closeDayDetailsModal = function() { document.getElementById('day-details-modal').classList.add('hidden'); };
+
+// ZMIANA: Zaktualizowana funkcja do szybkiego przełączania pigułką
+window.selectHealthProfile = function(id) { 
+    currentProfileId = parseInt(id); 
+    // Bezpiecznik dla starego modala
+    if (typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
+    window.initHealthModule(); 
+};
+
 window.toggleProfileSwitcher = function() {
     const modal = document.getElementById('profile-switcher-modal');
+    if (!modal) return;
     document.getElementById('switcher-profiles-list').innerHTML = healthProfiles.map(p => window.UI.renderProfileSwitcherItem(p, p.id === currentProfileId)).join('');
     modal.classList.remove('hidden');
 };
-window.selectHealthProfile = function(id) { currentProfileId = parseInt(id); window.closeProfileSwitcher(); window.initHealthModule(); };
-window.closeProfileSwitcher = function() { document.getElementById('profile-switcher-modal').classList.add('hidden'); };
+
+window.closeProfileSwitcher = function() { 
+    const modal = document.getElementById('profile-switcher-modal');
+    if (modal) modal.classList.add('hidden'); 
+};
 
 // ==========================================
 // MODUŁ: DOMOWA APTECZKA
@@ -578,6 +616,11 @@ window.loadHealthBook = async function() {
 };
 
 document.addEventListener('click', (e) => {
+    // --- ZMIANA: Obsługa kliknięć w pillsy ---
+    const pillBtn = e.target.closest('.js-select-health-profile');
+    if (pillBtn) return window.selectHealthProfile(pillBtn.dataset.id);
+    
+    // Reszta dotychczasowej delegacji
     const closeLogBtn = e.target.closest('.js-close-health-log');
     if(closeLogBtn) return window.closeHealthLog(closeLogBtn.dataset.id);
     const startLogBtn = e.target.closest('.js-start-health-log');
