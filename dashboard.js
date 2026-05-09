@@ -85,7 +85,6 @@ window.renderDashboardUI = function() {
             <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
         `;
         
-        // POPRAWKA: Usunięto onclick na rzecz klasy js-quick-log-health
         todayHtml += healthToday.map(ht => `
             <div class="js-quick-log-health min-w-[140px] p-3 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[20px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}">
                 <div class="text-xl mb-1">📅</div>
@@ -127,14 +126,8 @@ window.renderDashboardUI = function() {
         html = overdueHome.length ? overdueHome.map(t => window.UI.renderDashboardHomeTask(t)).join('') : window.UI.renderEmptyState("Dom lśni!");
     } else if (window.activeDashboardTab === 'health') {
         const dueHealth = state.hTasks.filter(ht => window.isTaskOverdue(ht, state.hLogs));
-        // POPRAWKA: Usunięto onclicki na rzecz klas js-dash-nav oraz js-quick-log-health
-        html = dueHealth.length ? dueHealth.map(ht => `
-            <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
-                <div class="js-dash-nav flex-1 cursor-pointer pr-2" data-view="health">
-                    <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
-                </div>
-                <button class="js-quick-log-health w-8 h-8 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${ht.id}">✓</button>
-            </div>`).join('') : window.UI.renderEmptyState("Wszyscy zdrowi!");
+        // POPRAWKA AUDYTU: Wywołanie komponentu UI zamiast hardcodowania stringa
+        html = dueHealth.length ? dueHealth.map(ht => window.UI.renderDashboardHealthTask(ht)).join('') : window.UI.renderEmptyState("Wszyscy zdrowi!");
     } else if (window.activeDashboardTab === 'history') {
         let historyItems = [];
         state.logs.forEach(l => {
@@ -174,7 +167,7 @@ window.renderDashboardUI = function() {
 };
 
 // ==========================================
-// SZYBKIE AKCJE (Naprawa UUID)
+// SZYBKIE AKCJE
 // ==========================================
 
 window.quickLogTaskDashboard = async function(taskId) {
@@ -233,25 +226,20 @@ window.quickEndHealthDashboard = async function(logId) {
     window.invalidateDashboardCache(); window.loadDashboardOverview(true);
 };
 
-// --- POPRAWIONA DELEGACJA ZDARZEŃ (Usunięto onclick ze stringów) ---
+// --- DELEGACJA ZDARZEŃ ---
 document.addEventListener('click', (e) => {
-    // 1. Nawigacja do widoków (np. kliknięcie w kartę Zdrowie)
     const navBtn = e.target.closest('.js-dash-nav');
     if (navBtn) return window.switchView(navBtn.dataset.view);
 
-    // 2. Szybkie odhaczanie zadań domowych
+    const todoBtn = e.target.closest('.js-dash-complete-todo');
+    if (todoBtn) return window.quickCompleteTodoDashboard(todoBtn.dataset.id);
+    
     const homeBtn = e.target.closest('.js-dash-log-task');
     if (homeBtn) return window.quickLogTaskDashboard(homeBtn.dataset.id);
 
-    // 3. Szybkie odhaczanie zadań Todo
-    const todoBtn = e.target.closest('.js-dash-complete-todo');
-    if (todoBtn) return window.quickCompleteTodoDashboard(todoBtn.dataset.id);
-
-    // 4. Szybkie odhaczanie/logowanie Zdrowia
     const healthLogBtn = e.target.closest('.js-quick-log-health');
     if (healthLogBtn) return window.quickLogHealthDashboard(healthLogBtn.dataset.id);
 
-    // 5. Zmiana użytkownika w historii
     const userBtn = e.target.closest('.js-dash-change-user');
     if (userBtn) window.openChangeUserModal(userBtn.dataset.table, userBtn.dataset.id, userBtn.dataset.username);
 });
