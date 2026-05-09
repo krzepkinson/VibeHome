@@ -4,7 +4,7 @@
             <h1 class="text-2xl font-medium text-neutral-100 tracking-wide">Dzień dobry!</h1>
             <p class="text-xs text-neutral-400 mb-5">Twój osobisty kokpit</p>
         </div>
-        <button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl">↻</button>
+        <button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl shadow-sm">↻</button>
     </header>
 
     <div onclick="window.openGlobalSearch()" class="flex items-center bg-[#1e1f20] p-3.5 rounded-[20px] border border-[#333537] cursor-pointer active:scale-95 transition-transform mb-6 shadow-sm">
@@ -13,10 +13,9 @@
     </div>
 
     <div class="flex p-1 bg-[#1e1f20] rounded-2xl mb-6 border border-[#333537] overflow-x-auto hide-scrollbar">
-        <button onclick="window.switchDashboardTab('todo')" id="tab-todo" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">📝 Zadania</button>
-        <button onclick="window.switchDashboardTab('home')" id="tab-home" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">🔥 Dom</button>
-        <button onclick="window.switchDashboardTab('health')" id="tab-health" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">❤️ Zdrowie</button>
-        <button onclick="window.switchDashboardTab('history')" id="tab-history" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap">🕒 Historia</button>
+        <button onclick="window.switchDashboardTab('priority')" id="tab-priority" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap text-white">⭐ Priorytet</button>
+        <button onclick="window.switchDashboardTab('todo')" id="tab-todo" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap text-neutral-500 hover:text-neutral-300">📝 Zadania</button>
+        <button onclick="window.switchDashboardTab('history')" id="tab-history" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap text-neutral-500 hover:text-neutral-300">🕒 Historia</button>
     </div>
 
     <div id="today-plan-container" class="mb-6 hidden"></div>
