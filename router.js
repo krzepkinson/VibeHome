@@ -12,11 +12,12 @@ window.Router = (() => {
         'todo':      { file: 'todo.html', onEnter: () => window.initTodoModule?.() },
         'settings':  { file: 'settings.html', onEnter: () => window.initSettingsModule?.() },
         
-        // EKRANY PODRZĘDNE (Wbudowane w index.html)
+        // EKRANY PODRZĘDNE
         'archive-screen': { file: 'archive.html', onEnter: () => window.loadArchiveData?.() },
         'pharmacy-screen': { file: 'pharmacy.html', onEnter: () => window.loadPharmacyItems?.() },
         'health-book-screen': { file: 'health-book.html', onEnter: () => window.loadHealthBook?.() },
         'stats-screen': { file: 'stats.html', onEnter: () => window.loadStats?.() },
+        'checklist-screen': { file: 'checklist.html', onEnter: () => window.initChecklistUI?.() }, // POPRAWIONE
         'settings-rooms-screen': { file: 'settings-rooms.html', onEnter: () => window.loadAppRooms?.() },
         'settings-profiles-screen': { file: 'settings-profiles.html', onEnter: () => window.loadAppProfiles?.() },
         'edit-profile-screen': { file: 'edit-profile.html', onEnter: null },
