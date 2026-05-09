@@ -17,7 +17,7 @@ window.Router = (() => {
         'pharmacy-screen': { file: 'pharmacy.html', onEnter: () => window.loadPharmacyItems?.() },
         'health-book-screen': { file: 'health-book.html', onEnter: () => window.loadHealthBook?.() },
         'stats-screen': { file: 'stats.html', onEnter: () => window.loadStats?.() },
-        'checklist-screen': { file: 'checklist.html', onEnter: () => window.loadChecklistItems?.() },
+        'checklist-screen': { file: 'checklist.html', onEnter: () => window.initChecklistUI?.() },
         'settings-rooms-screen': { onEnter: null },
         'settings-profiles-screen': { onEnter: null },
         'edit-profile-screen': { onEnter: null },
