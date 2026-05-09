@@ -127,16 +127,61 @@ window.HomeModule = (() => {
             return;
         }
 
+        // --- POCZĄTEK ZMIENIONEGO BLOKU: SORTOWANIE ZADAŃ ---
+        
+        // 1. Filtrujemy pokoje
         let tasksToDisplay = roomFilter === 'Wszystkie' ? tasks : tasks.filter(t => (t.room || 'Inne') === roomFilter);
-        let scored = tasksToDisplay.map(t => ({ 
-            t, 
-            last: logs.find(l => l.task_id === t.id), 
-            score: window.calculatePriority(t, logs.find(l => l.task_id === t.id)?.created_at) 
-        })).sort((a,b) => b.score - a.score || a.t.name.localeCompare(b.t.name));
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
+        // 2. Mapujemy zadania i precyzyjnie obliczamy priorytet (ile dni do terminu)
+        let scored = tasksToDisplay.map(t => {
+            const taskLogs = logs.filter(l => l.task_id === t.id);
+            const lastLog = taskLogs[0]; // Logi są posortowane od najnowszego z bazy
+            
+            let daysRemaining;
+            
+            if (taskLogs.length === 0) {
+                // Zadanie NIGDY nie zrobione -> ultra priorytet (najmniejsza możliwa liczba)
+                daysRemaining = -999999;
+            } else if (!t.interval_days || t.interval_days === 0) {
+                // Zadanie jednorazowe, już kiedyś wykonane -> ląduje na samym dole
+                daysRemaining = 999999;
+            } else {
+                // Normalne obliczenia dla cyklicznych
+                const lastDate = new Date(lastLog.created_at || lastLog.start_date);
+                lastDate.setHours(0, 0, 0, 0);
+                
+                const nextDueDate = new Date(lastDate);
+                nextDueDate.setDate(nextDueDate.getDate() + t.interval_days);
+                
+                const diffTime = nextDueDate.getTime() - today.getTime();
+                daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            }
+
+            return { 
+                t, 
+                last: lastLog, 
+                daysRemaining 
+            };
+        });
+
+        // 3. Sortujemy rosnąco od najmniejszej liczby dni (najbardziej na minusie / przeterminowane)
+        scored.sort((a, b) => {
+            if (a.daysRemaining !== b.daysRemaining) {
+                return a.daysRemaining - b.daysRemaining;
+            }
+            // Gdy mają ten sam priorytet, sortuj alfabetycznie
+            return a.t.name.localeCompare(b.t.name);
+        });
+
+        // 4. Generujemy widok
         list.innerHTML = scored.length 
             ? scored.map(item => window.UI.renderHomeTaskCard(item)).join('') 
             : window.UI.renderEmptyState("Brak zadań", "To pomieszczenie jest czyste.");
+            
+        // --- KONIEC ZMIENIONEGO BLOKU ---
     };
 
     window.renderHomeCalendar = function() {
@@ -288,7 +333,8 @@ window.HomeModule = (() => {
         const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
             task_id: taskId, activity_name: taskObj ? taskObj.name : 'Zadanie', 
             created_at: finalDate, notes: nt, 
-            user_id: window.currentUser.id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
+            user_id: window.currentUser.user_id, // POPRAWKA UUID
+            household_id: window.currentUser.household_id, user_name: window.currentUser.name 
         }]);
         
         if (error) { window.showToast("Błąd: " + error.message); return; }
@@ -323,7 +369,9 @@ window.HomeModule = (() => {
 
         const { error } = await window.supabaseClient.from('tasks').insert([{ 
             name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
-            room: r, user_id: window.currentUser.id, household_id: window.currentUser.household_id 
+            room: r, 
+            user_id: window.currentUser.user_id, // POPRAWKA UUID
+            household_id: window.currentUser.household_id 
         }]);
 
         if (error) { window.showToast("Błąd: " + error.message); return; }
