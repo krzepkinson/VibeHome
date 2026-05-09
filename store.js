@@ -18,7 +18,12 @@ window.AppStore = (() => {
         // Aktualizuj stan i powiadom wszystkich "słuchaczy"
         set: (newState) => {
             state = { ...state, ...newState };
-            console.log("Store updated:", state);
+            
+            // POPRAWKA AUDYTU: Logowanie tylko w trybie deweloperskim
+            if (window.CONFIG && window.CONFIG.DEBUG) {
+                console.log("Store updated:", state);
+            }
+            
             listeners.forEach(callback => callback(state));
         },
 
