@@ -23,14 +23,10 @@ window.TodoModule = (() => {
         await window.loadTodosAndLists();
     };
 
-    // --- NOWA FUNKCJA: Wywoływana przez Router po załadowaniu checklist.html ---
+    // NOWA FUNKCJA: Wywoływana przez Router, gdy checklist.html jest już gotowy w DOM
     window.initChecklistUI = function() {
         const titleEl = document.getElementById('checklist-screen-title');
-        // Bezpiecznik: jeśli Router jeszcze nie wstawił HTMLa, poczekaj chwilę
-        if (!titleEl) {
-            setTimeout(window.initChecklistUI, 50);
-            return;
-        }
+        if (!titleEl) return;
 
         const lType = window.LIST_TYPES[currentChecklistType] || window.LIST_TYPES.generic;
         titleEl.innerText = currentChecklistTitle; 
@@ -124,18 +120,23 @@ window.TodoModule = (() => {
     window.saveNewTodo = async function() {
         const title = document.getElementById('new-todo-title').value.trim(); 
         if (!title) return;
-        const { error } = await window.supabaseClient.from('todos').insert([{ title, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, is_completed: false, is_archived: false, creator_name: window.currentUser.name }]);
+        // Kluczowe: trzymamy się UUID użytkownika
+        const { error } = await window.supabaseClient.from('todos').insert([{ 
+            title, 
+            user_id: window.currentUser.user_id, 
+            household_id: window.currentUser.household_id, 
+            is_completed: false, 
+            is_archived: false, 
+            creator_name: window.currentUser.name 
+        }]);
         if (error) window.showToast("Błąd: " + error.message);
         else { window.closeNewTodoModal(); window.showToast("Zadanie dodane!"); window.loadTodosAndLists(); }
     };
 
     window.openChecklistScreen = function(id, title, type) {
-        // 1. Zapisujemy dane do pamięci
         currentChecklistId = id; 
         currentChecklistTitle = title;
         currentChecklistType = type || 'generic';
-        
-        // 2. Przełączamy widok - Router po wstawieniu HTML wywoła initChecklistUI
         window.goForward('checklist-screen');
     };
 
@@ -178,7 +179,14 @@ window.TodoModule = (() => {
         const content = input.value.trim();
         if (!content || !currentChecklistId) return; 
         input.value = ''; 
-        const { error } = await window.supabaseClient.from('checklist_items').insert([{ checklist_id: currentChecklistId, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, content, is_completed: false }]);
+        // Kluczowe: trzymamy się UUID użytkownika
+        const { error } = await window.supabaseClient.from('checklist_items').insert([{ 
+            checklist_id: currentChecklistId, 
+            user_id: window.currentUser.user_id, 
+            household_id: window.currentUser.household_id, 
+            content, 
+            is_completed: false 
+        }]);
         if (error) window.showToast("Błąd: " + error.message);
         window.loadChecklistItems();
     };
