@@ -246,17 +246,30 @@ window.openSettingsScreen = async function(taskId) {
         const { data, error } = await window.supabaseClient.from('tasks').select('*').eq('id', taskId).single();
         if (error || !data) { window.showToast('Nie znaleziono zadania.'); return; }
         const task = data;
-        document.getElementById('settings-title').innerText = task.name; 
-        document.getElementById('set-task-name').value = task.name; 
-        document.getElementById('set-task-interval').value = task.interval_days || 0; 
-        document.getElementById('set-task-remind').value = task.remind_days_before || 0; 
-        document.getElementById('set-task-push').checked = task.push_enabled !== false; 
-        document.getElementById('set-task-history').checked = task.show_in_history !== false;
+        
+        // ZAPAMIĘTUJEMY ID
         window.currentEditingTaskId = task.id;
-        await window.populateRoomsDropdown('set-task-room', task.room || 'Inne');
+
+        // PRZECHODZIMY DO WIDOKU (Router załaduje HTML)
+        await window.switchView('settings-screen');
+
+        // WYPEŁNIAMY POLA (Używamy ID z pliku task-settings.html)
+        const titleTop = document.getElementById('settings-task-name-top');
+        if (titleTop) titleTop.innerText = task.name;
+        
+        const inputName = document.getElementById('settings-task-name');
+        if (inputName) inputName.value = task.name;
+
+        const inputInterval = document.getElementById('settings-task-interval');
+        if (inputInterval) inputInterval.value = task.interval_days || 0;
+
+        await window.populateRoomsDropdown('settings-task-room', task.room || 'Inne');
+        
         window.renderHistory(); 
-        window.goForward('settings-screen');
-    } catch(err) { window.showToast("Wystąpił błąd."); }
+    } catch(err) { 
+        console.error(err);
+        window.showToast("Wystąpił błąd."); 
+    }
 };
 
 window.saveTaskSettings = async function() {
