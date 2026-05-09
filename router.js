@@ -9,7 +9,7 @@ window.Router = (() => {
         'dashboard': { file: 'dashboard.html', onEnter: () => window.loadDashboardOverview?.(true) },
         'home':      { file: 'home.html', onEnter: () => window.loadDashboard?.() },
         // RESZTA DZIAŁA PO STAREMU (szuka w index.html)
-        'health':    { screenId: 'view-profile', onEnter: () => window.initHealthModule?.() },
+        'health':    { file: 'health.html', onEnter: () => window.initHealthModule?.() },
         'todo':      { onEnter: () => window.initTodoModule?.() },
         'settings':  { screenId: 'view-settings-main', onEnter: () => window.initSettingsModule?.() },
         'archive-screen': { onEnter: () => window.loadArchiveData?.() },
