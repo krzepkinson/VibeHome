@@ -10,7 +10,7 @@ window.Router = (() => {
         'home':      { file: 'home.html', onEnter: () => window.loadDashboard?.() },
         'health':    { file: 'health.html', onEnter: () => window.initHealthModule?.() },
         'todo':      { file: 'todo.html', onEnter: () => window.initTodoModule?.() },
-        'settings':  { screenId: 'view-settings-main', onEnter: () => window.initSettingsModule?.() },
+        'settings':  { file: 'settings.html', onEnter: () => window.initSettingsModule?.() },
         
         // EKRANY PODRZĘDNE (Wbudowane w index.html)
         'archive-screen': { onEnter: () => window.loadArchiveData?.() },
