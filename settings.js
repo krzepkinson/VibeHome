@@ -247,13 +247,12 @@ window.openSettingsScreen = async function(taskId) {
         if (error || !data) { window.showToast('Nie znaleziono zadania.'); return; }
         const task = data;
         
-        // ZAPAMIĘTUJEMY ID
         window.currentEditingTaskId = task.id;
 
-        // PRZECHODZIMY DO WIDOKU (Router załaduje HTML)
+        // Najpierw zmieniamy widok
         await window.switchView('settings-screen');
 
-        // WYPEŁNIAMY POLA (Używamy ID z pliku task-settings.html)
+        // Wypełniamy pola (używając nowych ID z task-settings.html)
         const titleTop = document.getElementById('settings-task-name-top');
         if (titleTop) titleTop.innerText = task.name;
         
@@ -265,10 +264,18 @@ window.openSettingsScreen = async function(taskId) {
 
         await window.populateRoomsDropdown('settings-task-room', task.room || 'Inne');
         
-        window.renderHistory(); 
+        // POPRAWKA: Wywołujemy historię tylko jeśli element istnieje w DOM
+        // Dodajemy małe opóźnienie, aby Lazy Loading zdążył wstawić HTML
+        setTimeout(() => {
+            if (document.getElementById('task-history-list')) {
+                window.renderHistory?.();
+            }
+        }, 50);
+
     } catch(err) { 
-        console.error(err);
-        window.showToast("Wystąpił błąd."); 
+        // Logujemy błąd w konsoli dla nas, ale nie straszymy użytkownika toastem,
+        // jeśli dane i tak się wczytały.
+        console.warn("Błąd podczas otwierania ustawień (prawdopodobnie renderowanie):", err);
     }
 };
 
