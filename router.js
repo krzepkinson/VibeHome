@@ -8,7 +8,7 @@ window.Router = (() => {
         // TYLKO DASHBOARD ŁADUJEMY Z PLIKU:
         'dashboard': { file: 'dashboard.html', onEnter: () => window.loadDashboardOverview?.(true) },
         // RESZTA DZIAŁA PO STAREMU (szuka w index.html)
-        'home':      { onEnter: () => window.loadDashboard?.() },
+        'home':      { file: 'home.html', onEnter: () => window.loadDashboard?.() },
         'health':    { screenId: 'view-profile', onEnter: () => window.initHealthModule?.() },
         'todo':      { onEnter: () => window.initTodoModule?.() },
         'settings':  { screenId: 'view-settings-main', onEnter: () => window.initSettingsModule?.() },
