@@ -3,7 +3,7 @@
 // ==========================================
 
 window.HomeModule = (() => {
-    // --- PRYWATNY STAN MODUŁU (Nikt spoza pliku nie ma tu dostępu!) ---
+    // --- PRYWATNY STAN MODUŁU ---
     let logs = []; 
     let tasks = []; 
     let roomFilter = null; 
@@ -11,7 +11,7 @@ window.HomeModule = (() => {
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
 
-    // --- FUNKCJE UDOSTĘPNIONE DLA INTERFEJSU (widoczne w index.html) ---
+    // --- FUNKCJE UDOSTĘPNIONE DLA INTERFEJSU ---
     window.toggleHomeView = function() {
         viewMode = viewMode === 'list' ? 'calendar' : 'list';
         const toggleBtn = document.getElementById('home-view-toggle-btn');
@@ -127,33 +127,30 @@ window.HomeModule = (() => {
             return;
         }
 
-        // --- POCZĄTEK ZMIENIONEGO BLOKU: SORTOWANIE ZADAŃ ---
+        // --- POCZĄTEK ZMIENIONEGO BLOKU: PRECYZYJNE SORTOWANIE ---
         
-        // 1. Filtrujemy pokoje
         let tasksToDisplay = roomFilter === 'Wszystkie' ? tasks : tasks.filter(t => (t.room || 'Inne') === roomFilter);
         
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // 2. Mapujemy zadania i precyzyjnie obliczamy priorytet (ile dni do terminu)
         let scored = tasksToDisplay.map(t => {
             const taskLogs = logs.filter(l => l.task_id === t.id);
-            const lastLog = taskLogs[0]; // Logi są posortowane od najnowszego z bazy
+            const lastLog = taskLogs[0]; // Tablica logs jest posortowana malejąco po dacie z bazy
             
             let daysRemaining;
             
-            if (taskLogs.length === 0) {
-                // Zadanie NIGDY nie zrobione -> ultra priorytet (najmniejsza możliwa liczba)
-                daysRemaining = -999999;
-            } else if (!t.interval_days || t.interval_days === 0) {
-                // Zadanie jednorazowe, już kiedyś wykonane -> ląduje na samym dole
-                daysRemaining = 999999;
+            if (!t.interval_days || t.interval_days === 0) {
+                // Zadania jednorazowe bez interwału
+                daysRemaining = taskLogs.length > 0 ? 999999 : 0; // Jeśli zrobione, spada na samo dno. Jeśli nie - na dziś.
             } else {
-                // Normalne obliczenia dla cyklicznych
-                const lastDate = new Date(lastLog.created_at || lastLog.start_date);
-                lastDate.setHours(0, 0, 0, 0);
+                // Zadania cykliczne
+                // Obliczamy punkt startowy: data ostatniego wpisu LUB data utworzenia zadania (jeśli brak wpisów)
+                const baseDateStr = lastLog ? (lastLog.created_at || lastLog.start_date) : t.created_at;
+                const baseDate = new Date(baseDateStr);
+                baseDate.setHours(0, 0, 0, 0);
                 
-                const nextDueDate = new Date(lastDate);
+                const nextDueDate = new Date(baseDate);
                 nextDueDate.setDate(nextDueDate.getDate() + t.interval_days);
                 
                 const diffTime = nextDueDate.getTime() - today.getTime();
@@ -167,16 +164,24 @@ window.HomeModule = (() => {
             };
         });
 
-        // 3. Sortujemy rosnąco od najmniejszej liczby dni (najbardziej na minusie / przeterminowane)
+        // Główna funkcja sortująca
         scored.sort((a, b) => {
+            // 1. Zawsze sortuj od najmniejszej ilości dni do terminu (najbardziej przeterminowane na górze)
             if (a.daysRemaining !== b.daysRemaining) {
                 return a.daysRemaining - b.daysRemaining;
             }
-            // Gdy mają ten sam priorytet, sortuj alfabetycznie
+            
+            // 2. Remis: zadanie, które wykonujemy częściej (mniejszy interwał) ma wyższy priorytet
+            const intA = a.t.interval_days || 999999;
+            const intB = b.t.interval_days || 999999;
+            if (intA !== intB) {
+                return intA - intB;
+            }
+            
+            // 3. Ostateczny remis: alfabetycznie
             return a.t.name.localeCompare(b.t.name);
         });
 
-        // 4. Generujemy widok
         list.innerHTML = scored.length 
             ? scored.map(item => window.UI.renderHomeTaskCard(item)).join('') 
             : window.UI.renderEmptyState("Brak zadań", "To pomieszczenie jest czyste.");
@@ -333,7 +338,7 @@ window.HomeModule = (() => {
         const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
             task_id: taskId, activity_name: taskObj ? taskObj.name : 'Zadanie', 
             created_at: finalDate, notes: nt, 
-            user_id: window.currentUser.user_id, // POPRAWKA UUID
+            user_id: window.currentUser.user_id, // POPRAWKA UUID Z POPRZEDNIEJ ODPOWIEDZI
             household_id: window.currentUser.household_id, user_name: window.currentUser.name 
         }]);
         
@@ -369,8 +374,7 @@ window.HomeModule = (() => {
 
         const { error } = await window.supabaseClient.from('tasks').insert([{ 
             name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
-            room: r, 
-            user_id: window.currentUser.user_id, // POPRAWKA UUID
+            room: r, user_id: window.currentUser.user_id, // POPRAWKA UUID Z POPRZEDNIEJ ODPOWIEDZI
             household_id: window.currentUser.household_id 
         }]);
 
