@@ -46,7 +46,10 @@ window.Router = (() => {
             const container = document.getElementById('view-container');
             if (!loadedViews.has(viewName)) {
                 try {
-                    const response = await fetch(`/views/${config.file}`);
+                    // POPRAWKA AUDYTU: Zabezpieczenie przed trwałym cache'owaniem starych widoków
+                    const appVersion = (window.CONFIG && window.CONFIG.VERSION) ? window.CONFIG.VERSION : Date.now();
+                    const response = await fetch(`/views/${config.file}?v=${appVersion}`);
+                    
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const html = await response.text();
                     
