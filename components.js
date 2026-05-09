@@ -182,5 +182,16 @@ window.UI = {
                 ${item.desc ? `<p class="text-[11px] text-neutral-400 leading-relaxed ml-7">${item.desc}</p>` : ''}
             </div>
         </div>`;
+    },
+
+    // POPRAWKA AUDYTU: Nowy komponent dla Dashboardu
+    renderDashboardHealthTask: function(ht) {
+        return `
+        <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#8c1d18] shadow-sm animate-fade-in">
+            <div class="js-dash-nav flex-1 cursor-pointer pr-2" data-view="health">
+                <h3 class="font-medium text-neutral-100 text-sm leading-tight">${window.esc(ht.name)}</h3>
+            </div>
+            <button class="js-quick-log-health w-8 h-8 rounded-full bg-[#8c1d18]/20 border border-[#8c1d18]/50 text-[#ffb4ab] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${ht.id}">✓</button>
+        </div>`;
     }
 };
