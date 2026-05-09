@@ -10,7 +10,7 @@ window.Router = (() => {
         'home':      { file: 'home.html', onEnter: () => window.loadDashboard?.() },
         // RESZTA DZIAŁA PO STAREMU (szuka w index.html)
         'health':    { file: 'health.html', onEnter: () => window.initHealthModule?.() },
-        'todo':      { onEnter: () => window.initTodoModule?.() },
+        'todo':      { file: 'todo.html', onEnter: () => window.initTodoModule?.() },
         'settings':  { screenId: 'view-settings-main', onEnter: () => window.initSettingsModule?.() },
         'archive-screen': { onEnter: () => window.loadArchiveData?.() },
         'pharmacy-screen': { onEnter: () => window.loadPharmacyItems?.() },
