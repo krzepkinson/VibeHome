@@ -36,7 +36,7 @@ window.TodoModule = (() => {
                 .eq('is_archived', false)
                 .order('is_completed', { ascending: true })
                 .order('created_at', { ascending: false })
-                .limit(200), // Punkt 5: Limit danych
+                .limit(200),
             window.supabaseClient.from('checklists')
                 .select('*')
                 .eq('household_id', hid)
@@ -135,7 +135,9 @@ window.TodoModule = (() => {
         const title = document.getElementById('new-todo-title').value.trim(); 
         if (!title) return;
         const { error } = await window.supabaseClient.from('todos').insert([{ 
-            title: title, user_id: window.currentUser.id, household_id: window.currentUser.household_id, 
+            title: title, 
+            user_id: window.currentUser.user_id, // POPRAWKA: user_id zamiast id
+            household_id: window.currentUser.household_id, 
             is_completed: false, is_archived: false, creator_name: window.currentUser.name 
         }]);
         if (error) { window.showToast("Błąd: " + error.message); return; }
@@ -148,12 +150,16 @@ window.TodoModule = (() => {
         const template = document.getElementById('new-list-template').value;
         if (!title) return;
         const { data: newList, error } = await window.supabaseClient.from('checklists').insert([{ 
-            title: title, list_type: listType, user_id: window.currentUser.id, household_id: window.currentUser.household_id, is_archived: false 
+            title: title, list_type: listType, 
+            user_id: window.currentUser.user_id, // POPRAWKA: user_id zamiast id
+            household_id: window.currentUser.household_id, is_archived: false 
         }]).select().single();
         if (error) { window.showToast("Błąd: " + error.message); return; }
         if (listType === 'packing' && template && window.PACKING_TEMPLATES[template]) {
             const itemsToInsert = window.PACKING_TEMPLATES[template].map(content => ({
-                checklist_id: newList.id, user_id: window.currentUser.id, household_id: window.currentUser.household_id, content: content, is_completed: false
+                checklist_id: newList.id, 
+                user_id: window.currentUser.user_id, // POPRAWKA: user_id zamiast id
+                household_id: window.currentUser.household_id, content: content, is_completed: false
             }));
             await window.supabaseClient.from('checklist_items').insert(itemsToInsert);
         }
@@ -247,7 +253,11 @@ window.TodoModule = (() => {
         const content = input.value.trim();
         if (!content || !currentChecklistId) return; 
         input.value = ''; 
-        const { error } = await window.supabaseClient.from('checklist_items').insert([{ checklist_id: currentChecklistId, user_id: window.currentUser.id, household_id: window.currentUser.household_id, content: content, is_completed: false }]);
+        const { error } = await window.supabaseClient.from('checklist_items').insert([{ 
+            checklist_id: currentChecklistId, 
+            user_id: window.currentUser.user_id, // POPRAWKA: user_id zamiast id
+            household_id: window.currentUser.household_id, content: content, is_completed: false 
+        }]);
         if (error) window.showToast("Błąd: " + error.message);
         window.loadChecklistItems();
     };
