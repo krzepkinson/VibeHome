@@ -1,0 +1,50 @@
+<div class="fixed inset-0 z-[60] bg-[#131314] flex flex-col transition-all duration-300 animate-fade-in">
+    <div class="p-4 sm:p-6 border-b border-[#333537] flex items-center gap-3 bg-[#1e1f20]">
+        <button onclick="window.goBack()" class="text-neutral-400 text-2xl active:scale-90 transition-transform pb-1 px-2">←</button>
+        <div class="flex-1">
+            <h1 class="text-lg font-medium text-neutral-100" id="health-settings-title-top">Ustawienia Zdrowia</h1>
+            <p class="text-[10px] text-neutral-500 uppercase tracking-widest">Edycja cyklu</p>
+        </div>
+    </div>
+    <div class="p-6 flex-1 overflow-y-auto no-scrollbar space-y-6">
+        <input type="hidden" id="health-settings-id">
+        <div>
+            <label class="block text-[10px] text-neutral-500 mb-2 uppercase tracking-widest pl-1">Nazwa</label>
+            <input type="text" id="health-settings-name" class="w-full p-4 rounded-[20px] bg-[#1e1f20] border border-[#333537] text-neutral-200 text-sm focus:outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-[10px] text-neutral-500 mb-2 uppercase tracking-widest pl-1">Co ile dni?</label>
+                <input type="number" id="health-settings-interval" class="w-full p-4 rounded-[20px] bg-[#1e1f20] border border-[#333537] text-neutral-200 text-sm focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-[10px] text-neutral-500 mb-2 uppercase tracking-widest pl-1">Powiadom (dni przed)</label>
+                <input type="number" id="health-settings-remind-days" class="w-full p-4 rounded-[20px] bg-[#1e1f20] border border-[#333537] text-neutral-200 text-sm focus:outline-none">
+            </div>
+        </div>
+        <div class="bg-[#1e1f20] rounded-[24px] border border-[#333537] p-5 flex items-center justify-between">
+            <div>
+                <h4 class="text-sm font-medium text-neutral-200">Powiadomienia PUSH</h4>
+                <p class="text-[10px] text-neutral-500 uppercase tracking-widest">Włącz alerty</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="health-settings-remind" class="sr-only peer">
+                <div class="w-11 h-6 bg-[#333537] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#a8c7fa]"></div>
+            </label>
+        </div>
+        <div class="bg-[#1e1f20] rounded-[24px] border border-[#333537] p-5 flex items-center justify-between">
+            <div>
+                <h4 class="text-sm font-medium text-neutral-200">Lek / Suplement</h4>
+                <p class="text-[10px] text-neutral-500 uppercase tracking-widest">Traktuj jako medyczny</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="health-settings-is-med" class="sr-only peer">
+                <div class="w-11 h-6 bg-[#333537] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+            </label>
+        </div>
+        <div class="flex gap-4 pt-4">
+            <button onclick="window.deleteHealthTask()" class="flex-1 py-4 rounded-[24px] bg-[#3c1414] text-[#ffb4ab] text-sm font-medium border border-[#8c1d18]/30 active:scale-95 transition-transform">Usuń</button>
+            <button onclick="window.saveHealthSettings()" class="flex-1 py-4 rounded-[24px] bg-[#a8c7fa] text-[#004a77] text-sm font-bold active:scale-95 transition-transform shadow-lg">Zapisz</button>
+        </div>
+    </div>
+</div>
