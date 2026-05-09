@@ -23,10 +23,14 @@ window.TodoModule = (() => {
         await window.loadTodosAndLists();
     };
 
-    // NOWA FUNKCJA: Wywoływana przez Router, gdy checklist.html jest już gotowy w DOM
+    // --- NOWA FUNKCJA: Wywoływana przez Router po załadowaniu checklist.html ---
     window.initChecklistUI = function() {
         const titleEl = document.getElementById('checklist-screen-title');
-        if (!titleEl) return;
+        // Bezpiecznik: jeśli Router jeszcze nie wstawił HTMLa, poczekaj chwilę
+        if (!titleEl) {
+            setTimeout(window.initChecklistUI, 50);
+            return;
+        }
 
         const lType = window.LIST_TYPES[currentChecklistType] || window.LIST_TYPES.generic;
         titleEl.innerText = currentChecklistTitle; 
@@ -126,12 +130,12 @@ window.TodoModule = (() => {
     };
 
     window.openChecklistScreen = function(id, title, type) {
-        // 1. Tylko zapisujemy dane do pamięci podręcznej modułu
+        // 1. Zapisujemy dane do pamięci
         currentChecklistId = id; 
         currentChecklistTitle = title;
         currentChecklistType = type || 'generic';
         
-        // 2. Przełączamy widok - Router zajmie się resztą i wywoła initChecklistUI
+        // 2. Przełączamy widok - Router po wstawieniu HTML wywoła initChecklistUI
         window.goForward('checklist-screen');
     };
 
