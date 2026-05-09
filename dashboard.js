@@ -126,7 +126,6 @@ window.renderDashboardUI = function() {
         html = overdueHome.length ? overdueHome.map(t => window.UI.renderDashboardHomeTask(t)).join('') : window.UI.renderEmptyState("Dom lśni!");
     } else if (window.activeDashboardTab === 'health') {
         const dueHealth = state.hTasks.filter(ht => window.isTaskOverdue(ht, state.hLogs));
-        // POPRAWKA AUDYTU: Wywołanie komponentu UI zamiast hardcodowania stringa
         html = dueHealth.length ? dueHealth.map(ht => window.UI.renderDashboardHealthTask(ht)).join('') : window.UI.renderEmptyState("Wszyscy zdrowi!");
     } else if (window.activeDashboardTab === 'history') {
         let historyItems = [];
@@ -175,11 +174,12 @@ window.quickLogTaskDashboard = async function(taskId) {
     const finalTaskId = isNaN(taskId) ? taskId : Number(taskId);
     const state = window.AppStore.get();
     const task = state.tasks.find(t => t.id == finalTaskId);
+    const now = new Date();
 
     const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
         task_id: finalTaskId, 
         activity_name: task ? task.name : 'Zadanie', 
-        created_at: new Date().toISOString(), 
+        created_at: now.toISOString(), 
         user_id: window.currentUser.user_id, 
         household_id: window.currentUser.household_id, 
         user_name: window.currentUser.name 
@@ -190,9 +190,16 @@ window.quickLogTaskDashboard = async function(taskId) {
         return; 
     }
 
-    if (task && (!task.interval_days || task.interval_days === 0)) {
+    // --- ZMIANA: OBLICZAMY NASTĘPNY TERMIN I AKTUALIZUJEMY ZADANIE ---
+    if (task && task.interval_days > 0) {
+        const nextDate = new Date(now);
+        nextDate.setDate(nextDate.getDate() + task.interval_days);
+        await window.supabaseClient.from('tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', finalTaskId);
+    } else if (task) {
+        // Zadanie jednorazowe - archiwizujemy
         await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', finalTaskId);
     }
+
     window.showToast('Zapisano! ✔️');
     window.invalidateDashboardCache(); 
     window.loadDashboardOverview(true); 
@@ -209,13 +216,29 @@ window.quickCompleteTodoDashboard = async function(id) {
 
 window.quickLogHealthDashboard = async function(taskId) {
     const finalId = isNaN(taskId) ? taskId : Number(taskId);
+    const state = window.AppStore.get();
+    const task = state.hTasks.find(t => t.id == finalId);
+    const now = new Date();
+
     const { error } = await window.supabaseClient.from('health_logs').insert([{ 
-        health_task_id: finalId, start_date: new Date().toISOString(), end_date: new Date().toISOString(), 
+        health_task_id: finalId, 
+        start_date: now.toISOString(), 
+        end_date: now.toISOString(), 
         user_id: window.currentUser.user_id, 
         household_id: window.currentUser.household_id, 
         user_name: window.currentUser.name 
     }]);
+    
     if (error) { window.showToast("Błąd: " + error.message); return; }
+
+    // --- ZMIANA: OBLICZAMY NASTĘPNY TERMIN DLA CYKLICZNYCH ---
+    if (task && task.interval_days > 0) {
+        const nextDate = new Date(now);
+        nextDate.setDate(nextDate.getDate() + task.interval_days);
+        await window.supabaseClient.from('health_tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', finalId);
+    }
+
+    window.showToast('Zapisano! ❤️');
     window.invalidateDashboardCache(); window.loadDashboardOverview(true);
 };
 
