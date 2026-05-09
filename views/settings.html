@@ -1,0 +1,62 @@
+<div class="max-w-xl mx-auto p-4 sm:p-6 animate-fade-in">
+    <header class="mb-6 mt-2">
+        <div>
+            <h1 class="text-xl font-medium text-neutral-100 tracking-wide">Ustawienia</h1>
+            <p class="text-xs text-neutral-400">Zarządzaj aplikacją</p>
+        </div>
+    </header>
+    
+    <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] mb-6 overflow-hidden shadow-sm">
+        <div class="p-5 border-b border-[#333537] flex items-center gap-3 bg-[#333537]/20">
+            <div class="flex-1">
+                <label class="block text-[10px] text-neutral-400 mb-1 uppercase tracking-widest pl-1 font-bold">Twoje Imię</label>
+                <input type="text" id="settings-user-name" maxlength="50" placeholder="Jak masz na imię?" class="w-full p-2.5 rounded-[12px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa] transition-colors">
+            </div>
+            <button onclick="window.saveUserName()" class="mt-4 px-4 py-2.5 bg-[#a8c7fa] text-[#004a77] text-xs font-bold uppercase tracking-wider rounded-[12px] active:scale-95 transition-transform shadow-sm">Zapisz</button>
+        </div>
+
+        <div class="p-5 border-b border-[#333537] flex justify-between items-center">
+            <div class="pr-4">
+                <h3 class="text-sm font-medium text-neutral-200">Współdzielenie Domu</h3>
+                <p class="text-[9px] text-neutral-500 mt-0.5 uppercase tracking-widest break-all" id="household-id-label">Ładowanie...</p>
+            </div>
+            <button onclick="window.openJoinHouseholdModal()" class="shrink-0 px-3 py-1.5 rounded-full bg-[#333537] text-neutral-200 text-[10px] font-bold uppercase tracking-wider active:scale-95 transition-transform">Dołącz</button>
+        </div>
+        
+        <div class="p-5 border-b border-[#333537] flex justify-between items-center">
+            <div>
+                <h3 class="text-sm font-medium text-neutral-200">Powiadomienia w tle</h3>
+                <p class="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-widest" id="notif-status-text">Wymaga zgody</p>
+            </div>
+            <button onclick="window.requestNotificationPermission()" id="notif-enable-btn" class="bg-[#004a77] text-[#c2e7ff] text-[10px] uppercase font-bold px-4 py-2 rounded-full hover:bg-[#005c94] active:scale-95 transition-transform hidden shadow-sm">Włącz</button>
+        </div>
+        
+        <div onclick="window.openRoomsSettings()" class="p-5 border-b border-[#333537] flex justify-between items-center cursor-pointer hover:bg-[#333537]/50 transition-colors active:bg-[#333537]">
+            <div>
+                <h3 class="text-sm font-medium text-neutral-200">Pomieszczenia</h3>
+                <p class="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-widest">Zarządzaj pokojami</p>
+            </div>
+            <span class="text-neutral-500 text-lg transition-transform hover:translate-x-1">→</span>
+        </div>
+        
+        <div onclick="window.openProfilesSettings()" class="p-5 border-b border-[#333537] flex justify-between items-center cursor-pointer hover:bg-[#333537]/50 transition-colors active:bg-[#333537]">
+            <div>
+                <h3 class="text-sm font-medium text-neutral-200">Domownicy</h3>
+                <p class="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-widest">Zarządzaj profilami</p>
+            </div>
+            <span class="text-neutral-500 text-lg transition-transform hover:translate-x-1">→</span>
+        </div>
+        
+        <div onclick="window.openArchiveScreen()" class="p-5 flex justify-between items-center cursor-pointer hover:bg-[#333537]/50 transition-colors active:bg-[#333537]">
+            <div>
+                <h3 class="text-sm font-medium text-neutral-200">🗃️ Archiwum</h3>
+                <p class="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-widest">Usunięte zadania</p>
+            </div>
+            <span class="text-neutral-500 text-lg transition-transform hover:translate-x-1">→</span>
+        </div>
+    </div>
+    
+    <button onclick="window.logoutUser()" class="w-full bg-[#3c1414] text-[#ffb4ab] font-medium py-4 rounded-[24px] border border-[#8c1d18]/30 text-sm active:scale-95 transition-transform flex justify-center items-center gap-2 shadow-sm">
+        <span class="text-lg">🚪</span> Wyloguj się
+    </button>
+</div>
