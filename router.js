@@ -14,8 +14,8 @@ window.Router = (() => {
         
         // EKRANY PODRZĘDNE (Wbudowane w index.html)
         'archive-screen': { onEnter: () => window.loadArchiveData?.() },
-        'pharmacy-screen': { onEnter: () => window.loadPharmacyItems?.() },
-        'health-book-screen': { onEnter: () => window.loadHealthBook?.() },
+        'pharmacy-screen': { file: 'pharmacy.html', onEnter: () => window.loadPharmacyItems?.() },
+        'health-book-screen': { file: 'health-book.html', onEnter: () => window.loadHealthBook?.() },
         'stats-screen': { onEnter: () => window.loadStats?.() },
         'checklist-screen': { onEnter: null },
         'settings-rooms-screen': { onEnter: null },
