@@ -134,7 +134,8 @@ window.TodoModule = (() => {
     };
 
     window.openChecklistScreen = function(id, title, type) {
-        currentChecklistId = id; 
+        // POPRAWKA AUDYTU: Parsujemy id na liczbę, bo z dataset.id przychodzi string
+        currentChecklistId = parseInt(id, 10); 
         currentChecklistTitle = title;
         currentChecklistType = type || 'generic';
         window.goForward('checklist-screen');
