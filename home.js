@@ -135,58 +135,35 @@ window.HomeModule = (() => {
             return;
         }
 
-        // --- POCZĄTEK ZMIENIONEGO BLOKU: PRECYZYJNE SORTOWANIE ---
-        
+        // --- POCZĄTEK BLOKU: PRECYZYJNE SORTOWANIE ---
         let tasksToDisplay = roomFilter === 'Wszystkie' ? tasks : tasks.filter(t => (t.room || 'Inne') === roomFilter);
-        
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         let scored = tasksToDisplay.map(t => {
             const taskLogs = logs.filter(l => l.task_id === t.id);
-            const lastLog = taskLogs[0]; // Tablica logs jest posortowana malejąco po dacie z bazy
-            
+            const lastLog = taskLogs[0]; 
             let daysRemaining;
             
             if (!t.interval_days || t.interval_days === 0) {
-                // Zadania jednorazowe bez interwału
-                daysRemaining = taskLogs.length > 0 ? 999999 : 0; // Jeśli zrobione, spada na samo dno. Jeśli nie - na dziś.
+                daysRemaining = taskLogs.length > 0 ? 999999 : 0; 
             } else {
-                // Zadania cykliczne
-                // Obliczamy punkt startowy: data ostatniego wpisu LUB data utworzenia zadania (jeśli brak wpisów)
                 const baseDateStr = lastLog ? (lastLog.created_at || lastLog.start_date) : t.created_at;
                 const baseDate = new Date(baseDateStr);
                 baseDate.setHours(0, 0, 0, 0);
-                
                 const nextDueDate = new Date(baseDate);
                 nextDueDate.setDate(nextDueDate.getDate() + t.interval_days);
-                
                 const diffTime = nextDueDate.getTime() - today.getTime();
                 daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             }
-
-            return { 
-                t, 
-                last: lastLog, 
-                daysRemaining 
-            };
+            return { t, last: lastLog, daysRemaining };
         });
 
-        // Główna funkcja sortująca
         scored.sort((a, b) => {
-            // 1. Zawsze sortuj od najmniejszej ilości dni do terminu (najbardziej przeterminowane na górze)
-            if (a.daysRemaining !== b.daysRemaining) {
-                return a.daysRemaining - b.daysRemaining;
-            }
-            
-            // 2. Remis: zadanie, które wykonujemy częściej (mniejszy interwał) ma wyższy priorytet
+            if (a.daysRemaining !== b.daysRemaining) return a.daysRemaining - b.daysRemaining;
             const intA = a.t.interval_days || 999999;
             const intB = b.t.interval_days || 999999;
-            if (intA !== intB) {
-                return intA - intB;
-            }
-            
-            // 3. Ostateczny remis: alfabetycznie
+            if (intA !== intB) return intA - intB;
             return a.t.name.localeCompare(b.t.name);
         });
 
@@ -195,8 +172,6 @@ window.HomeModule = (() => {
                 ? scored.map(item => window.UI.renderHomeTaskCard(item)).join('') 
                 : window.UI.renderEmptyState("Brak zadań", "To pomieszczenie jest czyste.");
         }
-            
-        // --- KONIEC ZMIENIONEGO BLOKU ---
     };
 
     window.renderHomeCalendar = function() {
@@ -348,18 +323,25 @@ window.HomeModule = (() => {
         const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
             task_id: taskId, activity_name: taskObj ? taskObj.name : 'Zadanie', 
             created_at: finalDate, notes: nt, 
-            user_id: window.currentUser.user_id, // POPRAWKA UUID Z POPRZEDNIEJ ODPOWIEDZI
+            user_id: window.currentUser.user_id, // POPRAWKA UUID 
             household_id: window.currentUser.household_id, user_name: window.currentUser.name 
         }]);
         
         if (error) { window.showToast("Błąd: " + error.message); return; }
 
-        if (taskObj && (!taskObj.interval_days || taskObj.interval_days === 0)) {
+        // --- ZMIANA: AKTUALIZACJA NEXT_DUE_AT ---
+        if (taskObj && taskObj.interval_days > 0) {
+            const nextDate = new Date(finalDate); // Liczymy od daty wpisanej przez użytkownika
+            nextDate.setDate(nextDate.getDate() + taskObj.interval_days);
+            await window.supabaseClient.from('tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', taskId);
+            window.showToast("Zapisano log!");
+        } else if (taskObj) {
             await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', taskId);
             window.showToast("Zadanie jednorazowe zakończone!");
         } else {
             window.showToast("Zapisano log!");
         }
+
         window.closeAddLogModal(); window.loadDashboard();
     };
 
@@ -382,10 +364,14 @@ window.HomeModule = (() => {
         const r = document.getElementById('new-task-room').value;
         if (!n) return;
 
+        // --- ZMIANA: USTAWIANIE NEXT_DUE_AT NA DZISIAJ PRZY TWORZENIU ---
+        const initialDue = new Date().toISOString();
+
         const { error } = await window.supabaseClient.from('tasks').insert([{ 
             name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
-            room: r, user_id: window.currentUser.user_id, // POPRAWKA UUID Z POPRZEDNIEJ ODPOWIEDZI
-            household_id: window.currentUser.household_id 
+            room: r, user_id: window.currentUser.user_id, // POPRAWKA UUID
+            household_id: window.currentUser.household_id,
+            next_due_at: initialDue
         }]);
 
         if (error) { window.showToast("Błąd: " + error.message); return; }
@@ -485,7 +471,7 @@ window.HomeModule = (() => {
         if (filterRoomBtn) { window.filterHomeByRoom(filterRoomBtn.dataset.room); return; }
     });
 
-    // --- PUBLICZNE API (Dostępne dla innych plików z zewnątrz!) ---
+    // --- PUBLICZNE API ---
     return {
         getLogs: () => logs,
         setLogs: (newLogs) => logs = newLogs,
