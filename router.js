@@ -5,10 +5,10 @@
 window.Router = (() => {
     const viewConfig = {
         'auth':      { onEnter: null },
-        // TYLKO DASHBOARD ŁADUJEMY Z PLIKU:
+        // TYLKO DASHBOARD I HOME ŁADUJEMY Z PLIKU:
         'dashboard': { file: 'dashboard.html', onEnter: () => window.loadDashboardOverview?.(true) },
-        // RESZTA DZIAŁA PO STAREMU (szuka w index.html)
         'home':      { file: 'home.html', onEnter: () => window.loadDashboard?.() },
+        // RESZTA DZIAŁA PO STAREMU (szuka w index.html)
         'health':    { screenId: 'view-profile', onEnter: () => window.initHealthModule?.() },
         'todo':      { onEnter: () => window.initTodoModule?.() },
         'settings':  { screenId: 'view-settings-main', onEnter: () => window.initSettingsModule?.() },
@@ -21,7 +21,8 @@ window.Router = (() => {
     let activeView = 'auth';
     let loadedViews = new Map(); // Pamięć załadowanych widoków z plików
 
-    window.switchView = async function(viewName) {
+    // Dodano drugi parametr: pushToHistory (domyślnie true)
+    window.switchView = async function(viewName, pushToHistory = true) {
         if (activeView === viewName && viewName !== 'auth') return;
 
         const config = viewConfig[viewName];
@@ -71,6 +72,12 @@ window.Router = (() => {
 
         window.scrollTo(0, 0);
 
+        // --- ZMIANA: Dodawanie do Historii Przeglądarki (URL) ---
+        if (pushToHistory && viewName !== 'auth') {
+            const newUrl = viewName === 'dashboard' ? '/' : `/?view=${viewName}`;
+            window.history.pushState({ view: viewName }, '', newUrl);
+        }
+
         // Nawigacja dolna
         const nav = document.getElementById('bottom-nav');
         if (nav) {
@@ -91,15 +98,43 @@ window.Router = (() => {
         }
     };
 
-    window.goBack = function() { window.switchView('dashboard'); };
+    // --- ZMIANA: Wykorzystanie natywnego systemu przeglądarki ---
+    window.goBack = function() { 
+        if (window.history.length > 1) {
+            window.history.back(); // Zleca przeglądarce wykonanie akcji "Wstecz" (uruchomi popstate)
+        } else {
+            window.switchView('dashboard'); // Bezpiecznik, gdy brak historii
+        }
+    };
     
-    window.goForward = function(viewName) { window.switchView(viewName); };
+    window.goForward = function(viewName) { 
+        window.switchView(viewName); 
+    };
 
     window.refreshCurrentView = function() {
         if (viewConfig[activeView]?.onEnter) {
             viewConfig[activeView].onEnter();
         }
     };
+
+    // --- NOWOŚĆ: Nasłuchiwanie gestów systemowych wstecz/dalej ---
+    window.addEventListener('popstate', (e) => {
+        // e.state zawiera to, co włożyliśmy przez pushState ({ view: 'home' })
+        if (e.state && e.state.view) {
+            // Przełączamy widok, ale dajemy flagę false, by nie tworzyć nowej historii
+            window.switchView(e.state.view, false);
+        } else {
+            // Bezpiecznik dla pierwszej strony wejściowej lub głębokich linków
+            const urlParams = new URLSearchParams(window.location.search);
+            const view = urlParams.get('view') || 'dashboard';
+            
+            if (window.currentUser) {
+                window.switchView(view, false);
+            } else {
+                window.switchView('auth', false);
+            }
+        }
+    });
 
     return { active: () => activeView };
 })();
