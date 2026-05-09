@@ -17,12 +17,11 @@ window.Router = (() => {
         'pharmacy-screen': { file: 'pharmacy.html', onEnter: () => window.loadPharmacyItems?.() },
         'health-book-screen': { file: 'health-book.html', onEnter: () => window.loadHealthBook?.() },
         'stats-screen': { file: 'stats.html', onEnter: () => window.loadStats?.() },
-        'checklist-screen': { file: 'checklist.html', onEnter: () => window.initChecklistUI?.() },
-        'settings-rooms-screen': { onEnter: null },
-        'settings-profiles-screen': { onEnter: null },
-        'edit-profile-screen': { onEnter: null },
-        'settings-screen': { onEnter: null },
-        'health-settings-screen': { onEnter: null }
+        'settings-rooms-screen': { file: 'settings-rooms.html', onEnter: () => window.loadAppRooms?.() },
+        'settings-profiles-screen': { file: 'settings-profiles.html', onEnter: () => window.loadAppProfiles?.() },
+        'edit-profile-screen': { file: 'edit-profile.html', onEnter: null },
+        'settings-screen': { file: 'task-settings.html', onEnter: null },
+        'health-settings-screen': { file: 'health-settings.html', onEnter: null }
     };
 
     let activeView = 'auth';
