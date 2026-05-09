@@ -59,7 +59,6 @@ window.processJoinHousehold = async function() {
         return; 
     }
 
-    // Weryfikacja czy dom istnieje
     const { data: hh, error: checkError } = await window.supabaseClient
         .from('households')
         .select('id')
@@ -71,37 +70,30 @@ window.processJoinHousehold = async function() {
         return; 
     }
 
-    // Dołączenie do domu
+    // POPRAWKA UUID: Używamy window.currentUser.user_id
     const { error: joinError } = await window.supabaseClient
         .from('household_members')
-        .insert([{ household_id: hh.id, user_id: window.currentUser.id }]);
+        .insert([{ household_id: hh.id, user_id: window.currentUser.user_id }]);
 
     if (joinError) {
         window.showToast("Wystąpił błąd podczas dołączania.");
     } else {
-        // Usunięcie starego powiązania
+        // POPRAWKA UUID: Używamy window.currentUser.user_id
         await window.supabaseClient
             .from('household_members')
             .delete()
             .eq('household_id', oldHouseholdId)
-            .eq('user_id', window.currentUser.id);
+            .eq('user_id', window.currentUser.user_id);
             
-        // PŁYNNE PRZEJŚCIE ZAMIAST RELOADU
-        // 1. Aktualizujemy stan użytkownika
         window.currentUser.household_id = hh.id;
         
-        // 2. Czyścimy wszystkie zapamiętane filtry i cache Przeglądu
         if (typeof window.clearRoomFilter === 'function') window.clearRoomFilter();
         if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
         
-        // 3. Zamykamy modal i informujemy użytkownika
         window.closeJoinHouseholdModal(); 
         window.showToast("Pomyślnie dołączono do domu! 🏠"); 
-        
-        // 4. Przerzucamy go gładko do Przeglądu (który sam pociągnie nowe dane)
         window.switchView('dashboard');
         
-        // 5. Cicho odświeżamy resztę modułów w tle, by po wejściu w inną zakładkę miały świeże dane
         setTimeout(() => {
             if (typeof window.initSettingsModule === 'function') window.initSettingsModule();
             if (typeof window.loadTodosAndLists === 'function') window.loadTodosAndLists();
