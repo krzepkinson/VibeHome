@@ -4,18 +4,25 @@
 
 window.Router = (() => {
     const viewConfig = {
+        // GŁÓWNE WIDOKI
         'auth':      { onEnter: null },
-        // TYLKO DASHBOARD I HOME ŁADUJEMY Z PLIKU:
         'dashboard': { file: 'dashboard.html', onEnter: () => window.loadDashboardOverview?.(true) },
         'home':      { file: 'home.html', onEnter: () => window.loadDashboard?.() },
-        // RESZTA DZIAŁA PO STAREMU (szuka w index.html)
         'health':    { file: 'health.html', onEnter: () => window.initHealthModule?.() },
         'todo':      { file: 'todo.html', onEnter: () => window.initTodoModule?.() },
         'settings':  { screenId: 'view-settings-main', onEnter: () => window.initSettingsModule?.() },
+        
+        // EKRANY PODRZĘDNE (Wbudowane w index.html)
         'archive-screen': { onEnter: () => window.loadArchiveData?.() },
         'pharmacy-screen': { onEnter: () => window.loadPharmacyItems?.() },
         'health-book-screen': { onEnter: () => window.loadHealthBook?.() },
-        'stats-screen': { onEnter: () => window.loadStats?.() }
+        'stats-screen': { onEnter: () => window.loadStats?.() },
+        'checklist-screen': { onEnter: null },
+        'settings-rooms-screen': { onEnter: null },
+        'settings-profiles-screen': { onEnter: null },
+        'edit-profile-screen': { onEnter: null },
+        'settings-screen': { onEnter: null },
+        'health-settings-screen': { onEnter: null }
     };
 
     let activeView = 'auth';
