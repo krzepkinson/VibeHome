@@ -212,13 +212,23 @@ window.startHealthLog = async function(taskId, type) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const now = new Date().toISOString();
     
-    // POPRAWKA: Zmiana .id na .user_id (UUID)
+    // 1. Zapis do logów
     const { error } = await window.supabaseClient.from('health_logs').insert([{ 
         health_task_id: taskId, start_date: now, end_date: (type === 'cyclical' || type === 'one_time') ? now : null, 
         user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
     }]);
 
     if (error) { window.showToast("Błąd: " + error.message); return; }
+
+    // --- DODANE OBLICZANIE NASTĘPNEGO TERMINU ---
+    const task = healthTasks.find(t => t.id == taskId);
+    if (task && task.task_type === 'cyclical' && task.interval_days > 0) {
+        const nextDate = new Date(now);
+        nextDate.setDate(nextDate.getDate() + task.interval_days);
+        await window.supabaseClient.from('health_tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', taskId);
+    }
+    // ----------------------------------------------
+
     window.showToast("Zapisano!"); 
     await window.refreshHealthData(); window.renderHealthUI(); 
     if(typeof window.loadDashboardOverview === 'function') { window.invalidateDashboardCache(); window.loadDashboardOverview(); }
@@ -257,21 +267,30 @@ window.saveNewHealthTask = async function() {
     const n = document.getElementById('h-task-name').value.trim(); 
     const type = document.getElementById('h-task-type').value;
     let interval = 0; let remind = 0; let evDate = null;
+    let initialDue = null; // DODANE
+
     if (type === 'cyclical') { 
         interval = parseInt(document.getElementById('h-task-interval').value) || 0; 
         remind = parseInt(document.getElementById('h-task-remind').value) || 0; 
+        initialDue = new Date().toISOString(); // Leki od razu zaplanowane na dziś
     } else if (type === 'one_time') { 
         evDate = document.getElementById('h-task-date').value || null; 
         remind = parseInt(document.getElementById('h-task-remind-date').value) || 0; 
+        if (evDate) {
+            initialDue = new Date(evDate).toISOString(); // Data konkretnego badania/wizyty
+        }
     }
+    
     if (!n || !currentProfileId) return;
 
-    // POPRAWKA: Zmiana .id na .user_id (UUID)
+    // POPRAWKA: Dodano pole next_due_at dla powiadomień serwerowych
     const { error } = await window.supabaseClient.from('health_tasks').insert([{ 
         profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, 
         remind_days_before: remind, event_date: evDate, show_in_history: true, is_archived: false, 
-        user_id: window.currentUser.user_id, household_id: window.currentUser.household_id 
+        user_id: window.currentUser.user_id, household_id: window.currentUser.household_id,
+        next_due_at: initialDue
     }]);
+    
     if (error) { window.showToast("Błąd: " + error.message); return; }
     window.closeNewHealthTaskModal(); window.initHealthModule();
 };
@@ -301,13 +320,18 @@ window.saveHealthTaskSettings = async function() {
     const n = document.getElementById('set-h-task-name').value.trim(); 
     const showHist = document.getElementById('set-h-task-history').checked;
     let updateData = { name: n, show_in_history: showHist };
+    
     if (task.task_type === 'cyclical') { 
         updateData.interval_days = parseInt(document.getElementById('set-h-task-interval').value) || 0; 
         updateData.remind_days_before = parseInt(document.getElementById('set-h-task-remind').value) || 0; 
     } else if (task.task_type === 'one_time') { 
         updateData.event_date = document.getElementById('set-h-task-date').value || null; 
         updateData.remind_days_before = parseInt(document.getElementById('set-h-task-remind-date').value) || 0; 
+        if (updateData.event_date) {
+            updateData.next_due_at = new Date(updateData.event_date).toISOString(); // Aktualizacja terminu pushy
+        }
     }
+    
     const { error } = await window.supabaseClient.from('health_tasks').update(updateData).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
     if (error) { window.showToast("Błąd: " + error.message); return; }
     window.showToast("Zapisano!"); window.initHealthModule(); window.goBack();
@@ -419,7 +443,6 @@ window.saveNewPharmacyItem = async function() {
         }
     }
 
-    // POPRAWKA: Zmiana .id na .user_id (UUID)
     const { error } = await window.supabaseClient.from('pharmacy_items').insert([{
         household_id: window.currentUser.household_id, user_id: window.currentUser.user_id, name: name, expiration_date: expDateSQL, purpose: purpose
     }]);
@@ -454,7 +477,6 @@ window.saveNewMeasurement = async function() {
     const todayStr = new Date().toISOString().split('T')[0];
     const finalDate = (date === todayStr) ? new Date().toISOString() : `${date}T12:00:00.000Z`;
 
-    // POPRAWKA: Zmiana .id na .user_id (UUID)
     const { error } = await window.supabaseClient.from('health_measurements').insert([{
         household_id: window.currentUser.household_id, profile_id: currentProfileId, user_id: window.currentUser.user_id,
         measurement_type: type, value: numericVal, unit: unit, notes: notes, created_at: finalDate 
@@ -490,12 +512,11 @@ window.loadHealthBook = async function() {
         const tasks = healthTasks || [];
         const logs = healthLogs || [];
         
-        // Filtrujemy logi tylko dla osoby, którą aktualnie przeglądamy
         const profileLogs = logs.filter(l => tasks.some(t => t.id === l.health_task_id));
         
         let timelineItems = [];
 
-        // 1. POMIARY (Waga, Temperatura itp.)
+        // 1. POMIARY
         (measurements || []).forEach(m => {
             timelineItems.push({
                 date: new Date(m.created_at),
@@ -507,12 +528,11 @@ window.loadHealthBook = async function() {
             });
         });
 
-        // 2. LOGI MEDYCZNE (Leki, Kąpiele, Objawy)
+        // 2. LOGI MEDYCZNE
         profileLogs.forEach(l => {
             const task = tasks.find(t => t.id === l.health_task_id);
             if (!task) return;
 
-            // Budujemy czytelny opis: Kto wykonał czynność
             const wykonawca = l.user_name || 'Domownik';
             let szczegoly = '';
             
@@ -525,7 +545,6 @@ window.loadHealthBook = async function() {
             timelineItems.push({
                 date: new Date(l.start_date),
                 title: task.name,
-                // Tutaj personalizujemy opis wpisu
                 desc: `<span class="text-neutral-400">Pacjent:</span> ${window.esc(profile.name)}<br><span class="text-neutral-400">Wpisał(a):</span> ${window.esc(wykonawca)}`,
                 icon: task.task_type === 'duration' ? '🤒' : '🔄',
                 color: task.task_type === 'duration' ? 'text-[#ffb4ab]' : 'text-[#c4eed0]',
