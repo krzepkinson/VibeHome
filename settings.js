@@ -302,30 +302,19 @@ window.SettingsModule = (() => {
     window.closeEditProfileScreen = function() { window.goBack(); };
 
     // ==========================================
-    // NASŁUCHIWACZ KLIKNIĘĆ (Delegacja Zdarzeń)
+    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
     // ==========================================
-    document.addEventListener('click', (e) => {
-        const editBtn = e.target.closest('.js-edit-room');
-        if (editBtn) return window.openEditRoomModal(editBtn.dataset.name, editBtn.dataset.icon);
-
-        const delBtn = e.target.closest('.js-delete-room');
-        if (delBtn) return window.deleteRoom(delBtn.dataset.name);
-        
-        const editProfileBtn = e.target.closest('.js-edit-profile');
-        if (editProfileBtn) return window.openEditProfileScreen(parseInt(editProfileBtn.dataset.id));
-        
-        const editLogBtn = e.target.closest('.js-edit-log');
-        if (editLogBtn) return window.openEditLogModal(parseInt(editLogBtn.dataset.id));
-        
-        const delLogBtn = e.target.closest('.js-delete-log');
-        if (delLogBtn) return window.deleteLog(parseInt(delLogBtn.dataset.id));
-        
-        const restoreArchiveBtn = e.target.closest('.js-restore-archive');
-        if (restoreArchiveBtn) return window.restoreFromArchive(restoreArchiveBtn.dataset.table, parseInt(restoreArchiveBtn.dataset.id));
-        
-        const delArchiveBtn = e.target.closest('.js-delete-archive');
-        if (delArchiveBtn) return window.permanentlyDelete(delArchiveBtn.dataset.table, parseInt(delArchiveBtn.dataset.id));
-    });
+    if (window.EventDispatcher) {
+        window.EventDispatcher.onClick('.js-edit-room', (e, el) => window.openEditRoomModal(el.dataset.name, el.dataset.icon));
+        window.EventDispatcher.onClick('.js-delete-room', (e, el) => window.deleteRoom(el.dataset.name));
+        window.EventDispatcher.onClick('.js-edit-profile', (e, el) => window.openEditProfileScreen(parseInt(el.dataset.id)));
+        window.EventDispatcher.onClick('.js-edit-log', (e, el) => window.openEditLogModal(parseInt(el.dataset.id)));
+        window.EventDispatcher.onClick('.js-delete-log', (e, el) => window.deleteLog(parseInt(el.dataset.id)));
+        window.EventDispatcher.onClick('.js-restore-archive', (e, el) => window.restoreFromArchive(el.dataset.table, parseInt(el.dataset.id)));
+        window.EventDispatcher.onClick('.js-delete-archive', (e, el) => window.permanentlyDelete(el.dataset.table, parseInt(el.dataset.id)));
+    } else {
+        console.error("EventDispatcher nie został załadowany!");
+    }
 
     return { init: window.initSettingsModule };
 })();
