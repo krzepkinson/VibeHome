@@ -456,26 +456,35 @@ window.HomeModule = (() => {
         currentSwipeItem = null;
     });
 
-    document.addEventListener('click', (e) => {
-        const addLogBtn = e.target.closest('.js-add-log');
-        if (addLogBtn) {
-            e.preventDefault(); e.stopPropagation();
-            window.openAddLogModal(addLogBtn.dataset.id, addLogBtn.dataset.name); return;
-        }
+    // ==========================================
+    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
+    // ==========================================
+    if (window.EventDispatcher) {
+        window.EventDispatcher.onClick('.js-add-log', (e, el) => {
+            e.preventDefault(); 
+            e.stopPropagation();
+            window.openAddLogModal(el.dataset.id, el.dataset.name);
+        });
 
-        const taskCard = e.target.closest('.js-swipe-item');
-        if (taskCard) {
-            if (e.target.closest('.js-add-log')) return;
-            if (taskCard.style.transform === 'translateX(-80px)') { taskCard.style.transform = 'translateX(0px)'; return; }
-            window.openSettingsScreen(taskCard.dataset.id); return;
-        }
+        window.EventDispatcher.onClick('.js-swipe-item', (e, el) => {
+            if (e.target.closest('.js-add-log')) return; // ignoruj jeśli kliknięto w "plusik"
+            if (el.style.transform === 'translateX(-80px)') { 
+                el.style.transform = 'translateX(0px)'; 
+                return; 
+            }
+            window.openSettingsScreen(el.dataset.id);
+        });
 
-        const deleteBtn = e.target.closest('.js-delete-task');
-        if (deleteBtn) { window.deleteTaskFromHome(deleteBtn.dataset.id, deleteBtn.dataset.name); return; }
-        
-        const filterRoomBtn = e.target.closest('.js-filter-room');
-        if (filterRoomBtn) { window.filterHomeByRoom(filterRoomBtn.dataset.room); return; }
-    });
+        window.EventDispatcher.onClick('.js-delete-task', (e, el) => {
+            window.deleteTaskFromHome(el.dataset.id, el.dataset.name);
+        });
+
+        window.EventDispatcher.onClick('.js-filter-room', (e, el) => {
+            window.filterHomeByRoom(el.dataset.room);
+        });
+    } else {
+        console.error("EventDispatcher nie został załadowany!");
+    }
 
     // --- PUBLICZNE API ---
     return {
