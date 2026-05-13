@@ -38,14 +38,11 @@ window.HomeModule = (() => {
     };
 
     window.loadDashboard = async function() {
-        // POPRAWKA: Szukamy kontenera listy (stare ID lub nowe ID z home.html)
         const list = document.getElementById('dashboard-list') || document.getElementById('home-task-list');
         const calWrapper = document.getElementById('home-calendar-wrapper');
         const backBtn = document.getElementById('home-back-btn');
-        const hid = window.currentUser.household_id;
         
         if (roomFilter) {
-            // POPRAWKA: Przycisk powrotu musi wywoływać czyszczenie filtra
             if (backBtn) { 
                 backBtn.classList.remove('hidden'); 
                 backBtn.innerHTML = '←'; 
@@ -69,15 +66,15 @@ window.HomeModule = (() => {
             }
         }
 
-        const [tRes, lRes, rRes] = await Promise.all([
-            window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-            window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(500),
-            window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name')
-        ]);
+        // --- ZMIANA ARCHITEKTURY: POBIERANIE ZE STORE'A (Zamiast Fetch) ---
+        // Upewniamy się, że Store jest załadowany. Jeśli Cache wygasł, załaduje dyskretnie w tle.
+        await window.loadDashboardOverview(); 
         
-        tasks = tRes.data || []; 
-        logs = lRes.data || [];
-        const dbRooms = rRes.data || [];
+        const state = window.AppStore.get();
+        tasks = state.tasks || []; 
+        logs = state.logs || [];
+        const dbRooms = state.rooms || [];
+        // -------------------------------------------------------------------
 
         if (tasks.length === 0 && !roomFilter) {
             if (list) {
@@ -135,7 +132,6 @@ window.HomeModule = (() => {
             return;
         }
 
-        // --- POCZĄTEK BLOKU: PRECYZYJNE SORTOWANIE ---
         let tasksToDisplay = roomFilter === 'Wszystkie' ? tasks : tasks.filter(t => (t.room || 'Inne') === roomFilter);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -323,15 +319,14 @@ window.HomeModule = (() => {
         const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
             task_id: taskId, activity_name: taskObj ? taskObj.name : 'Zadanie', 
             created_at: finalDate, notes: nt, 
-            user_id: window.currentUser.user_id, // POPRAWKA UUID 
+            user_id: window.currentUser.user_id, 
             household_id: window.currentUser.household_id, user_name: window.currentUser.name 
         }]);
         
         if (error) { window.showToast("Błąd: " + error.message); return; }
 
-        // --- ZMIANA: AKTUALIZACJA NEXT_DUE_AT ---
         if (taskObj && taskObj.interval_days > 0) {
-            const nextDate = new Date(finalDate); // Liczymy od daty wpisanej przez użytkownika
+            const nextDate = new Date(finalDate); 
             nextDate.setDate(nextDate.getDate() + taskObj.interval_days);
             await window.supabaseClient.from('tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', taskId);
             window.showToast("Zapisano log!");
@@ -342,7 +337,10 @@ window.HomeModule = (() => {
             window.showToast("Zapisano log!");
         }
 
-        window.closeAddLogModal(); window.loadDashboard();
+        // --- ZMIANA: Unieważniamy cache po zapisie ---
+        window.invalidateDashboardCache(); 
+        window.closeAddLogModal(); 
+        window.loadDashboard(); // To automatycznie pociągnie świeże dane ze zresetowanego cache'u
     };
 
     window.openNewTaskModal = function() {
@@ -364,18 +362,22 @@ window.HomeModule = (() => {
         const r = document.getElementById('new-task-room').value;
         if (!n) return;
 
-        // --- ZMIANA: USTAWIANIE NEXT_DUE_AT NA DZISIAJ PRZY TWORZENIU ---
         const initialDue = new Date().toISOString();
 
         const { error } = await window.supabaseClient.from('tasks').insert([{ 
             name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
-            room: r, user_id: window.currentUser.user_id, // POPRAWKA UUID
+            room: r, user_id: window.currentUser.user_id,
             household_id: window.currentUser.household_id,
             next_due_at: initialDue
         }]);
 
         if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.closeNewTaskModal(); window.showToast("Dodano czynność!"); window.loadDashboard();
+        
+        // --- ZMIANA: Unieważniamy cache po zapisie ---
+        window.invalidateDashboardCache();
+        window.closeNewTaskModal(); 
+        window.showToast("Dodano czynność!"); 
+        window.loadDashboard();
     };
 
     window.openEditLogModal = function(logId) {
@@ -406,8 +408,12 @@ window.HomeModule = (() => {
             .eq('id', id).eq('household_id', window.currentUser.household_id);
 
         if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.showToast("Wpis zaktualizowany! ✏️"); window.closeEditLogModal();
-        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+        window.showToast("Wpis zaktualizowany! ✏️"); 
+        
+        // --- ZMIANA: Unieważniamy cache po zapisie ---
+        window.invalidateDashboardCache();
+        window.closeEditLogModal();
+        window.loadDashboard();
         if (typeof window.refreshCurrentView === 'function') await window.refreshCurrentView();
     };
 
@@ -415,7 +421,11 @@ window.HomeModule = (() => {
         window.customConfirm(`Czy na pewno usunąć "${name}"?`, async () => {
             const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', id);
             if (error) { window.showToast("Błąd usuwania"); return; }
-            window.showToast("Usunięto!"); window.loadDashboard();
+            
+            // --- ZMIANA: Unieważniamy cache po usunięciu ---
+            window.invalidateDashboardCache();
+            window.showToast("Usunięto!"); 
+            window.loadDashboard();
         });
     };
 
