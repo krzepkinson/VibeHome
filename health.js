@@ -19,9 +19,14 @@ window.toggleHealthView = function() {
 };
 
 window.initHealthModule = async function() {
-    const hid = window.currentUser.household_id;
-    const { data: pData } = await window.supabaseClient.from('profiles').select('*').eq('household_id', hid).order('name');
-    healthProfiles = pData || [];
+    // --- ZMIANA: Faza 3 - Krok 6: AppStore jako Jedyne Źródło Prawdy ---
+    if (window.AppStore && window.AppStore.get('profiles')) {
+        healthProfiles = window.AppStore.get('profiles') || [];
+    } else {
+        const hid = window.currentUser.household_id;
+        const { data: pData } = await window.supabaseClient.from('profiles').select('*').eq('household_id', hid).order('name');
+        healthProfiles = pData || [];
+    }
     
     if (healthProfiles.length > 0 && !currentProfileId) {
         currentProfileId = healthProfiles[0].id;
@@ -34,6 +39,17 @@ window.initHealthModule = async function() {
 
 window.refreshHealthData = async function() {
     if (!currentProfileId) return;
+
+    // --- ZMIANA: Faza 3 - Krok 6: Szybka ścieżka z AppStore ---
+    if (window.AppStore && window.AppStore.get('healthTasks') && window.AppStore.get('healthLogs')) {
+        const allTasks = window.AppStore.get('healthTasks');
+        // Filtrujemy zadania przypisane tylko do aktualnie przeglądanego profilu
+        healthTasks = allTasks.filter(t => t.profile_id === currentProfileId && !t.is_archived);
+        healthLogs = window.AppStore.get('healthLogs');
+        return; // Mamy wszystko z pamięci RAM, omijamy zapytania sieciowe!
+    }
+
+    // Fallback: W razie gdyby Store był pusty, uderzamy do DB (np. bezpośrednie wejście z pominięciem dashboardu)
     const hid = window.currentUser.household_id;
     const [tRes, lRes] = await Promise.all([
         window.supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId).eq('household_id', hid).eq('is_archived', false),
@@ -43,13 +59,11 @@ window.refreshHealthData = async function() {
     healthLogs = lRes.data || [];
 };
 
-// --- ZMIANA: RENDEROWANIE Z PASKIEM PROFILI (PILLS) ---
 window.renderHealthUI = function() {
     const profile = healthProfiles.find(p => p.id === currentProfileId);
     const calWrapper = document.getElementById('health-calendar-wrapper');
     const sectionsWrapper = document.getElementById('health-sections-wrapper');
 
-    // Renderowanie paska profili (pills) z sugestii Claude'a
     const pillsContainer = document.getElementById('health-profile-pills');
     if (pillsContainer && healthProfiles.length > 0) {
         pillsContainer.innerHTML = healthProfiles.map(p => {
@@ -93,7 +107,6 @@ window.renderHealthUI = function() {
     const headerAvatar = document.getElementById('health-header-avatar');
     if (nameTitle) nameTitle.innerText = profile.name; 
     
-    // Dla kompatybilności wstecznej - jeśli stary awatar dalej wisi w HTML
     if (headerAvatar) {
         headerAvatar.className = `ml-1 w-9 h-9 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 text-xs ${window.getAvatarColor ? window.getAvatarColor(profile.name) : 'bg-rose-600'}`;
         headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
@@ -239,7 +252,6 @@ window.startHealthLog = async function(taskId, type) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
     const now = new Date().toISOString();
     
-    // 1. Zapis do logów
     const { error } = await window.supabaseClient.from('health_logs').insert([{ 
         health_task_id: taskId, start_date: now, end_date: (type === 'cyclical' || type === 'one_time') ? now : null, 
         user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
@@ -247,7 +259,6 @@ window.startHealthLog = async function(taskId, type) {
 
     if (error) { window.showToast("Błąd: " + error.message); return; }
 
-    // Obliczanie następnego terminu
     const task = healthTasks.find(t => t.id == taskId);
     if (task && task.task_type === 'cyclical' && task.interval_days > 0) {
         const nextDate = new Date(now);
@@ -256,8 +267,13 @@ window.startHealthLog = async function(taskId, type) {
     }
 
     window.showToast("Zapisano!"); 
-    await window.refreshHealthData(); window.renderHealthUI(); 
-    if(typeof window.loadDashboardOverview === 'function') { window.invalidateDashboardCache(); window.loadDashboardOverview(); }
+    // --- ZMIANA: Kolejność - najpierw odświeżamy AppStore w Dashboardzie, potem pobieramy świeże dane lokalnie ---
+    if(typeof window.loadDashboardOverview === 'function') { 
+        window.invalidateDashboardCache(); 
+        await window.loadDashboardOverview(); 
+    }
+    await window.refreshHealthData(); 
+    window.renderHealthUI(); 
 };
 
 window.closeHealthLog = async function(logId) {
@@ -265,8 +281,13 @@ window.closeHealthLog = async function(logId) {
     const { error } = await window.supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('household_id', window.currentUser.household_id);
     if (error) { window.showToast("Błąd: " + error.message); return; }
     window.showToast("Zakończono"); 
-    await window.refreshHealthData(); window.renderHealthUI(); 
-    if(typeof window.loadDashboardOverview === 'function') { window.invalidateDashboardCache(); window.loadDashboardOverview(); }
+    // --- ZMIANA: Kolejność ---
+    if(typeof window.loadDashboardOverview === 'function') { 
+        window.invalidateDashboardCache(); 
+        await window.loadDashboardOverview(); 
+    }
+    await window.refreshHealthData(); 
+    window.renderHealthUI(); 
 };
 
 window.openHealthFabMenu = function() { document.getElementById('health-fab-menu').classList.remove('hidden'); };
@@ -298,12 +319,12 @@ window.saveNewHealthTask = async function() {
     if (type === 'cyclical') { 
         interval = parseInt(document.getElementById('h-task-interval').value) || 0; 
         remind = parseInt(document.getElementById('h-task-remind').value) || 0; 
-        initialDue = new Date().toISOString(); // Leki od razu zaplanowane na dziś
+        initialDue = new Date().toISOString(); 
     } else if (type === 'one_time') { 
         evDate = document.getElementById('h-task-date').value || null; 
         remind = parseInt(document.getElementById('h-task-remind-date').value) || 0; 
         if (evDate) {
-            initialDue = new Date(evDate).toISOString(); // Data konkretnego badania/wizyty
+            initialDue = new Date(evDate).toISOString(); 
         }
     }
     
@@ -317,7 +338,13 @@ window.saveNewHealthTask = async function() {
     }]);
     
     if (error) { window.showToast("Błąd: " + error.message); return; }
-    window.closeNewHealthTaskModal(); window.initHealthModule();
+    window.closeNewHealthTaskModal(); 
+    // --- ZMIANA: Kolejność ---
+    if(typeof window.loadDashboardOverview === 'function') { 
+        window.invalidateDashboardCache(); 
+        await window.loadDashboardOverview(); 
+    }
+    window.initHealthModule();
 };
 
 window.currentHealthSettingsId = null;
@@ -353,13 +380,20 @@ window.saveHealthTaskSettings = async function() {
         updateData.event_date = document.getElementById('set-h-task-date').value || null; 
         updateData.remind_days_before = parseInt(document.getElementById('set-h-task-remind-date').value) || 0; 
         if (updateData.event_date) {
-            updateData.next_due_at = new Date(updateData.event_date).toISOString(); // Aktualizacja terminu pushy
+            updateData.next_due_at = new Date(updateData.event_date).toISOString(); 
         }
     }
     
     const { error } = await window.supabaseClient.from('health_tasks').update(updateData).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
     if (error) { window.showToast("Błąd: " + error.message); return; }
-    window.showToast("Zapisano!"); window.initHealthModule(); window.goBack();
+    window.showToast("Zapisano!"); 
+    // --- ZMIANA: Kolejność ---
+    if(typeof window.loadDashboardOverview === 'function') { 
+        window.invalidateDashboardCache(); 
+        await window.loadDashboardOverview(); 
+    }
+    window.initHealthModule(); 
+    window.goBack();
     setTimeout(() => window.refreshCurrentView(), 150);
 };
 
@@ -372,6 +406,11 @@ window.deleteHealthLog = function(id) {
     window.customConfirm("Usunąć ten wpis z historii?", async () => {
         const { error } = await window.supabaseClient.from('health_logs').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
         if (error) { window.showToast("Błąd: " + error.message); return; }
+        // --- ZMIANA: Dodano aktualizację cache ---
+        if(typeof window.loadDashboardOverview === 'function') { 
+            window.invalidateDashboardCache(); 
+            await window.loadDashboardOverview(); 
+        }
         await window.refreshHealthData(); window.renderHealthHistory(); window.renderHealthUI();
     });
 };
@@ -380,6 +419,11 @@ window.deleteHealthTask = function() {
     window.customConfirm("Zarchiwizować to zdarzenie?", async () => {
         const { error } = await window.supabaseClient.from('health_tasks').update({ is_archived: true }).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
         if (error) { window.showToast("Błąd: " + error.message); return; }
+        // --- ZMIANA: Dodano aktualizację cache ---
+        if(typeof window.loadDashboardOverview === 'function') { 
+            window.invalidateDashboardCache(); 
+            await window.loadDashboardOverview(); 
+        }
         window.closeHealthSettingsScreen(); window.initHealthModule();
     });
 };
@@ -407,10 +451,8 @@ window.openDayDetails = function(dateStr) {
 
 window.closeDayDetailsModal = function() { document.getElementById('day-details-modal').classList.add('hidden'); };
 
-// ZMIANA: Zaktualizowana funkcja do szybkiego przełączania pigułką
 window.selectHealthProfile = function(id) { 
     currentProfileId = parseInt(id); 
-    // Bezpiecznik dla starego modala
     if (typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
     window.initHealthModule(); 
 };
@@ -554,7 +596,6 @@ window.loadHealthBook = async function() {
         
         let timelineItems = [];
 
-        // 1. POMIARY
         (measurements || []).forEach(m => {
             timelineItems.push({
                 date: new Date(m.created_at),
@@ -566,7 +607,6 @@ window.loadHealthBook = async function() {
             });
         });
 
-        // 2. LOGI MEDYCZNE
         profileLogs.forEach(l => {
             const task = tasks.find(t => t.id === l.health_task_id);
             if (!task) return;
@@ -616,11 +656,9 @@ window.loadHealthBook = async function() {
 };
 
 document.addEventListener('click', (e) => {
-    // --- ZMIANA: Obsługa kliknięć w pillsy ---
     const pillBtn = e.target.closest('.js-select-health-profile');
     if (pillBtn) return window.selectHealthProfile(pillBtn.dataset.id);
     
-    // Reszta dotychczasowej delegacji
     const closeLogBtn = e.target.closest('.js-close-health-log');
     if(closeLogBtn) return window.closeHealthLog(closeLogBtn.dataset.id);
     const startLogBtn = e.target.closest('.js-start-health-log');
