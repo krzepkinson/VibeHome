@@ -188,13 +188,104 @@ window.TodoModule = (() => {
         window.loadChecklistItems();
     };
 
-    window.toggleChecklistItem = async function(id, currentStatus) {
+    // ==========================================
+    // OPTYMIZACJA UI: Szybkie zadania (Todo)
+    // ==========================================
+    window.toggleTodo = async function(id, currentStatus, el) {
         if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
+
+        // 1. Optymistyczny UI (Złudzenie natychmiastowości)
+        if (el) {
+            const container = el.closest('.group');
+            const isDone = !currentStatus;
+            
+            if (container) {
+                container.classList.toggle('opacity-50', isDone);
+                const textSpan = container.querySelector('span.truncate');
+                if (textSpan) {
+                    textSpan.classList.toggle('line-through', isDone);
+                    textSpan.classList.toggle('text-neutral-500', isDone);
+                    textSpan.classList.toggle('text-neutral-200', !isDone);
+                }
+            }
+            
+            if (isDone) {
+                el.classList.add('bg-[#c4eed0]', 'border-[#c4eed0]');
+                el.classList.remove('border-[#444746]');
+                el.innerHTML = '<span class="text-[#0f5223] text-xs font-bold">✓</span>';
+            } else {
+                el.classList.remove('bg-[#c4eed0]', 'border-[#c4eed0]');
+                el.classList.add('border-[#444746]');
+                el.innerHTML = '';
+            }
+            el.dataset.status = isDone.toString();
+        }
+
+        // 2. Właściwe zapytanie w tle
+        await window.supabaseClient.from('todos').update({ 
+            is_completed: !currentStatus, 
+            completed_at: !currentStatus ? new Date().toISOString() : null, 
+            completer_name: !currentStatus ? window.currentUser.name : null 
+        }).eq('id', id);
+
+        // 3. Ciche przeładowanie danych
+        window.loadTodosAndLists();
+    };
+
+    window.archiveTodo = async function(id, el) {
+        window.customConfirm("Zarchiwizować to zadanie?", async () => {
+            // Optymistyczne ukrycie całej wizualnej karty
+            if (el) {
+                const container = el.closest('.group');
+                if (container) container.classList.add('hidden');
+            }
+            await window.supabaseClient.from('todos').update({ is_archived: true }).eq('id', id);
+            window.loadTodosAndLists();
+        });
+    };
+
+    // ==========================================
+    // OPTYMIZACJA UI: Elementy na listach
+    // ==========================================
+    window.toggleChecklistItem = async function(id, currentStatus, el) {
+        if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
+
+        // 1. Optymistyczny UI
+        if (el) {
+            const container = el.closest('.group');
+            const isDone = !currentStatus;
+            
+            if (container) container.classList.toggle('opacity-50', isDone);
+            
+            const circle = el.querySelector('div');
+            if (circle) {
+                circle.classList.toggle('bg-[#c4eed0]', isDone);
+                circle.classList.toggle('border-[#c4eed0]', isDone);
+                circle.classList.toggle('border-[#444746]', !isDone);
+                circle.innerHTML = isDone ? '<span class="text-[#0f5223] text-[10px] font-bold">✓</span>' : '';
+            }
+            
+            const textSpan = el.querySelector('span.truncate');
+            if (textSpan) {
+                textSpan.classList.toggle('line-through', isDone);
+                textSpan.classList.toggle('text-neutral-500', isDone);
+                textSpan.classList.toggle('text-neutral-200', !isDone);
+            }
+            
+            el.dataset.status = isDone.toString();
+        }
+
+        // 2. Zapytanie w tle
         await window.supabaseClient.from('checklist_items').update({ is_completed: !currentStatus }).eq('id', id);
         window.loadChecklistItems();
     };
 
-    window.deleteChecklistItem = async function(id) {
+    window.deleteChecklistItem = async function(id, el) {
+        // Optymistyczne ukrycie znikającego elementu checklisty
+        if (el) {
+            const container = el.closest('.group');
+            if (container) container.classList.add('hidden');
+        }
         await window.supabaseClient.from('checklist_items').delete().eq('id', id);
         window.loadChecklistItems();
     };
@@ -214,19 +305,6 @@ window.TodoModule = (() => {
         });
     };
 
-    window.archiveTodo = async function(id) {
-        window.customConfirm("Zarchiwizować to zadanie?", async () => {
-            await window.supabaseClient.from('todos').update({ is_archived: true }).eq('id', id);
-            window.loadTodosAndLists();
-        });
-    };
-
-    window.toggleTodo = async function(id, currentStatus) {
-        if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
-        await window.supabaseClient.from('todos').update({ is_completed: !currentStatus, completed_at: !currentStatus ? new Date().toISOString() : null, completer_name: !currentStatus ? window.currentUser.name : null }).eq('id', id);
-        window.loadTodosAndLists();
-    };
-
     // --- DELEGACJA ZDARZEŃ (VIA DISPATCHER) ---
     if (window.EventDispatcher) {
         window.EventDispatcher.onClick('.js-open-checklist', (e, el) => {
@@ -241,23 +319,27 @@ window.TodoModule = (() => {
 
         window.EventDispatcher.onClick('.js-archive-todo', (e, el) => {
             e.preventDefault();
-            window.archiveTodo(parseInt(el.dataset.id, 10));
+            // Przekazujemy element "el", aby funkcja mogła go natychmiast ukryć
+            window.archiveTodo(parseInt(el.dataset.id, 10), el);
         });
 
         window.EventDispatcher.onClick('.js-toggle-todo', (e, el) => {
             e.stopPropagation();
             const isDone = el.dataset.status === 'true';
-            window.toggleTodo(parseInt(el.dataset.id, 10), isDone);
+            // Przekazujemy element "el" do natychmiastowego pokolorowania
+            window.toggleTodo(parseInt(el.dataset.id, 10), isDone, el);
         });
 
         window.EventDispatcher.onClick('.js-delete-checklist-item', (e, el) => {
             e.preventDefault();
-            window.deleteChecklistItem(parseInt(el.dataset.id, 10));
+            // Przekazujemy "el"
+            window.deleteChecklistItem(parseInt(el.dataset.id, 10), el);
         });
 
         window.EventDispatcher.onClick('.js-toggle-checklist-item', (e, el) => {
             const isCompleted = el.dataset.status === 'true';
-            window.toggleChecklistItem(parseInt(el.dataset.id, 10), isCompleted);
+            // Przekazujemy "el"
+            window.toggleChecklistItem(parseInt(el.dataset.id, 10), isCompleted, el);
         });
     } else {
         console.error("EventDispatcher nie jest załadowany!");
