@@ -1,38 +1,34 @@
 // ==========================================
-// LOGIKA: PRZEGLĄD (dashboard.js)
+// LOGIKA: PRZEGLĄD BENTO BOX (dashboard.js)
 // ==========================================
 
-// ZMIANA: Domyślna zakładka to teraz 'priority'
-window.activeDashboardTab = 'priority'; 
 window.dashboardCacheTime = 0;
-
-window.switchDashboardTab = function(tab) {
-    window.activeDashboardTab = tab;
-    window.renderDashboardUI();
-};
 
 window.invalidateDashboardCache = function() { 
     window.dashboardCacheTime = 0; 
 };
 
 window.loadDashboardOverview = async function(forceRefresh = false) {
-    const listEl = document.getElementById('dashboard-overview-list');
-    if (!listEl) return;
-
     const now = Date.now();
     if (forceRefresh || (now - window.dashboardCacheTime > window.CONFIG.CACHE_TTL)) {
-        listEl.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Synchronizacja...</p>`;
+        
+        // Pokaż loader w widgetach
+        document.getElementById('widget-home-content').innerHTML = `<p class="text-neutral-500 text-xs text-center py-4 animate-pulse">Ładowanie...</p>`;
+        document.getElementById('widget-todo-content').innerHTML = `<p class="text-neutral-500 text-xs text-center py-4 animate-pulse">Ładowanie...</p>`;
+        
         const hid = window.currentUser.household_id; 
         
         try {
-            const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes] = await Promise.all([
+            // ZMIANA: Dodano pobieranie "checklists", by szybki koszyk działał błyskawicznie!
+            const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes] = await Promise.all([
                 window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
                 window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
                 window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
                 window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }).limit(200),
                 window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }).limit(100),
                 window.supabaseClient.from('profiles').select('*').eq('household_id', hid),
-                window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name')
+                window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name'),
+                window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false)
             ]);
 
             window.AppStore.set({
@@ -42,7 +38,8 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
                 hLogs: hLogsRes.data || [],
                 todos: todoRes.data || [],
                 profiles: profilesRes.data || [],
-                rooms: roomsRes.data || []
+                rooms: roomsRes.data || [],
+                checklists: listsRes.data || []
             });
             
             window.dashboardCacheTime = now;
@@ -55,220 +52,185 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
 };
 
 window.renderDashboardUI = function() {
-    const listEl = document.getElementById('dashboard-overview-list');
-    const todayContainer = document.getElementById('today-plan-container');
-    if (!listEl || !todayContainer) return;
-
     const state = window.AppStore.get();
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayStr = window.getTodayLocalString(today);
 
-    // ZAKŁADKI STYLOWANIE
-    const tabs = ['priority', 'todo', 'history'];
-    tabs.forEach(t => {
-        const btn = document.getElementById(`tab-${t}`);
-        if (!btn) return;
-        btn.className = t === window.activeDashboardTab 
-            ? "flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl bg-[#333537] text-[#a8c7fa] shadow-sm transition-all"
-            : "flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl text-neutral-500 hover:text-neutral-300 transition-all";
-    });
-
-    // PLAN DNIA - POKAZYWANY TYLKO NA PRIORYTECIE LUB HISTORII
-    if (window.activeDashboardTab === 'priority' || window.activeDashboardTab === 'history') {
-        let todayHtml = '';
-        
-        const healthToday = state.hTasks.filter(ht => ht.event_date === todayStr);
-        const homeToday = state.tasks.filter(t => {
-            if (!t.interval_days) return false;
-            const taskLogs = state.logs.filter(l => l.task_id === t.id);
-            if (taskLogs.length === 0) return false;
-            const lastLog = taskLogs[0];
-            const nextDate = new Date(lastLog.created_at);
-            nextDate.setDate(nextDate.getDate() + t.interval_days);
-            return nextDate.toISOString().split('T')[0] === todayStr;
-        });
-
-        if (healthToday.length > 0 || homeToday.length > 0) {
-            todayHtml = `
-                <h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Plan na dziś</h3>
-                <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-            `;
-            
-            todayHtml += healthToday.map(ht => `
-                <div class="js-quick-log-health min-w-[140px] p-3 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[20px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}">
-                    <div class="text-xl mb-1">📅</div>
-                    <div class="text-[11px] font-bold text-[#c2e7ff] leading-tight mb-1 truncate">${window.esc(ht.name)}</div>
-                    <div class="text-[9px] text-[#a8c7fa]/70 uppercase font-medium">Kliknij, by odhaczyć</div>
-                </div>
-            `).join('');
-
-            todayHtml += homeToday.map(t => `
-                <div class="js-dash-log-task min-w-[140px] p-3 bg-[#1e1f20] border border-[#333537] rounded-[20px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${t.id}">
-                    <div class="text-xl mb-1">🏠</div>
-                    <div class="text-[11px] font-bold text-neutral-200 leading-tight mb-1 truncate">${window.esc(t.name)}</div>
-                    <div class="text-[9px] text-neutral-500 uppercase font-medium">Cykl wypada dziś</div>
-                </div>
-            `).join('');
-
-            todayHtml += `</div>`;
-            todayContainer.innerHTML = todayHtml;
-            todayContainer.classList.remove('hidden');
-        } else {
-            todayContainer.classList.add('hidden');
-        }
-    } else {
-        todayContainer.classList.add('hidden'); // Ukrywamy w 'todo'
-    }
-
-    // ==========================================
-    // ZAKŁADKA: PRIORYTET (Zastępuje Dom i Zdrowie)
-    // ==========================================
-    if (window.activeDashboardTab === 'priority') {
-        listEl.innerHTML = _renderPriorityTab(state, today, todayStr);
-        return;
-    }
-
-    // ==========================================
-    // ZAKŁADKA: ZADANIA (TO-DO)
-    // ==========================================
-    if (window.activeDashboardTab === 'todo') {
-        const activeTodos = state.todos.filter(t => !t.is_completed);
-        listEl.innerHTML = activeTodos.length 
-            ? activeTodos.map(todo => window.UI.renderDashboardTodo(todo)).join('') 
-            : window.UI.renderEmptyState("Wszystko zrobione!");
-        return;
-    }
-
-    // ==========================================
-    // ZAKŁADKA: HISTORIA
-    // ==========================================
-    if (window.activeDashboardTab === 'history') {
-        listEl.innerHTML = _renderHistoryTab(state);
-        return;
-    }
+    _renderTodaySection(state, todayStr);
+    _renderHomeWidget(state, todayStr);
+    _renderTodoWidget(state);
+    _renderHorizonSection(state, today);
+    _renderHistoryOverlay(state);
 };
 
-// ==========================================
-// PRYWATNA: RENDEROWANIE ZAKŁADKI PRIORYTET
-// ==========================================
-function _renderPriorityTab(state, today, todayStr) {
-    let sections = [];
+// --- RENDEROWANIE: ZADANIA NA DZIŚ ---
+function _renderTodaySection(state, todayStr) {
+    const todayContainer = document.getElementById('dashboard-today-container');
+    if (!todayContainer) return;
 
-    // --- 1. ZALEGŁE ZDROWIE ---
-    const overdueHealth = state.hTasks.filter(ht => window.isTaskOverdue(ht, state.hLogs));
-    if (overdueHealth.length > 0) {
-        const items = overdueHealth.map(ht => {
-            const profile = state.profiles.find(p => p.id === ht.profile_id);
-            return _renderPriorityItem({
-                id: ht.id, title: ht.name, badge: profile ? profile.name : null,
-                badgeColor: 'bg-rose-900/40 text-[#ffb4ab] border-rose-800/40',
-                subtitle: _getHealthSubtitle(ht, state.hLogs, today), urgency: 'overdue',
-                actionClass: 'js-quick-log-health', actionDataset: `data-id="${ht.id}"`, navView: 'health'
-            });
-        }).join('');
-        sections.push(_renderSection('❤️ Zdrowie', items, 'text-[#ffb4ab]'));
+    const healthToday = state.hTasks.filter(ht => ht.event_date === todayStr);
+    const homeToday = state.tasks.filter(t => {
+        if (!t.interval_days) return false;
+        const taskLogs = state.logs.filter(l => l.task_id === t.id);
+        if (taskLogs.length === 0) return false;
+        const lastLog = taskLogs[0];
+        const nextDate = new Date(lastLog.created_at);
+        nextDate.setDate(nextDate.getDate() + t.interval_days);
+        return window.getTodayLocalString(nextDate) === todayStr;
+    });
+
+    if (healthToday.length > 0 || homeToday.length > 0) {
+        let html = `
+            <h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Zadania na dziś</h3>
+            <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+        `;
+        
+        html += healthToday.map(ht => `
+            <div class="js-quick-log-health min-w-[140px] p-3 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[20px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}">
+                <div class="text-xl mb-1">📅</div>
+                <div class="text-[11px] font-bold text-[#c2e7ff] leading-tight mb-1 truncate">${window.esc(ht.name)}</div>
+                <div class="text-[9px] text-[#a8c7fa]/70 uppercase font-medium">Kliknij, by odhaczyć</div>
+            </div>
+        `).join('');
+
+        html += homeToday.map(t => `
+            <div class="js-dash-log-task min-w-[140px] p-3 bg-[#1e1f20] border border-[#333537] rounded-[20px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${t.id}">
+                <div class="text-xl mb-1">🏠</div>
+                <div class="text-[11px] font-bold text-neutral-200 leading-tight mb-1 truncate">${window.esc(t.name)}</div>
+                <div class="text-[9px] text-neutral-500 uppercase font-medium">Cykl wypada dziś</div>
+            </div>
+        `).join('');
+
+        html += `</div>`;
+        todayContainer.innerHTML = html;
+        todayContainer.classList.remove('hidden');
+    } else {
+        todayContainer.classList.add('hidden');
     }
+}
 
-    // --- 2. ZALEGŁE ZADANIA DOMOWE ---
+// --- RENDEROWANIE: WIDGET DOMU ---
+function _renderHomeWidget(state, todayStr) {
     const overdueHome = state.tasks.filter(t => window.isTaskOverdue(t, state.logs));
+    const badge = document.getElementById('widget-home-badge');
+    const content = document.getElementById('widget-home-content');
+    
     if (overdueHome.length > 0) {
-        const items = overdueHome.map(t => _renderPriorityItem({
-            id: t.id, title: t.name, badge: t.room || null,
-            badgeColor: 'bg-[#333537] text-neutral-400 border-[#444746]',
-            subtitle: 'Czas na odświeżenie', urgency: 'overdue',
-            actionClass: 'js-dash-log-task', actionDataset: `data-id="${t.id}"`, navView: 'home'
-        })).join('');
-        sections.push(_renderSection('🏠 Dom', items, 'text-[#c4eed0]'));
+        badge.innerText = `${overdueHome.length} zaległe`;
+        badge.classList.remove('hidden');
+        content.innerHTML = overdueHome.map(t => `
+            <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors group mb-1">
+                <div class="flex-1 min-w-0 pr-3 cursor-pointer js-dash-nav" data-view="home">
+                    <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(t.name)}</h3>
+                    <p class="text-[10px] text-neutral-500">${window.esc(t.room || 'Dom')}</p>
+                </div>
+                <button class="js-dash-log-task w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${t.id}">✓</button>
+            </div>
+        `).join('');
+    } else {
+        badge.classList.add('hidden');
+        content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
+            <span class="text-3xl opacity-50 mb-2">✨</span>
+            <p class="text-sm font-medium text-[#c4eed0]">Wszystko lśni!</p>
+            <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Brak zaległości</p>
+        </div>`;
     }
+}
 
-    // --- 3. NADCHODZĄCE ZDROWIE (do 14 dni) ---
+// --- RENDEROWANIE: WIDGET ZADAŃ ---
+function _renderTodoWidget(state) {
+    const activeTodos = state.todos.filter(t => !t.is_completed);
+    const badge = document.getElementById('widget-todo-badge');
+    const content = document.getElementById('widget-todo-content');
+    
+    if (activeTodos.length > 0) {
+        const toShow = activeTodos.slice(0, 5); // Pokazujemy max 5
+        badge.innerText = `${activeTodos.length} otwartych`;
+        badge.classList.remove('hidden');
+        
+        let html = toShow.map(todo => `
+            <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors mb-1">
+                <div class="flex-1 min-w-0 pr-3 cursor-pointer js-dash-nav" data-view="todo">
+                    <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(todo.title)}</h3>
+                </div>
+                <button class="js-dash-complete-todo w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${todo.id}">✓</button>
+            </div>
+        `).join('');
+        
+        if (activeTodos.length > 5) {
+            html += `<div class="text-[10px] text-neutral-500 text-center mt-2 cursor-pointer hover:text-[#a8c7fa] py-2 js-dash-nav" data-view="todo">+${activeTodos.length - 5} więcej w module</div>`;
+        }
+        content.innerHTML = html;
+    } else {
+        badge.classList.add('hidden');
+        content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
+            <span class="text-3xl opacity-50 mb-2">🎉</span>
+            <p class="text-sm font-medium text-neutral-300">Lista czysta!</p>
+            <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Czas na relaks</p>
+        </div>`;
+    }
+}
+
+// --- RENDEROWANIE: NA HORYZONCIE ---
+function _renderHorizonSection(state, today) {
+    const container = document.getElementById('dashboard-horizon-container');
+    if (!container) return;
+
+    // Tylko wydarzenia w przyszłości
     const upcomingHealth = state.hTasks.filter(ht => {
         if (ht.task_type !== 'one_time' || !ht.event_date) return false;
         const isDone = state.hLogs.some(l => l.health_task_id === ht.id);
         if (isDone) return false;
         const evDate = new Date(ht.event_date); evDate.setHours(0, 0, 0, 0);
-        const daysUntil = Math.ceil((evDate - today) / 86400000);
-        return daysUntil > 0 && daysUntil <= 14;
+        return evDate > today; // Ważne: Tych z dzisiaj nie chcemy, są w karuzeli
     }).sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
 
     if (upcomingHealth.length > 0) {
-        const items = upcomingHealth.map(ht => {
+        let html = `<h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Na horyzoncie</h3>`;
+        html += upcomingHealth.map(ht => {
             const profile = state.profiles.find(p => p.id === ht.profile_id);
             const daysUntil = Math.ceil((new Date(ht.event_date) - today) / 86400000);
             const urgencyLabel = daysUntil === 1 ? 'Jutro!' : `Za ${daysUntil} dni`;
-            const urgency = daysUntil <= 3 ? 'soon' : 'upcoming';
-            return _renderPriorityItem({
-                id: ht.id, title: ht.name, badge: profile ? profile.name : null,
-                badgeColor: 'bg-[#004a77]/30 text-[#a8c7fa] border-[#004a77]/40',
-                subtitle: `📅 ${new Date(ht.event_date).toLocaleDateString('pl-PL')} · ${urgencyLabel}`, urgency,
-                actionClass: null, navView: 'health'
-            });
+            const colorClass = daysUntil <= 3 ? 'text-amber-400' : 'text-[#a8c7fa]';
+            
+            return `
+            <div class="flex items-center justify-between px-4 py-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 shadow-sm js-dash-nav cursor-pointer active:scale-95 transition-transform" data-view="health">
+                <div class="flex gap-4 items-center">
+                    <div class="text-2xl opacity-80">🗓️</div>
+                    <div>
+                        <h4 class="text-sm font-medium text-neutral-200">${window.esc(ht.name)}</h4>
+                        <p class="text-[10px] text-neutral-500 mt-0.5">
+                            <span class="font-bold ${colorClass}">${urgencyLabel}</span> • ${profile ? profile.name : 'Zdrowie'}
+                        </p>
+                    </div>
+                </div>
+            </div>`;
         }).join('');
-        sections.push(_renderSection('📅 Nadchodzące wizyty', items, 'text-[#a8c7fa]'));
+        container.innerHTML = html;
+        container.classList.remove('hidden');
+    } else {
+        container.classList.add('hidden');
     }
-
-    // --- 4. NIEZAKOŃCZONE TODO (max 5) ---
-    const activeTodos = state.todos.filter(t => !t.is_completed).slice(0, 5);
-    if (activeTodos.length > 0) {
-        const total = state.todos.filter(t => !t.is_completed).length;
-        const moreLabel = total > 5 ? `<div class="text-[10px] text-neutral-500 text-center mt-3 cursor-pointer hover:text-[#a8c7fa]" onclick="window.switchDashboardTab('todo')">+${total - 5} więcej w zakładce Zadania</div>` : '';
-        const items = activeTodos.map(todo => window.UI.renderDashboardTodo(todo)).join('') + moreLabel;
-        sections.push(_renderSection('📝 Do zrobienia', items, 'text-neutral-400'));
-    }
-
-    if (sections.length === 0) return window.UI.renderEmptyState("Wszystko pod kontrolą! 🎉", "Brak zaległości");
-    return sections.join('');
 }
 
-function _getHealthSubtitle(ht, hLogs, today) {
-    if (ht.task_type === 'one_time') {
-        if (!ht.event_date) return 'Brak daty';
-        const evDate = new Date(ht.event_date); evDate.setHours(0, 0, 0, 0);
-        const daysAgo = Math.floor((today - evDate) / 86400000);
-        return daysAgo === 0 ? 'Dzisiaj!' : `Zaległe od ${daysAgo} dni`;
-    }
-    const taskLogs = hLogs.filter(l => l.health_task_id === ht.id);
-    if (taskLogs.length === 0) return 'Nigdy nie wykonane';
-    const lastDate = new Date(taskLogs[0].start_date); lastDate.setHours(0, 0, 0, 0);
-    const daysAgo = Math.floor((today - lastDate) / 86400000);
-    return `Ostatnio: ${daysAgo} dni temu`;
-}
+// --- RENDEROWANIE: HISTORIA OVERLAY ---
+function _renderHistoryOverlay(state) {
+    const listEl = document.getElementById('dashboard-history-list');
+    if (!listEl) return;
 
-function _renderPriorityItem({ id, title, badge, badgeColor, subtitle, urgency, actionClass, actionDataset = '', navView }) {
-    const borderColor = urgency === 'overdue' ? 'border-l-[#ffb4ab]' : urgency === 'soon' ? 'border-l-amber-500' : 'border-l-[#004a77]';
-    const badgeHtml = badge ? `<span class="text-[9px] px-1.5 py-0.5 rounded-md border ${badgeColor} font-medium shrink-0 ml-2">${window.esc(badge)}</span>` : '';
-    const actionBtn = actionClass ? `<button class="${actionClass} w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" ${actionDataset}>✓</button>` : `<span class="w-8 h-8 flex items-center justify-center text-neutral-600 shrink-0">→</span>`;
-
-    return `
-    <div class="flex items-center justify-between px-3 py-2.5 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 ${borderColor} shadow-sm animate-fade-in">
-        <div class="js-dash-nav flex-1 cursor-pointer pr-2 min-w-0" data-view="${navView}">
-            <div class="flex items-center mb-0.5 flex-wrap">
-                <h3 class="font-medium text-neutral-100 text-sm truncate max-w-[70%]">${window.esc(title)}</h3>
-                ${badgeHtml}
-            </div>
-            <p class="text-[10px] text-neutral-500 mt-0.5">${subtitle}</p>
-        </div>
-        ${actionBtn}
-    </div>`;
-}
-
-function _renderSection(title, itemsHtml, titleColor = 'text-neutral-400') {
-    return `<div class="mb-5"><h3 class="text-[10px] font-bold ${titleColor} uppercase tracking-[0.15em] mb-2 px-1">${title}</h3>${itemsHtml}</div>`;
-}
-
-// ==========================================
-// PRYWATNA: RENDEROWANIE ZAKŁADKI HISTORIA
-// ==========================================
-function _renderHistoryTab(state) {
     let historyItems = [];
     state.logs.forEach(l => { const t = state.tasks.find(x => x.id === l.task_id); if (!t || t.show_in_history !== false) historyItems.push({ table: 'activity_logs', id: l.id, title: l.activity_name, date: new Date(l.created_at), icon: '🏠', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' }); });
     state.hLogs.forEach(l => { const ht = state.hTasks.find(x => x.id === l.health_task_id); if (!ht || ht.show_in_history !== false) { const profile = state.profiles.find(p => p.id === ht?.profile_id); const title = (ht ? ht.name : 'Zdarzenie') + (profile ? ` (${profile.name})` : ''); historyItems.push({ table: 'health_logs', id: l.id, title, date: l.end_date ? new Date(l.end_date) : new Date(l.start_date), icon: '❤️', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' }); } });
     state.todos.filter(t => t.is_completed).forEach(t => { historyItems.push({ table: 'todos', id: t.id, title: t.title, date: t.completed_at ? new Date(t.completed_at) : new Date(t.created_at), icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' }); });
     
     historyItems.sort((a, b) => b.date - a.date);
-    if (historyItems.length === 0) return window.UI.renderEmptyState("Brak historii");
+    
+    if (historyItems.length === 0) {
+        listEl.innerHTML = window.UI.renderEmptyState("Brak historii", "Nic się jeszcze nie wydarzyło");
+        return;
+    }
 
-    return `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">` + historyItems.slice(0, 30).map(item => {
+    listEl.innerHTML = `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">` + historyItems.slice(0, 50).map(item => {
         const initial = (item.user || '?')[0].toUpperCase();
         return `
         <div class="relative pl-5 animate-fade-in">
@@ -285,8 +247,66 @@ function _renderHistoryTab(state) {
 }
 
 // ==========================================
-// SZYBKIE AKCJE
+// NIEŚMIERTELNY KOSZYK (SZYBKIE ZAKUPY)
 // ==========================================
+window.openQuickShoppingList = async function() {
+    const state = window.AppStore.get();
+    // Szukamy aktywnej listy typu shopping
+    let shoppingList = (state.checklists || []).find(l => l.list_type === 'shopping' && !l.is_archived);
+
+    if (shoppingList) {
+        // Mamy ją! Otwieramy
+        window.switchView('todo');
+        setTimeout(() => window.openChecklistScreen(shoppingList.id, shoppingList.title, 'shopping'), 50);
+    } else {
+        // Ktoś usunął listę! Tworzymy nową w tle
+        window.showToast("Tworzę nowy koszyk...");
+        const hid = window.currentUser.household_id;
+        const uid = window.currentUser.user_id;
+        
+        const { data, error } = await window.supabaseClient.from('checklists').insert([{
+            title: 'Zakupy',
+            list_type: 'shopping',
+            household_id: hid,
+            user_id: uid,
+            is_archived: false
+        }]).select().single();
+
+        if (error) {
+            window.showToast("Błąd koszyka: " + error.message);
+            return;
+        }
+
+        // Dodajemy nową listę do lokalnego Cache, żeby mieć ją na przyszłość
+        if (!state.checklists) state.checklists = [];
+        state.checklists.push(data);
+        window.AppStore.set(state);
+
+        // Otwieramy świeżutki koszyk
+        window.switchView('todo');
+        setTimeout(() => window.openChecklistScreen(data.id, data.title, 'shopping'), 50);
+    }
+};
+
+
+// ==========================================
+// SZYBKIE AKCJE I AKORDIONY
+// ==========================================
+
+window.toggleWidgetAccordion = function(targetId, chevronEl) {
+    const content = document.getElementById(targetId);
+    if (!content) return;
+    
+    const isHidden = content.classList.contains('hidden');
+    
+    if (isHidden) {
+        content.classList.remove('hidden');
+        if (chevronEl) chevronEl.style.transform = 'rotate(180deg)';
+    } else {
+        content.classList.add('hidden');
+        if (chevronEl) chevronEl.style.transform = 'rotate(0deg)';
+    }
+};
 
 window.quickLogTaskDashboard = async function(taskId) {
     if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
@@ -338,15 +358,30 @@ window.quickLogHealthDashboard = async function(taskId) {
     window.showToast('Zapisano! ❤️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true);
 };
 
+
 // ==========================================
 // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
 // ==========================================
 if (window.EventDispatcher) {
+    
+    // Akordiony
+    window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
+        const chevron = el.querySelector('span:last-child');
+        window.toggleWidgetAccordion(el.dataset.target, chevron);
+    });
+
+    // Ikony nagłówka (Koszyk i Historia)
+    window.EventDispatcher.onClick('.js-open-cart', () => window.openQuickShoppingList());
+    window.EventDispatcher.onClick('.js-open-history', () => document.getElementById('dashboard-history-overlay').classList.remove('hidden'));
+    window.EventDispatcher.onClick('.js-close-history', () => document.getElementById('dashboard-history-overlay').classList.add('hidden'));
+
+    // Stare nawigacje i akcje
     window.EventDispatcher.onClick('.js-dash-nav', (e, el) => window.switchView(el.dataset.view));
     window.EventDispatcher.onClick('.js-dash-complete-todo', (e, el) => window.quickCompleteTodoDashboard(el.dataset.id));
     window.EventDispatcher.onClick('.js-dash-log-task', (e, el) => window.quickLogTaskDashboard(el.dataset.id));
     window.EventDispatcher.onClick('.js-quick-log-health', (e, el) => window.quickLogHealthDashboard(el.dataset.id));
     window.EventDispatcher.onClick('.js-dash-change-user', (e, el) => window.openChangeUserModal(el.dataset.table, el.dataset.id, el.dataset.username));
+    
 } else {
     console.error("EventDispatcher nie został załadowany!");
 }
