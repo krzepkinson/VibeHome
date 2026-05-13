@@ -58,15 +58,24 @@ window.TodoModule = (() => {
             html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2">Twoje Listy</h3>`;
             html += lists.map(list => {
                 const lType = window.LIST_TYPES[list.list_type] || window.LIST_TYPES.generic;
+                
+                // ZMIANA: Etykieta daty wyjazdu
+                let dateBadge = '';
+                if (list.list_type === 'packing' && list.start_date) {
+                    const st = new Date(list.start_date).toLocaleDateString('pl-PL', {day:'2-digit', month:'2-digit'});
+                    dateBadge = `<span class="text-[9px] px-1.5 py-0.5 rounded border border-[#004a77]/50 bg-[#004a77]/20 text-[#a8c7fa] ml-2 shrink-0">${st}</span>`;
+                }
+
                 return `
                 <div class="relative overflow-hidden mb-1.5 rounded-[16px] group">
                     <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
                         <button class="js-archive-checklist text-[#ffb4ab] text-xl active:scale-90 transition-transform" data-id="${list.id}">🗑️</button>
                     </div>
                     <div class="js-open-checklist swipe-front relative z-10 flex items-center justify-between p-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 cursor-pointer w-full transition-transform" data-id="${list.id}" data-title="${window.esc(list.title)}" data-type="${list.list_type || 'generic'}">
-                        <div class="flex items-center gap-3 min-w-0">
+                        <div class="flex items-center gap-3 min-w-0 w-full">
                             <span class="text-lg shrink-0">${lType.icon}</span>
                             <span class="text-sm font-medium text-[#c2e7ff] truncate">${window.esc(list.title)}</span>
+                            ${dateBadge}
                         </div>
                     </div>
                 </div>`;
@@ -129,6 +138,46 @@ window.TodoModule = (() => {
         }]);
         if (error) window.showToast("Błąd: " + error.message);
         else { window.closeNewTodoModal(); window.showToast("Zadanie dodane!"); window.loadTodosAndLists(); }
+    };
+
+    // --- ZMIANA: TWORZENIE LIST I DATY WYJAZDÓW ---
+    window.openNewChecklistModal = function() {
+        window.loadAndShowModal('new-checklist-modal', '/modals/new-checklist.html', () => {
+            document.getElementById('new-checklist-title').value = '';
+            document.getElementById('new-checklist-type').value = 'generic';
+            document.getElementById('new-checklist-start').value = '';
+            document.getElementById('new-checklist-end').value = '';
+            window.toggleChecklistDates();
+            setTimeout(() => document.getElementById('new-checklist-title')?.focus(), 50);
+        });
+    };
+
+    window.closeNewChecklistModal = function() { document.getElementById('new-checklist-modal')?.classList.add('hidden'); };
+
+    window.toggleChecklistDates = function() {
+        const type = document.getElementById('new-checklist-type').value;
+        const container = document.getElementById('checklist-dates-container');
+        if (container) container.classList.toggle('hidden', type !== 'packing');
+    };
+
+    window.saveNewChecklist = async function() {
+        const title = document.getElementById('new-checklist-title').value.trim();
+        const type = document.getElementById('new-checklist-type').value;
+        const start = document.getElementById('new-checklist-start').value || null;
+        const end = document.getElementById('new-checklist-end').value || null;
+
+        if (!title) return;
+
+        const { error } = await window.supabaseClient.from('checklists').insert([{
+            title, list_type: type, start_date: start, end_date: end,
+            user_id: window.currentUser.user_id, household_id: window.currentUser.household_id
+        }]);
+
+        if (error) { window.showToast("Błąd: " + error.message); return; }
+        
+        window.closeNewChecklistModal();
+        window.showToast("Lista utworzona!");
+        window.loadTodosAndLists();
     };
 
     window.openChecklistScreen = function(id, title, type) {
@@ -194,7 +243,6 @@ window.TodoModule = (() => {
     window.toggleTodo = async function(id, currentStatus, el) {
         if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
 
-        // 1. Optymistyczny UI (Złudzenie natychmiastowości)
         if (el) {
             const container = el.closest('.group');
             const isDone = !currentStatus;
@@ -221,20 +269,17 @@ window.TodoModule = (() => {
             el.dataset.status = isDone.toString();
         }
 
-        // 2. Właściwe zapytanie w tle
         await window.supabaseClient.from('todos').update({ 
             is_completed: !currentStatus, 
             completed_at: !currentStatus ? new Date().toISOString() : null, 
             completer_name: !currentStatus ? window.currentUser.name : null 
         }).eq('id', id);
 
-        // 3. Ciche przeładowanie danych
         window.loadTodosAndLists();
     };
 
     window.archiveTodo = async function(id, el) {
         window.customConfirm("Zarchiwizować to zadanie?", async () => {
-            // Optymistyczne ukrycie całej wizualnej karty
             if (el) {
                 const container = el.closest('.group');
                 if (container) container.classList.add('hidden');
@@ -250,7 +295,6 @@ window.TodoModule = (() => {
     window.toggleChecklistItem = async function(id, currentStatus, el) {
         if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
 
-        // 1. Optymistyczny UI
         if (el) {
             const container = el.closest('.group');
             const isDone = !currentStatus;
@@ -275,13 +319,11 @@ window.TodoModule = (() => {
             el.dataset.status = isDone.toString();
         }
 
-        // 2. Zapytanie w tle
         await window.supabaseClient.from('checklist_items').update({ is_completed: !currentStatus }).eq('id', id);
         window.loadChecklistItems();
     };
 
     window.deleteChecklistItem = async function(id, el) {
-        // Optymistyczne ukrycie znikającego elementu checklisty
         if (el) {
             const container = el.closest('.group');
             if (container) container.classList.add('hidden');
@@ -307,6 +349,9 @@ window.TodoModule = (() => {
 
     // --- DELEGACJA ZDARZEŃ (VIA DISPATCHER) ---
     if (window.EventDispatcher) {
+        // ZMIANA: Zarejestrowanie przycisku tworzenia nowej listy
+        window.EventDispatcher.onClick('.js-open-new-checklist', () => window.openNewChecklistModal());
+
         window.EventDispatcher.onClick('.js-open-checklist', (e, el) => {
             e.preventDefault();
             window.openChecklistScreen(el.dataset.id, el.dataset.title, el.dataset.type);
@@ -319,26 +364,22 @@ window.TodoModule = (() => {
 
         window.EventDispatcher.onClick('.js-archive-todo', (e, el) => {
             e.preventDefault();
-            // Przekazujemy element "el", aby funkcja mogła go natychmiast ukryć
             window.archiveTodo(parseInt(el.dataset.id, 10), el);
         });
 
         window.EventDispatcher.onClick('.js-toggle-todo', (e, el) => {
             e.stopPropagation();
             const isDone = el.dataset.status === 'true';
-            // Przekazujemy element "el" do natychmiastowego pokolorowania
             window.toggleTodo(parseInt(el.dataset.id, 10), isDone, el);
         });
 
         window.EventDispatcher.onClick('.js-delete-checklist-item', (e, el) => {
             e.preventDefault();
-            // Przekazujemy "el"
             window.deleteChecklistItem(parseInt(el.dataset.id, 10), el);
         });
 
         window.EventDispatcher.onClick('.js-toggle-checklist-item', (e, el) => {
             const isCompleted = el.dataset.status === 'true';
-            // Przekazujemy "el"
             window.toggleChecklistItem(parseInt(el.dataset.id, 10), isCompleted, el);
         });
     } else {
