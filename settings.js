@@ -22,10 +22,11 @@ window.saveUserName = async function() {
     const name = document.getElementById('settings-user-name').value.trim();
     if(!name) return;
     
+    // ZMIANA: Aktualizujemy bezpiecznie po BIGINT ID profilu, a nie UUID
     const { error } = await window.supabaseClient
         .from('profiles')
         .update({ name: name })
-        .eq('user_id', window.currentUser.user_id || window.currentUser.id);
+        .eq('id', window.currentUser.id);
 
     if (error) {
         window.showToast("Błąd: " + error.message); 
@@ -65,13 +66,13 @@ window.requestNotificationPermission = async function() {
 
         await window.supabaseClient.from('push_subscriptions').delete().eq('endpoint', subJSON.endpoint);
 
-        // POPRAWKA UUID: Używamy .user_id
+        // ZMIANA: Użyto poprawnych nazw kolumn dla auth i p256dh (usunięto _key)
         const { error } = await window.supabaseClient.from('push_subscriptions').insert([{
             user_id: window.currentUser.user_id,
             household_id: window.currentUser.household_id,
             endpoint: subJSON.endpoint,
-            auth_key: subJSON.keys.auth,
-            p256dh_key: subJSON.keys.p256dh
+            auth: subJSON.keys.auth,
+            p256dh: subJSON.keys.p256dh
         }]);
 
         if (error) window.showToast("Błąd bazy!");
@@ -107,7 +108,6 @@ window.closeNewRoomModal = function() { document.getElementById('new-room-modal'
 window.saveNewRoom = async function() {
     const name = document.getElementById('new-room-name').value.trim(); const icon = document.getElementById('new-room-icon').value.trim();
     if (!name) return;
-    // POPRAWKA UUID
     const { error } = await window.supabaseClient.from('rooms').insert([{ name: name, icon: icon || '📦', user_id: window.currentUser.user_id, household_id: window.currentUser.household_id }]);
     if (error) window.showToast('Błąd zapisu'); else { window.closeNewRoomModal(); window.showToast('Dodano!'); window.loadAppRooms(); }
 };
@@ -149,7 +149,6 @@ window.loadAppProfiles = async function() {
     const { data } = await window.supabaseClient.from('profiles').select('*').eq('household_id', window.currentUser.household_id).order('name');
     appProfiles = data || [];
     if (appProfiles.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak domowników.</p>`; return; }
-    // POPRAWKA: Usunięto onclick
     listEl.innerHTML = appProfiles.map(p => `
         <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
             <div class="flex items-center gap-3">
@@ -166,7 +165,6 @@ window.closeNewProfileModal = function() { document.getElementById('new-profile-
 window.saveNewProfile = async function() {
     const name = document.getElementById('new-profile-name').value.trim(); 
     if (!name) return;
-    // POPRAWKA UUID
     const { error } = await window.supabaseClient.from('profiles').insert([{ name: name, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id }]);
     if (error) window.showToast("Błąd: " + error.message); else { window.closeNewProfileModal(); window.showToast('Dodano!'); window.loadAppProfiles(); }
 };
@@ -216,7 +214,6 @@ window.saveTaskSettings = async function() {
 
 window.renderHistory = function() {
     const logs = window.HomeModule.getLogs().filter(l => l.task_id === window.currentEditingTaskId);
-    // POPRAWKA: Usunięto onclick
     document.getElementById('settings-history-list').innerHTML = logs.map(l => `
         <div class="bg-[#131314] px-3 py-2 rounded-[12px] flex justify-between items-center border border-[#333537] mb-1.5">
             <div class="js-edit-log flex-1 min-w-0 pr-3 cursor-pointer" data-id="${l.id}">
@@ -268,7 +265,6 @@ window.loadArchiveData = async function() {
     if (listRes.data) listRes.data.forEach(x => items.push({ id: x.id, title: x.title, type: 'checklists', icon: '🗂️', typeName: 'Lista' }));
     if (items.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Archiwum jest puste.</p>`; return; }
     
-    // POPRAWKA: Usunięto onclick
     listEl.innerHTML = items.map(item => `
         <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1.5 animate-fade-in">
             <div class="flex items-center gap-3">
@@ -311,7 +307,6 @@ document.addEventListener('click', (e) => {
     const delBtn = e.target.closest('.js-delete-room');
     if (delBtn) return window.deleteRoom(delBtn.dataset.name);
     
-    // NOWE REGUŁY: Zastępują usunięte onclick() z HTML
     const editProfileBtn = e.target.closest('.js-edit-profile');
     if (editProfileBtn) return window.openEditProfileScreen(parseInt(editProfileBtn.dataset.id));
     
