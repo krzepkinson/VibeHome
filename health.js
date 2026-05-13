@@ -2,6 +2,8 @@
 // LOGIKA: ZDROWIE 2.0 (health.js)
 // ==========================================
 
+window.HealthModule = (() => {
+
 let healthProfiles = []; 
 let healthTasks = []; 
 let healthLogs = [];
@@ -695,3 +697,4 @@ document.addEventListener('click', (e) => {
     const delHistBtn = e.target.closest('.js-delete-health-log');
     if(delHistBtn) return window.deleteHealthLog(delHistBtn.dataset.id);
 });
+return {}; })();
