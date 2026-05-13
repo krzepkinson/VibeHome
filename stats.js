@@ -143,12 +143,13 @@ window.StatsModule = (() => {
             window.supabaseClient.from('activity_logs')
                 .select('*')
                 .eq('household_id', hid)
-                .order('created_at', { ascending: true })
+                .order('created_at', { ascending: false }) // POPRAWKA 1: Najpierw pobieramy najnowsze wpisy
                 .limit(1000) 
         ]);
 
         const tasks = tasksRes.data || [];
-        const logs = logsRes.data || [];
+        // POPRAWKA 2: Odwracamy tablicę, żeby algorytm liczył dni poprawnie (od najstarszego z najnowszych)
+        const logs = (logsRes.data || []).reverse();
 
         if (tasks.length === 0) {
             container.innerHTML = window.UI.renderEmptyState("Brak danych", "Dodaj zadania cykliczne, by zobaczyć statystyki.");
