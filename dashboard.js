@@ -61,7 +61,7 @@ window.renderDashboardUI = function() {
 
     const state = window.AppStore.get();
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = window.getTodayLocalString(today);
 
     // ZAKŁADKI STYLOWANIE
     const tabs = ['priority', 'todo', 'history'];
