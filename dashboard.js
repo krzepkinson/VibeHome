@@ -55,7 +55,6 @@ window.renderDashboardUI = function() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayStr = window.getTodayLocalString(today);
 
-    // ZMIANA: Powitanie z imieniem
     const greetingEl = document.getElementById('dashboard-greeting');
     if (greetingEl && window.currentUser && window.currentUser.name) {
         greetingEl.innerText = `Dzień dobry, ${window.currentUser.name}!`;
@@ -120,7 +119,6 @@ function _renderHomeWidget(state, today) {
     let overdueHome = [];
     let upcomingHome = [];
 
-    // ZMIANA: Poprawiony algorytm łapiący zadania bez historii
     state.tasks.forEach(t => {
         const taskLogs = state.logs.filter(l => l.task_id === t.id);
         
@@ -130,7 +128,7 @@ function _renderHomeWidget(state, today) {
         }
         
         if (taskLogs.length === 0) {
-            overdueHome.push(t); // Nigdy nie zrobione cykliczne = zaległe!
+            overdueHome.push(t); 
             return;
         }
         
@@ -312,34 +310,78 @@ function _renderHorizonSection(state, today) {
     const container = document.getElementById('dashboard-horizon-container');
     if (!container) return;
 
-    const upcomingHealth = state.hTasks.filter(ht => {
-        if (ht.task_type !== 'one_time' || !ht.event_date) return false;
-        const isDone = state.hLogs.some(l => l.health_task_id === ht.id);
-        if (isDone) return false;
-        const evDate = new Date(ht.event_date); evDate.setHours(0, 0, 0, 0);
-        return evDate > today; 
-    }).sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
+    let horizonItems = [];
 
-    if (upcomingHealth.length > 0) {
+    // ZDROWIE
+    state.hTasks.forEach(ht => {
+        if (ht.task_type !== 'one_time' || !ht.event_date) return;
+        const isDone = state.hLogs.some(l => l.health_task_id === ht.id);
+        if (isDone) return;
+        const evDate = new Date(ht.event_date); evDate.setHours(0, 0, 0, 0);
+        if (evDate > today) {
+            horizonItems.push({
+                type: 'health', date: evDate, id: ht.id, name: ht.name, profile_id: ht.profile_id
+            });
+        }
+    });
+
+    // WYJAZDY (ZMIANA: Importowanie wyjazdów ze state.checklists)
+    if (state.checklists) {
+        state.checklists.forEach(list => {
+            if (list.list_type === 'packing' && list.start_date) {
+                const stDate = new Date(list.start_date); stDate.setHours(0, 0, 0, 0);
+                if (stDate > today) {
+                    horizonItems.push({
+                        type: 'trip', date: stDate, endDate: list.end_date ? new Date(list.end_date) : null,
+                        id: list.id, title: list.title
+                    });
+                }
+            }
+        });
+    }
+
+    horizonItems.sort((a, b) => a.date - b.date);
+
+    if (horizonItems.length > 0) {
         let html = `<h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Na horyzoncie</h3>`;
-        html += upcomingHealth.map(ht => {
-            const profile = state.profiles.find(p => p.id === ht.profile_id);
-            const daysUntil = Math.ceil((new Date(ht.event_date) - today) / 86400000);
+        html += horizonItems.map(item => {
+            const daysUntil = Math.ceil((item.date - today) / 86400000);
             const urgencyLabel = daysUntil === 1 ? 'Jutro!' : `Za ${daysUntil} dni`;
             const colorClass = daysUntil <= 3 ? 'text-amber-400' : 'text-[#a8c7fa]';
             
-            return `
-            <div class="flex items-center justify-between px-4 py-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 shadow-sm js-dash-nav cursor-pointer active:scale-95 transition-transform" data-view="health">
-                <div class="flex gap-4 items-center">
-                    <div class="text-2xl opacity-80">🗓️</div>
-                    <div>
-                        <h4 class="text-sm font-medium text-neutral-200">${window.esc(ht.name)}</h4>
-                        <p class="text-[10px] text-neutral-500 mt-0.5">
-                            <span class="font-bold ${colorClass}">${urgencyLabel}</span> • ${profile ? profile.name : 'Zdrowie'}
-                        </p>
+            if (item.type === 'health') {
+                const profile = state.profiles.find(p => p.id === item.profile_id);
+                return `
+                <div class="flex items-center justify-between px-4 py-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 shadow-sm js-dash-nav cursor-pointer active:scale-95 transition-transform" data-view="health">
+                    <div class="flex gap-4 items-center">
+                        <div class="text-2xl opacity-80">🗓️</div>
+                        <div>
+                            <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.name)}</h4>
+                            <p class="text-[10px] text-neutral-500 mt-0.5">
+                                <span class="font-bold ${colorClass}">${urgencyLabel}</span> • ${profile ? profile.name : 'Zdrowie'}
+                            </p>
+                        </div>
                     </div>
-                </div>
-            </div>`;
+                </div>`;
+            } else if (item.type === 'trip') {
+                let dateLabel = item.date.toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit'});
+                if (item.endDate) {
+                    dateLabel += ' - ' + item.endDate.toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit'});
+                }
+
+                return `
+                <div class="js-open-packing-list flex items-center justify-between px-4 py-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 mb-1.5 shadow-sm cursor-pointer active:scale-95 transition-transform" data-id="${item.id}" data-title="${window.esc(item.title)}">
+                    <div class="flex gap-4 items-center">
+                        <div class="text-2xl opacity-80">🧳</div>
+                        <div>
+                            <h4 class="text-sm font-medium text-[#c2e7ff]">${window.esc(item.title)}</h4>
+                            <p class="text-[10px] text-[#a8c7fa]/70 mt-0.5">
+                                <span class="font-bold text-[#c2e7ff]">${urgencyLabel}</span> • ${dateLabel}
+                            </p>
+                        </div>
+                    </div>
+                </div>`;
+            }
         }).join('');
         container.innerHTML = html;
         container.classList.remove('hidden');
@@ -502,9 +544,14 @@ window.closeHealthLogDashboard = async function(logId) {
 if (window.EventDispatcher) {
     
     window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
-        // ZMIANA: Dokładniejsze celowanie w strzałkę po klasie
         const chevron = el.querySelector('.js-chevron');
         window.toggleWidgetAccordion(el.dataset.target, chevron);
+    });
+
+    // ZMIANA: Obsługa kliknięcia w wyjazd na Dashboardzie
+    window.EventDispatcher.onClick('.js-open-packing-list', (e, el) => {
+        window.switchView('todo');
+        setTimeout(() => window.openChecklistScreen(el.dataset.id, el.dataset.title, 'packing'), 50);
     });
 
     window.EventDispatcher.onClick('.js-open-cart', () => window.openQuickShoppingList());
