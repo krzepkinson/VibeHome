@@ -12,14 +12,13 @@ window.loadDashboardOverview = async function(forceRefresh = false) {
     const now = Date.now();
     if (forceRefresh || (now - window.dashboardCacheTime > window.CONFIG.CACHE_TTL)) {
         
-        // Pokaż loader w widgetach
         document.getElementById('widget-home-content').innerHTML = `<p class="text-neutral-500 text-xs text-center py-4 animate-pulse">Ładowanie...</p>`;
+        document.getElementById('widget-health-content').innerHTML = `<p class="text-neutral-500 text-xs text-center py-4 animate-pulse">Ładowanie...</p>`;
         document.getElementById('widget-todo-content').innerHTML = `<p class="text-neutral-500 text-xs text-center py-4 animate-pulse">Ładowanie...</p>`;
         
         const hid = window.currentUser.household_id; 
         
         try {
-            // ZMIANA: Dodano pobieranie "checklists", by szybki koszyk działał błyskawicznie!
             const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes] = await Promise.all([
                 window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
                 window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
@@ -57,7 +56,8 @@ window.renderDashboardUI = function() {
     const todayStr = window.getTodayLocalString(today);
 
     _renderTodaySection(state, todayStr);
-    _renderHomeWidget(state, todayStr);
+    _renderHomeWidget(state, today);
+    _renderHealthWidget(state, today);
     _renderTodoWidget(state);
     _renderHorizonSection(state, today);
     _renderHistoryOverlay(state);
@@ -81,7 +81,7 @@ function _renderTodaySection(state, todayStr) {
 
     if (healthToday.length > 0 || homeToday.length > 0) {
         let html = `
-            <h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Zadania na dziś</h3>
+            <h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Plan na dziś</h3>
             <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
         `;
         
@@ -109,30 +109,153 @@ function _renderTodaySection(state, todayStr) {
     }
 }
 
-// --- RENDEROWANIE: WIDGET DOMU ---
-function _renderHomeWidget(state, todayStr) {
-    const overdueHome = state.tasks.filter(t => window.isTaskOverdue(t, state.logs));
-    const badge = document.getElementById('widget-home-badge');
+// --- RENDEROWANIE: WIDGET DOMU (Zaległe + Wkrótce) ---
+function _renderHomeWidget(state, today) {
+    let overdueHome = [];
+    let upcomingHome = [];
+
+    state.tasks.forEach(t => {
+        if (!t.interval_days) return;
+        const taskLogs = state.logs.filter(l => l.task_id === t.id);
+        if (taskLogs.length === 0) return; // Brak historii = nie analizujemy tu
+        
+        const lastLog = taskLogs[0];
+        const nextDate = new Date(lastLog.created_at);
+        nextDate.setDate(nextDate.getDate() + t.interval_days);
+        nextDate.setHours(0,0,0,0);
+        
+        const diff = Math.ceil((nextDate - today) / 86400000);
+        if (diff < 0) overdueHome.push(t);
+        else if (diff >= 0 && diff <= 3) upcomingHome.push({ task: t, days: diff });
+    });
+
+    const badgesContainer = document.getElementById('widget-home-badges');
     const content = document.getElementById('widget-home-content');
     
-    if (overdueHome.length > 0) {
-        badge.innerText = `${overdueHome.length} zaległe`;
-        badge.classList.remove('hidden');
-        content.innerHTML = overdueHome.map(t => `
-            <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors group mb-1">
-                <div class="flex-1 min-w-0 pr-3 cursor-pointer js-dash-nav" data-view="home">
-                    <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(t.name)}</h3>
-                    <p class="text-[10px] text-neutral-500">${window.esc(t.room || 'Dom')}</p>
-                </div>
-                <button class="js-dash-log-task w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${t.id}">✓</button>
-            </div>
-        `).join('');
+    let badgesHtml = '';
+    if (overdueHome.length > 0) badgesHtml += `<span class="px-2 py-1 bg-[#3c1414] text-[#ffb4ab] border border-[#8c1d18]/40 rounded-lg text-[9px] font-bold uppercase tracking-wider">${overdueHome.length} zaległe</span>`;
+    if (upcomingHome.length > 0) badgesHtml += `<span class="px-2 py-1 bg-amber-900/30 text-amber-200 border border-amber-700/40 rounded-lg text-[9px] font-bold uppercase tracking-wider">${upcomingHome.length} wkrótce</span>`;
+    
+    badgesContainer.innerHTML = badgesHtml;
+
+    if (overdueHome.length > 0 || upcomingHome.length > 0) {
+        let html = '';
+        
+        if (overdueHome.length > 0) {
+            html += `<h4 class="text-[9px] text-[#ffb4ab] uppercase tracking-widest font-bold px-2 py-1.5 opacity-80">Zaległe</h4>`;
+            html += overdueHome.map(t => _renderHomeRow(t, 'Zaległe', 'text-[#ffb4ab]')).join('');
+        }
+        
+        if (upcomingHome.length > 0) {
+            if(overdueHome.length > 0) html += `<div class="h-px bg-[#333537]/50 mx-2 my-2"></div>`;
+            html += `<h4 class="text-[9px] text-amber-200 uppercase tracking-widest font-bold px-2 py-1.5 opacity-80">W najbliższych dniach</h4>`;
+            html += upcomingHome.sort((a,b)=> a.days - b.days).map(item => {
+                let label = item.days === 0 ? 'Dzisiaj' : (item.days === 1 ? 'Jutro' : `Za ${item.days} dni`);
+                return _renderHomeRow(item.task, label, 'text-amber-200');
+            }).join('');
+        }
+        content.innerHTML = html;
     } else {
-        badge.classList.add('hidden');
         content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
             <span class="text-3xl opacity-50 mb-2">✨</span>
             <p class="text-sm font-medium text-[#c4eed0]">Wszystko lśni!</p>
-            <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Brak zaległości</p>
+            <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Brak zadań na najbliższe dni</p>
+        </div>`;
+    }
+}
+
+function _renderHomeRow(t, subtitle, subtitleColor) {
+    return `
+    <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors group mb-1">
+        <div class="flex-1 min-w-0 pr-3 cursor-pointer js-dash-nav" data-view="home">
+            <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(t.name)}</h3>
+            <p class="text-[10px] ${subtitleColor} font-medium mt-0.5">${subtitle} <span class="text-neutral-500 font-normal">• ${window.esc(t.room || 'Dom')}</span></p>
+        </div>
+        <button class="js-dash-log-task w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${t.id}">✓</button>
+    </div>`;
+}
+
+// --- RENDEROWANIE: WIDGET ZDROWIA (Trwające + Rutyny) ---
+function _renderHealthWidget(state, today) {
+    const badgesContainer = document.getElementById('widget-health-badges');
+    const content = document.getElementById('widget-health-content');
+
+    // 1. Aktywne zdarzenia (Infekcje, antybiotyki)
+    let activeHealth = [];
+    const durationTasks = state.hTasks.filter(t => t.task_type === 'duration');
+    durationTasks.forEach(t => {
+        const activeLog = state.hLogs.find(l => l.health_task_id === t.id && l.end_date === null);
+        if (activeLog) activeHealth.push({ task: t, log: activeLog });
+    });
+
+    // 2. Rutyny (Paznokcie, kąpiel do 3 dni)
+    let upcomingRoutines = [];
+    const cyclicalTasks = state.hTasks.filter(t => t.task_type === 'cyclical');
+    cyclicalTasks.forEach(t => {
+        if (!t.interval_days) return;
+        const taskLogs = state.hLogs.filter(l => l.health_task_id === t.id);
+        if (taskLogs.length === 0) return;
+        
+        const lastLog = taskLogs[0];
+        const nextDate = new Date(lastLog.start_date);
+        nextDate.setDate(nextDate.getDate() + t.interval_days);
+        nextDate.setHours(0,0,0,0);
+        
+        const diff = Math.ceil((nextDate - today) / 86400000);
+        if (diff <= 3) upcomingRoutines.push({ task: t, days: diff });
+    });
+
+    let badgesHtml = '';
+    if (activeHealth.length > 0) badgesHtml += `<span class="px-2 py-1 bg-rose-900/50 text-[#ffb4ab] border border-rose-800/60 rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-[#ffb4ab] animate-pulse"></span> ${activeHealth.length} Aktywne</span>`;
+    if (upcomingRoutines.length > 0) badgesHtml += `<span class="px-2 py-1 bg-[#1e1f20] text-neutral-300 border border-[#333537] rounded-lg text-[9px] font-bold uppercase tracking-wider">${upcomingRoutines.length} Rutyny</span>`;
+    badgesContainer.innerHTML = badgesHtml;
+
+    if (activeHealth.length > 0 || upcomingRoutines.length > 0) {
+        let html = '';
+        
+        if (activeHealth.length > 0) {
+            html += `<h4 class="text-[9px] text-rose-300 uppercase tracking-widest font-bold px-2 py-1.5 opacity-80 flex items-center gap-1"><span class="animate-pulse">🔴</span> Trwające sytuacje</h4>`;
+            html += activeHealth.map(item => {
+                const profile = state.profiles.find(p => p.id === item.task.profile_id);
+                const start = new Date(item.log.start_date); start.setHours(0,0,0,0);
+                const diff = Math.floor((today - start) / 86400000);
+                const label = diff === 0 ? 'Zaczęło się dziś' : `Trwa od ${diff} dni`;
+                
+                return `
+                <div class="flex items-center justify-between p-3 bg-rose-900/10 border border-rose-900/30 rounded-xl mb-1.5">
+                    <div class="flex-1 min-w-0 pr-3 js-dash-nav cursor-pointer" data-view="health">
+                        <h3 class="text-sm font-medium text-rose-200 truncate">🤒 ${window.esc(item.task.name)}</h3>
+                        <p class="text-[10px] text-rose-400/80 mt-0.5">${label} <span class="text-rose-400/50">• ${profile ? profile.name : ''}</span></p>
+                    </div>
+                    <button class="js-close-health-log w-8 h-8 rounded-full bg-rose-900/40 text-rose-200 flex items-center justify-center active:scale-90 border border-rose-800/60 shadow-inner shrink-0" data-id="${item.log.id}">■</button>
+                </div>`;
+            }).join('');
+        }
+
+        if (upcomingRoutines.length > 0) {
+            if(activeHealth.length > 0) html += `<div class="h-px bg-[#333537]/50 mx-2 my-2"></div>`;
+            html += `<h4 class="text-[9px] text-[#c2e7ff] uppercase tracking-widest font-bold px-2 py-1.5 opacity-80">Zbliżające się rutyny</h4>`;
+            html += upcomingRoutines.sort((a,b)=> a.days - b.days).map(item => {
+                const profile = state.profiles.find(p => p.id === item.task.profile_id);
+                let label = item.days < 0 ? `Zaległe (${Math.abs(item.days)}d)` : item.days === 0 ? 'Dzisiaj' : (item.days === 1 ? 'Jutro' : `Za ${item.days} dni`);
+                let labelColor = item.days < 0 ? 'text-[#ffb4ab]' : (item.days === 0 ? 'text-amber-200' : 'text-[#a8c7fa]');
+                
+                return `
+                <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors group mb-1">
+                    <div class="flex-1 min-w-0 pr-3 cursor-pointer js-dash-nav" data-view="health">
+                        <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(item.task.name)}</h3>
+                        <p class="text-[10px] ${labelColor} font-medium mt-0.5">${label} <span class="text-neutral-500 font-normal">• ${profile ? profile.name : ''}</span></p>
+                    </div>
+                    <button class="js-quick-log-health w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${item.task.id}">✓</button>
+                </div>`;
+            }).join('');
+        }
+        content.innerHTML = html;
+    } else {
+        content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
+            <span class="text-3xl opacity-50 mb-2">🌿</span>
+            <p class="text-sm font-medium text-neutral-300">Wszyscy zdrowi</p>
+            <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Brak aktywnych zdarzeń</p>
         </div>`;
     }
 }
@@ -144,7 +267,7 @@ function _renderTodoWidget(state) {
     const content = document.getElementById('widget-todo-content');
     
     if (activeTodos.length > 0) {
-        const toShow = activeTodos.slice(0, 5); // Pokazujemy max 5
+        const toShow = activeTodos.slice(0, 5);
         badge.innerText = `${activeTodos.length} otwartych`;
         badge.classList.remove('hidden');
         
@@ -176,13 +299,12 @@ function _renderHorizonSection(state, today) {
     const container = document.getElementById('dashboard-horizon-container');
     if (!container) return;
 
-    // Tylko wydarzenia w przyszłości
     const upcomingHealth = state.hTasks.filter(ht => {
         if (ht.task_type !== 'one_time' || !ht.event_date) return false;
         const isDone = state.hLogs.some(l => l.health_task_id === ht.id);
         if (isDone) return false;
         const evDate = new Date(ht.event_date); evDate.setHours(0, 0, 0, 0);
-        return evDate > today; // Ważne: Tych z dzisiaj nie chcemy, są w karuzeli
+        return evDate > today; 
     }).sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
 
     if (upcomingHealth.length > 0) {
@@ -251,15 +373,12 @@ function _renderHistoryOverlay(state) {
 // ==========================================
 window.openQuickShoppingList = async function() {
     const state = window.AppStore.get();
-    // Szukamy aktywnej listy typu shopping
     let shoppingList = (state.checklists || []).find(l => l.list_type === 'shopping' && !l.is_archived);
 
     if (shoppingList) {
-        // Mamy ją! Otwieramy
         window.switchView('todo');
         setTimeout(() => window.openChecklistScreen(shoppingList.id, shoppingList.title, 'shopping'), 50);
     } else {
-        // Ktoś usunął listę! Tworzymy nową w tle
         window.showToast("Tworzę nowy koszyk...");
         const hid = window.currentUser.household_id;
         const uid = window.currentUser.user_id;
@@ -277,17 +396,14 @@ window.openQuickShoppingList = async function() {
             return;
         }
 
-        // Dodajemy nową listę do lokalnego Cache, żeby mieć ją na przyszłość
         if (!state.checklists) state.checklists = [];
         state.checklists.push(data);
         window.AppStore.set(state);
 
-        // Otwieramy świeżutki koszyk
         window.switchView('todo');
         setTimeout(() => window.openChecklistScreen(data.id, data.title, 'shopping'), 50);
     }
 };
-
 
 // ==========================================
 // SZYBKIE AKCJE I AKORDIONY
@@ -358,28 +474,34 @@ window.quickLogHealthDashboard = async function(taskId) {
     window.showToast('Zapisano! ❤️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true);
 };
 
+window.closeHealthLogDashboard = async function(logId) {
+    if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+    const { error } = await window.supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('household_id', window.currentUser.household_id);
+    if (error) { window.showToast("Błąd: " + error.message); return; }
+    window.showToast("Zakończono sytuację!"); 
+    window.invalidateDashboardCache(); 
+    window.loadDashboardOverview(true);
+};
 
 // ==========================================
 // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
 // ==========================================
 if (window.EventDispatcher) {
     
-    // Akordiony
     window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
         const chevron = el.querySelector('span:last-child');
         window.toggleWidgetAccordion(el.dataset.target, chevron);
     });
 
-    // Ikony nagłówka (Koszyk i Historia)
     window.EventDispatcher.onClick('.js-open-cart', () => window.openQuickShoppingList());
     window.EventDispatcher.onClick('.js-open-history', () => document.getElementById('dashboard-history-overlay').classList.remove('hidden'));
     window.EventDispatcher.onClick('.js-close-history', () => document.getElementById('dashboard-history-overlay').classList.add('hidden'));
 
-    // Stare nawigacje i akcje
     window.EventDispatcher.onClick('.js-dash-nav', (e, el) => window.switchView(el.dataset.view));
     window.EventDispatcher.onClick('.js-dash-complete-todo', (e, el) => window.quickCompleteTodoDashboard(el.dataset.id));
     window.EventDispatcher.onClick('.js-dash-log-task', (e, el) => window.quickLogTaskDashboard(el.dataset.id));
     window.EventDispatcher.onClick('.js-quick-log-health', (e, el) => window.quickLogHealthDashboard(el.dataset.id));
+    window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLogDashboard(el.dataset.id));
     window.EventDispatcher.onClick('.js-dash-change-user', (e, el) => window.openChangeUserModal(el.dataset.table, el.dataset.id, el.dataset.username));
     
 } else {
