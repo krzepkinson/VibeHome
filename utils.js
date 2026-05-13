@@ -9,6 +9,13 @@ window.esc = function(str) {
     }[tag] || tag));
 };
 
+window.getTodayLocalString = function(dateObj = new Date()) {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`; // Zwraca lokalne YYYY-MM-DD
+};
+
 window.showToast = function(message) {
     const toast = document.getElementById('toast');
     if (!toast) return;
