@@ -227,47 +227,41 @@ window.TodoModule = (() => {
         window.loadTodosAndLists();
     };
 
-    // --- DELEGACJA ZDARZEŃ (W 100% z API JS) ---
-    document.addEventListener('click', (e) => {
-        const openChecklistBtn = e.target.closest('.js-open-checklist');
-        if (openChecklistBtn) {
+    // --- DELEGACJA ZDARZEŃ (VIA DISPATCHER) ---
+    if (window.EventDispatcher) {
+        window.EventDispatcher.onClick('.js-open-checklist', (e, el) => {
             e.preventDefault();
-            window.openChecklistScreen(openChecklistBtn.dataset.id, openChecklistBtn.dataset.title, openChecklistBtn.dataset.type);
-            return;
-        }
+            window.openChecklistScreen(el.dataset.id, el.dataset.title, el.dataset.type);
+        });
 
-        const archiveChecklistBtn = e.target.closest('.js-archive-checklist');
-        if (archiveChecklistBtn) {
+        window.EventDispatcher.onClick('.js-archive-checklist', (e, el) => {
             e.preventDefault();
-            return window.archiveChecklist(parseInt(archiveChecklistBtn.dataset.id, 10));
-        }
+            window.archiveChecklist(parseInt(el.dataset.id, 10));
+        });
 
-        const archiveTodoBtn = e.target.closest('.js-archive-todo');
-        if (archiveTodoBtn) {
+        window.EventDispatcher.onClick('.js-archive-todo', (e, el) => {
             e.preventDefault();
-            return window.archiveTodo(parseInt(archiveTodoBtn.dataset.id, 10));
-        }
+            window.archiveTodo(parseInt(el.dataset.id, 10));
+        });
 
-        const toggleTodoBtn = e.target.closest('.js-toggle-todo');
-        if (toggleTodoBtn) {
-            e.stopPropagation(); // Blokuje ewentualne zdarzenia pod spodem
-            // Zamienia string "true"/"false" na realny typ boolean
-            const isDone = toggleTodoBtn.dataset.status === 'true';
-            return window.toggleTodo(parseInt(toggleTodoBtn.dataset.id, 10), isDone);
-        }
+        window.EventDispatcher.onClick('.js-toggle-todo', (e, el) => {
+            e.stopPropagation();
+            const isDone = el.dataset.status === 'true';
+            window.toggleTodo(parseInt(el.dataset.id, 10), isDone);
+        });
 
-        const deleteItemBtn = e.target.closest('.js-delete-checklist-item');
-        if (deleteItemBtn) {
+        window.EventDispatcher.onClick('.js-delete-checklist-item', (e, el) => {
             e.preventDefault();
-            return window.deleteChecklistItem(parseInt(deleteItemBtn.dataset.id, 10));
-        }
+            window.deleteChecklistItem(parseInt(el.dataset.id, 10));
+        });
 
-        const toggleItemBtn = e.target.closest('.js-toggle-checklist-item');
-        if (toggleItemBtn) {
-            const isCompleted = toggleItemBtn.dataset.status === 'true';
-            return window.toggleChecklistItem(parseInt(toggleItemBtn.dataset.id, 10), isCompleted);
-        }
-    });
+        window.EventDispatcher.onClick('.js-toggle-checklist-item', (e, el) => {
+            const isCompleted = el.dataset.status === 'true';
+            window.toggleChecklistItem(parseInt(el.dataset.id, 10), isCompleted);
+        });
+    } else {
+        console.error("EventDispatcher nie jest załadowany!");
+    }
 
     return { init: window.initTodoModule };
 })();
