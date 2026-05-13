@@ -1,0 +1,28 @@
+<div id="edit-pharmacy-item-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
+    <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
+        
+        <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Edytuj lek</h3>
+        
+        <input type="hidden" id="edit-pharmacy-id">
+        
+        <div class="space-y-3">
+            <input type="text" id="edit-pharmacy-name" maxlength="100" placeholder="Nazwa leku (np. Ibum Forte)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
+            
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Data ważności (Miesiąc / Rok)</label>
+                <input type="month" id="edit-pharmacy-exp" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]">
+            </div>
+            
+            <input type="text" id="edit-pharmacy-purpose" maxlength="150" placeholder="Przeznaczenie (opcjonalnie)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
+        </div>
+        
+        <div class="flex gap-3 mt-6">
+            <button onclick="window.deletePharmacyItem(document.getElementById('edit-pharmacy-id').value)" class="w-12 h-12 flex items-center justify-center rounded-full bg-[#3c1414] text-[#ffb4ab] border border-[#8c1d18]/40 active:scale-95 transition-transform shrink-0">🗑️</button>
+            
+            <button onclick="window.closeEditPharmacyModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
+            
+            <button onclick="window.saveEditedPharmacyItem()" class="flex-1 bg-[#a8c7fa] text-[#004a77] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button>
+        </div>
+
+    </div>
+</div>
