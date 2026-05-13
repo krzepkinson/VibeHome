@@ -23,7 +23,6 @@ window.TodoModule = (() => {
         await window.loadTodosAndLists();
     };
 
-    // NOWA FUNKCJA: Wywoływana przez Router, gdy checklist.html jest już gotowy w DOM
     window.initChecklistUI = function() {
         const titleEl = document.getElementById('checklist-screen-title');
         if (!titleEl) return;
@@ -62,7 +61,7 @@ window.TodoModule = (() => {
                 return `
                 <div class="relative overflow-hidden mb-1.5 rounded-[16px] group">
                     <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
-                        <button onclick="window.archiveChecklist(${list.id})" class="text-[#ffb4ab] text-xl active:scale-90 transition-transform">🗑️</button>
+                        <button class="js-archive-checklist text-[#ffb4ab] text-xl active:scale-90 transition-transform" data-id="${list.id}">🗑️</button>
                     </div>
                     <div class="js-open-checklist swipe-front relative z-10 flex items-center justify-between p-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 cursor-pointer w-full transition-transform" data-id="${list.id}" data-title="${window.esc(list.title)}" data-type="${list.list_type || 'generic'}">
                         <div class="flex items-center gap-3 min-w-0">
@@ -92,11 +91,11 @@ window.TodoModule = (() => {
                 return `
                 <div class="relative overflow-hidden mb-1.5 rounded-[16px] group ${isDone ? 'opacity-50' : ''}">
                     <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
-                        <button onclick="window.archiveTodo(${todo.id})" class="text-[#ffb4ab] text-xl active:scale-90 transition-transform">🗑️</button>
+                        <button class="js-archive-todo text-[#ffb4ab] text-xl active:scale-90 transition-transform" data-id="${todo.id}">🗑️</button>
                     </div>
                     <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] cursor-pointer w-full transition-transform">
                         <div class="js-edit-todo flex items-center gap-2 flex-1 min-w-0" data-id="${todo.id}" data-title="${window.esc(todo.title)}">
-                            <div onclick="event.stopPropagation(); window.toggleTodo(${todo.id}, ${isDone})" class="w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
+                            <div class="js-toggle-todo w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0" data-id="${todo.id}" data-status="${isDone}">
                                 ${isDone ? '<span class="text-[#0f5223] text-xs font-bold">✓</span>' : ''}
                             </div>
                             <span class="text-sm truncate flex-1 ${isDone ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(todo.title)}</span>
@@ -120,7 +119,6 @@ window.TodoModule = (() => {
     window.saveNewTodo = async function() {
         const title = document.getElementById('new-todo-title').value.trim(); 
         if (!title) return;
-        // Kluczowe: trzymamy się UUID użytkownika
         const { error } = await window.supabaseClient.from('todos').insert([{ 
             title, 
             user_id: window.currentUser.user_id, 
@@ -134,7 +132,6 @@ window.TodoModule = (() => {
     };
 
     window.openChecklistScreen = function(id, title, type) {
-        // POPRAWKA AUDYTU: Parsujemy id na liczbę, bo z dataset.id przychodzi string
         currentChecklistId = parseInt(id, 10); 
         currentChecklistTitle = title;
         currentChecklistType = type || 'generic';
@@ -162,10 +159,10 @@ window.TodoModule = (() => {
         listEl.innerHTML = items.map(item => `
             <div class="relative overflow-hidden mb-1 rounded-[12px] group ${item.is_completed ? 'opacity-50' : ''}">
                 <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-4">
-                    <button onclick="window.deleteChecklistItem(${item.id})" class="text-[#ffb4ab] text-lg active:scale-90 transition-transform">🗑️</button>
+                    <button class="js-delete-checklist-item text-[#ffb4ab] text-lg active:scale-90 transition-transform" data-id="${item.id}">🗑️</button>
                 </div>
                 <div class="swipe-front relative z-10 flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] w-full transition-transform">
-                    <div class="flex items-center gap-3 flex-1 cursor-pointer min-w-0" onclick="window.toggleChecklistItem(${item.id}, ${item.is_completed})">
+                    <div class="js-toggle-checklist-item flex items-center gap-3 flex-1 cursor-pointer min-w-0" data-id="${item.id}" data-status="${item.is_completed}">
                         <div class="w-5 h-5 rounded-full border-2 ${item.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
                             ${item.is_completed ? '<span class="text-[#0f5223] text-[10px] font-bold">✓</span>' : ''}
                         </div>
@@ -180,7 +177,6 @@ window.TodoModule = (() => {
         const content = input.value.trim();
         if (!content || !currentChecklistId) return; 
         input.value = ''; 
-        // Kluczowe: trzymamy się UUID użytkownika
         const { error } = await window.supabaseClient.from('checklist_items').insert([{ 
             checklist_id: currentChecklistId, 
             user_id: window.currentUser.user_id, 
@@ -218,12 +214,58 @@ window.TodoModule = (() => {
         });
     };
 
-    // Globalny nasłuchiwacz kliknięć dla Zadań
+    window.archiveTodo = async function(id) {
+        window.customConfirm("Zarchiwizować to zadanie?", async () => {
+            await window.supabaseClient.from('todos').update({ is_archived: true }).eq('id', id);
+            window.loadTodosAndLists();
+        });
+    };
+
+    window.toggleTodo = async function(id, currentStatus) {
+        if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
+        await window.supabaseClient.from('todos').update({ is_completed: !currentStatus, completed_at: !currentStatus ? new Date().toISOString() : null, completer_name: !currentStatus ? window.currentUser.name : null }).eq('id', id);
+        window.loadTodosAndLists();
+    };
+
+    // --- DELEGACJA ZDARZEŃ (W 100% z API JS) ---
     document.addEventListener('click', (e) => {
         const openChecklistBtn = e.target.closest('.js-open-checklist');
         if (openChecklistBtn) {
             e.preventDefault();
             window.openChecklistScreen(openChecklistBtn.dataset.id, openChecklistBtn.dataset.title, openChecklistBtn.dataset.type);
+            return;
+        }
+
+        const archiveChecklistBtn = e.target.closest('.js-archive-checklist');
+        if (archiveChecklistBtn) {
+            e.preventDefault();
+            return window.archiveChecklist(parseInt(archiveChecklistBtn.dataset.id, 10));
+        }
+
+        const archiveTodoBtn = e.target.closest('.js-archive-todo');
+        if (archiveTodoBtn) {
+            e.preventDefault();
+            return window.archiveTodo(parseInt(archiveTodoBtn.dataset.id, 10));
+        }
+
+        const toggleTodoBtn = e.target.closest('.js-toggle-todo');
+        if (toggleTodoBtn) {
+            e.stopPropagation(); // Blokuje ewentualne zdarzenia pod spodem
+            // Zamienia string "true"/"false" na realny typ boolean
+            const isDone = toggleTodoBtn.dataset.status === 'true';
+            return window.toggleTodo(parseInt(toggleTodoBtn.dataset.id, 10), isDone);
+        }
+
+        const deleteItemBtn = e.target.closest('.js-delete-checklist-item');
+        if (deleteItemBtn) {
+            e.preventDefault();
+            return window.deleteChecklistItem(parseInt(deleteItemBtn.dataset.id, 10));
+        }
+
+        const toggleItemBtn = e.target.closest('.js-toggle-checklist-item');
+        if (toggleItemBtn) {
+            const isCompleted = toggleItemBtn.dataset.status === 'true';
+            return window.toggleChecklistItem(parseInt(toggleItemBtn.dataset.id, 10), isCompleted);
         }
     });
 
