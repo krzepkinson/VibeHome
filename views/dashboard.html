@@ -21,8 +21,7 @@
         </div>
     </div>
 
-    <div id="dashboard-today-container" class="mb-6 hidden">
-        </div>
+    <div id="dashboard-today-container" class="mb-6 hidden"></div>
 
     <div class="flex flex-col gap-3 mb-6">
         
@@ -32,34 +31,45 @@
                     <span class="text-2xl">🏠</span>
                     <h2 class="text-base font-bold text-neutral-100">Dom</h2>
                 </div>
-                <div class="flex items-center gap-3">
-                    <span id="widget-home-badge" class="hidden px-2.5 py-1 bg-[#3c1414] text-[#ffb4ab] border border-[#8c1d18]/40 rounded-lg text-[10px] font-bold uppercase tracking-wider"></span>
-                    <span class="text-neutral-500 transition-transform duration-200" id="widget-home-chevron">▼</span>
+                <div class="flex items-center gap-2">
+                    <div id="widget-home-badges" class="flex gap-1"></div>
+                    <span class="text-neutral-500 transition-transform duration-200 ml-1" id="widget-home-chevron">▼</span>
                 </div>
             </div>
-            <div id="widget-home-content" class="hidden border-t border-[#333537]/50 bg-[#131314]/50 p-2">
+            <div id="widget-home-content" class="hidden border-t border-[#333537]/50 bg-[#131314]/50 p-2"></div>
+        </div>
+
+        <div class="bg-[#1e1f20] border border-[#333537] rounded-[24px] overflow-hidden shadow-sm">
+            <div class="js-toggle-widget flex items-center justify-between p-4 cursor-pointer active:bg-[#252627] transition-colors select-none" data-target="widget-health-content">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">❤️</span>
+                    <h2 class="text-base font-bold text-neutral-100">Zdrowie</h2>
                 </div>
+                <div class="flex items-center gap-2">
+                    <div id="widget-health-badges" class="flex gap-1"></div>
+                    <span class="text-neutral-500 transition-transform duration-200 ml-1" id="widget-health-chevron">▼</span>
+                </div>
+            </div>
+            <div id="widget-health-content" class="hidden border-t border-[#333537]/50 bg-[#131314]/50 p-2"></div>
         </div>
 
         <div class="bg-[#1e1f20] border border-[#333537] rounded-[24px] overflow-hidden shadow-sm">
             <div class="js-toggle-widget flex items-center justify-between p-4 cursor-pointer active:bg-[#252627] transition-colors select-none" data-target="widget-todo-content">
                 <div class="flex items-center gap-3">
                     <span class="text-2xl">📝</span>
-                    <h2 class="text-base font-bold text-neutral-100">Zadania</h2>
+                    <h2 class="text-base font-bold text-neutral-100">Zadania i Listy</h2>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
                     <span id="widget-todo-badge" class="hidden px-2.5 py-1 bg-[#004a77]/30 text-[#a8c7fa] border border-[#004a77]/40 rounded-lg text-[10px] font-bold uppercase tracking-wider"></span>
-                    <span class="text-neutral-500 transition-transform duration-200" id="widget-todo-chevron">▼</span>
+                    <span class="text-neutral-500 transition-transform duration-200 ml-1" id="widget-todo-chevron">▼</span>
                 </div>
             </div>
-            <div id="widget-todo-content" class="hidden border-t border-[#333537]/50 bg-[#131314]/50 p-2">
-                </div>
+            <div id="widget-todo-content" class="hidden border-t border-[#333537]/50 bg-[#131314]/50 p-2"></div>
         </div>
 
     </div>
 
-    <div id="dashboard-horizon-container" class="mb-6">
-        </div>
+    <div id="dashboard-horizon-container" class="mb-6"></div>
 
 </div>
 
@@ -71,6 +81,5 @@
             <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-0.5">Kto i kiedy odhaczył</p>
         </div>
     </div>
-    <div class="flex-1 overflow-y-auto p-4 sm:p-6 no-scrollbar" id="dashboard-history-list">
-        </div>
+    <div class="flex-1 overflow-y-auto p-4 sm:p-6 no-scrollbar" id="dashboard-history-list"></div>
 </div>
