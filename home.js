@@ -66,15 +66,13 @@ window.HomeModule = (() => {
             }
         }
 
-        // --- ZMIANA ARCHITEKTURY: POBIERANIE ZE STORE'A (Zamiast Fetch) ---
-        // Upewniamy się, że Store jest załadowany. Jeśli Cache wygasł, załaduje dyskretnie w tle.
+        // --- POBIERANIE ZE STORE'A ---
         await window.loadDashboardOverview(); 
         
         const state = window.AppStore.get();
         tasks = state.tasks || []; 
         logs = state.logs || [];
         const dbRooms = state.rooms || [];
-        // -------------------------------------------------------------------
 
         if (tasks.length === 0 && !roomFilter) {
             if (list) {
@@ -189,16 +187,19 @@ window.HomeModule = (() => {
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const isToday = new Date().toISOString().split('T')[0] === dateStr;
+            // POPRAWKA: Użycie lokalnej daty
+            const isToday = window.getTodayLocalString() === dateStr;
 
             const dayLogs = logs.filter(l => l.created_at.startsWith(dateStr));
             const dueTasks = tasks.filter(task => {
                 if (!task.interval_days || task.interval_days === 0) return false;
-                const lastLog = logs.find(l => l.task_id === task.id);
-                if (!lastLog) return false; 
+                const taskLogs = logs.filter(l => l.task_id === task.id);
+                if (taskLogs.length === 0) return false; 
+                const lastLog = taskLogs[0];
                 const lastDate = new Date(lastLog.created_at); lastDate.setHours(0,0,0,0);
                 const nextDate = new Date(lastDate); nextDate.setDate(nextDate.getDate() + task.interval_days);
-                return nextDate.toISOString().split('T')[0] === dateStr;
+                // POPRAWKA: getTodayLocalString dla spójności porównania w kalendarzu
+                return window.getTodayLocalString(nextDate) === dateStr;
             });
 
             let dayClass = 'hover:bg-[#333537] text-neutral-300';
@@ -232,11 +233,12 @@ window.HomeModule = (() => {
         const dayLogs = logs.filter(l => l.created_at.startsWith(dateStr));
         const dueTasks = tasks.filter(task => {
             if (!task.interval_days || task.interval_days === 0) return false;
-            const lastLog = logs.find(l => l.task_id === task.id);
-            if (!lastLog) return false; 
+            const taskLogs = logs.filter(l => l.task_id === task.id);
+            if (taskLogs.length === 0) return false; 
+            const lastLog = taskLogs[0];
             const lastDate = new Date(lastLog.created_at); lastDate.setHours(0,0,0,0);
             const nextDate = new Date(lastDate); nextDate.setDate(nextDate.getDate() + task.interval_days);
-            return nextDate.toISOString().split('T')[0] === dateStr;
+            return window.getTodayLocalString(nextDate) === dateStr;
         });
 
         if (dayLogs.length === 0 && dueTasks.length === 0) {
@@ -288,17 +290,12 @@ window.HomeModule = (() => {
                : { color: 'text-[#c4eed0]', label: relText, tooltip: `Za ${diff} dni.` };
     };
 
-    window.calculatePriority = function(task, lastDate) {
-        if (!task.interval_days || task.interval_days <= 0) return -1;
-        if (!lastDate) return 999;
-        return Math.floor((new Date() - new Date(lastDate)) / 86400000) / task.interval_days;
-    };
-
     window.openAddLogModal = function(id, name) {
         window.loadAndShowModal('add-log-modal', '/modals/add-log.html', () => {
             document.getElementById('add-log-subtitle').innerText = name;
             document.getElementById('add-log-name').value = id; 
-            document.getElementById('add-log-date').value = new Date().toISOString().split('T')[0];
+            // POPRAWKA: Użycie lokalnej daty
+            document.getElementById('add-log-date').value = window.getTodayLocalString();
             document.getElementById('add-log-notes').value = '';
             setTimeout(() => { const input = document.getElementById('add-log-notes'); if (input) input.focus(); }, 50);
         });
@@ -313,7 +310,8 @@ window.HomeModule = (() => {
         const nt = document.getElementById('add-log-notes').value;
         const taskObj = tasks.find(t => t.id == taskId);
         
-        const todayStr = new Date().toISOString().split('T')[0];
+        // POPRAWKA: Użycie lokalnej daty do porównania
+        const todayStr = window.getTodayLocalString();
         const finalDate = (d === todayStr) ? new Date().toISOString() : `${d}T12:00:00.000Z`;
         
         const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
@@ -337,10 +335,9 @@ window.HomeModule = (() => {
             window.showToast("Zapisano log!");
         }
 
-        // --- ZMIANA: Unieważniamy cache po zapisie ---
         window.invalidateDashboardCache(); 
         window.closeAddLogModal(); 
-        window.loadDashboard(); // To automatycznie pociągnie świeże dane ze zresetowanego cache'u
+        window.loadDashboard();
     };
 
     window.openNewTaskModal = function() {
@@ -373,7 +370,6 @@ window.HomeModule = (() => {
 
         if (error) { window.showToast("Błąd: " + error.message); return; }
         
-        // --- ZMIANA: Unieważniamy cache po zapisie ---
         window.invalidateDashboardCache();
         window.closeNewTaskModal(); 
         window.showToast("Dodano czynność!"); 
@@ -386,6 +382,7 @@ window.HomeModule = (() => {
 
         window.loadAndShowModal('edit-log-modal', '/modals/edit-log.html', () => {
             document.getElementById('edit-log-id').value = log.id;
+            // POPRAWKA: Obsługa daty z bazy (wycinanie części YYYY-MM-DD)
             document.getElementById('edit-log-date').value = log.created_at.split('T')[0];
             document.getElementById('edit-log-notes').value = log.notes || '';
             setTimeout(() => { const input = document.getElementById('edit-log-notes'); if (input) input.focus(); }, 50);
@@ -400,7 +397,8 @@ window.HomeModule = (() => {
         const notes = document.getElementById('edit-log-notes').value.trim();
 
         if (!id || !date) return;
-        const todayStr = new Date().toISOString().split('T')[0];
+        // POPRAWKA: Użycie lokalnej daty
+        const todayStr = window.getTodayLocalString();
         const finalDate = (date === todayStr) ? new Date().toISOString() : `${date}T12:00:00.000Z`;
 
         const { error } = await window.supabaseClient.from('activity_logs')
@@ -410,7 +408,6 @@ window.HomeModule = (() => {
         if (error) { window.showToast("Błąd: " + error.message); return; }
         window.showToast("Wpis zaktualizowany! ✏️"); 
         
-        // --- ZMIANA: Unieważniamy cache po zapisie ---
         window.invalidateDashboardCache();
         window.closeEditLogModal();
         window.loadDashboard();
@@ -422,7 +419,6 @@ window.HomeModule = (() => {
             const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', id);
             if (error) { window.showToast("Błąd usuwania"); return; }
             
-            // --- ZMIANA: Unieważniamy cache po usunięciu ---
             window.invalidateDashboardCache();
             window.showToast("Usunięto!"); 
             window.loadDashboard();
