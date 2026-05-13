@@ -39,11 +39,12 @@ window.performGlobalSearch = function(query) {
         try {
             const hid = window.currentUser.household_id;
 
-            const [tasksRes, healthRes, todosRes, listsRes] = await Promise.all([
+            const [tasksRes, healthRes, todosRes, listsRes, pharmacyRes] = await Promise.all([
                 window.supabaseClient.from('tasks').select('*').eq('household_id', hid).ilike('name', `%${q}%`).eq('is_archived', false),
                 window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).ilike('name', `%${q}%`).eq('is_archived', false),
                 window.supabaseClient.from('todos').select('*').eq('household_id', hid).ilike('title', `%${q}%`).eq('is_archived', false),
                 window.supabaseClient.from('checklists').select('*').eq('household_id', hid).ilike('title', `%${q}%`).eq('is_archived', false)
+                window.supabaseClient.from('pharmacy_items').select('*').eq('household_id', hid).or(`name.ilike.%${q}%,purpose.ilike.%${q}%`)
             ]);
 
             let results = [];
@@ -74,6 +75,12 @@ window.performGlobalSearch = function(query) {
                 listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Brak wyników dla "${window.esc(q)}"</p></div>`;
                 return;
             }
+
+            if (pharmacyRes.data) {
+                pharmacyRes.data.forEach(p => results.push({ 
+                id: p.id, title: p.name, type: 'Apteczka', icon: '💊', extraData: p.purpose || '' 
+            }));
+}
 
             // Generujemy czysty HTML z bezpiecznymi atrybutami data-*
             listEl.innerHTML = results.map(r => `
@@ -131,4 +138,8 @@ document.addEventListener('click', (e) => {
         window.switchView('todo');
         setTimeout(() => window.openChecklistScreen(id, title, extra), 150); // extra to typ listy
     }
+    else if (type === 'Apteczka') {
+    window.openPharmacyScreen(); // Przełącza widok
+    setTimeout(() => window.openEditPharmacyModal(id), 200); // Otwiera modal konkretnego leku
+}
 });
