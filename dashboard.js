@@ -55,6 +55,12 @@ window.renderDashboardUI = function() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayStr = window.getTodayLocalString(today);
 
+    // ZMIANA: Powitanie z imieniem
+    const greetingEl = document.getElementById('dashboard-greeting');
+    if (greetingEl && window.currentUser && window.currentUser.name) {
+        greetingEl.innerText = `Dzień dobry, ${window.currentUser.name}!`;
+    }
+
     _renderTodaySection(state, todayStr);
     _renderHomeWidget(state, today);
     _renderHealthWidget(state, today);
@@ -114,10 +120,19 @@ function _renderHomeWidget(state, today) {
     let overdueHome = [];
     let upcomingHome = [];
 
+    // ZMIANA: Poprawiony algorytm łapiący zadania bez historii
     state.tasks.forEach(t => {
-        if (!t.interval_days) return;
         const taskLogs = state.logs.filter(l => l.task_id === t.id);
-        if (taskLogs.length === 0) return; // Brak historii = nie analizujemy tu
+        
+        if (!t.interval_days || t.interval_days === 0) {
+            if (taskLogs.length === 0) overdueHome.push(t);
+            return;
+        }
+        
+        if (taskLogs.length === 0) {
+            overdueHome.push(t); // Nigdy nie zrobione cykliczne = zaległe!
+            return;
+        }
         
         const lastLog = taskLogs[0];
         const nextDate = new Date(lastLog.created_at);
@@ -175,12 +190,11 @@ function _renderHomeRow(t, subtitle, subtitleColor) {
     </div>`;
 }
 
-// --- RENDEROWANIE: WIDGET ZDROWIA (Trwające + Rutyny) ---
+// --- RENDEROWANIE: WIDGET ZDROWIA ---
 function _renderHealthWidget(state, today) {
     const badgesContainer = document.getElementById('widget-health-badges');
     const content = document.getElementById('widget-health-content');
 
-    // 1. Aktywne zdarzenia (Infekcje, antybiotyki)
     let activeHealth = [];
     const durationTasks = state.hTasks.filter(t => t.task_type === 'duration');
     durationTasks.forEach(t => {
@@ -188,7 +202,6 @@ function _renderHealthWidget(state, today) {
         if (activeLog) activeHealth.push({ task: t, log: activeLog });
     });
 
-    // 2. Rutyny (Paznokcie, kąpiel do 3 dni)
     let upcomingRoutines = [];
     const cyclicalTasks = state.hTasks.filter(t => t.task_type === 'cyclical');
     cyclicalTasks.forEach(t => {
@@ -489,7 +502,8 @@ window.closeHealthLogDashboard = async function(logId) {
 if (window.EventDispatcher) {
     
     window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
-        const chevron = el.querySelector('span:last-child');
+        // ZMIANA: Dokładniejsze celowanie w strzałkę po klasie
+        const chevron = el.querySelector('.js-chevron');
         window.toggleWidgetAccordion(el.dataset.target, chevron);
     });
 
