@@ -1,24 +1,76 @@
-<div class="max-w-xl mx-auto p-4 sm:p-6">
-    <header class="mb-4 mt-2 flex justify-between items-start">
+<div class="max-w-xl mx-auto p-4 sm:p-6 pb-24 relative min-h-[90vh] animate-fade-in">
+    
+    <header class="mb-4 mt-2 flex justify-between items-center">
         <div>
-            <h1 class="text-2xl font-medium text-neutral-100 tracking-wide">Dzień dobry!</h1>
-            <p class="text-xs text-neutral-400 mb-5">Twój osobisty kokpit</p>
+            <h1 class="text-2xl font-bold text-neutral-100 tracking-tight flex items-center gap-2">
+                Dzień dobry!
+            </h1>
+            <p class="text-xs text-neutral-400 font-medium mt-0.5">Twój osobisty kokpit</p>
         </div>
-        <button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl shadow-sm">↻</button>
+        <div class="flex items-center gap-1.5">
+            <button class="js-open-cart w-9 h-9 rounded-full bg-[#0f2334] border border-[#004a77]/50 text-[#c2e7ff] flex items-center justify-center active:scale-90 transition-transform text-sm shadow-sm" title="Szybkie zakupy">🛒</button>
+            <button class="js-open-history w-9 h-9 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 flex items-center justify-center active:scale-90 transition-transform text-sm shadow-sm" title="Historia">🕒</button>
+            <button onclick="window.invalidateDashboardCache(); window.loadDashboardOverview(true);" class="w-9 h-9 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 flex items-center justify-center active:scale-90 transition-transform text-sm shadow-sm" title="Odśwież">↻</button>
+        </div>
     </header>
 
-    <div onclick="window.openGlobalSearch()" class="flex items-center bg-[#1e1f20] p-3.5 rounded-[20px] border border-[#333537] cursor-pointer active:scale-95 transition-transform mb-6 shadow-sm">
-        <span class="text-lg mr-3 opacity-50">🔍</span>
-        <span class="text-sm text-neutral-500">Szukaj zadań, leków, wpisów...</span>
+    <div class="mb-6 cursor-pointer group" onclick="window.openGlobalSearch()">
+        <div class="bg-[#131314] border border-[#333537] group-hover:border-[#a8c7fa]/50 rounded-[20px] p-3 flex items-center gap-3 transition-colors shadow-sm">
+            <span class="text-xl opacity-50 pl-1">🔍</span>
+            <span class="text-sm text-neutral-500 font-medium">Szukaj zadań, leków, wpisów...</span>
+        </div>
     </div>
 
-    <div class="flex p-1 bg-[#1e1f20] rounded-2xl mb-6 border border-[#333537] overflow-x-auto hide-scrollbar">
-        <button onclick="window.switchDashboardTab('priority')" id="tab-priority" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap text-white">⭐ Priorytet</button>
-        <button onclick="window.switchDashboardTab('todo')" id="tab-todo" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap text-neutral-500 hover:text-neutral-300">📝 Zadania</button>
-        <button onclick="window.switchDashboardTab('history')" id="tab-history" class="flex-1 min-w-[80px] py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap text-neutral-500 hover:text-neutral-300">🕒 Historia</button>
+    <div id="dashboard-today-container" class="mb-6 hidden">
+        </div>
+
+    <div class="flex flex-col gap-3 mb-6">
+        
+        <div class="bg-[#1e1f20] border border-[#333537] rounded-[24px] overflow-hidden shadow-sm">
+            <div class="js-toggle-widget flex items-center justify-between p-4 cursor-pointer active:bg-[#252627] transition-colors select-none" data-target="widget-home-content">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">🏠</span>
+                    <h2 class="text-base font-bold text-neutral-100">Dom</h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span id="widget-home-badge" class="hidden px-2.5 py-1 bg-[#3c1414] text-[#ffb4ab] border border-[#8c1d18]/40 rounded-lg text-[10px] font-bold uppercase tracking-wider"></span>
+                    <span class="text-neutral-500 transition-transform duration-200" id="widget-home-chevron">▼</span>
+                </div>
+            </div>
+            <div id="widget-home-content" class="hidden border-t border-[#333537]/50 bg-[#131314]/50 p-2">
+                </div>
+        </div>
+
+        <div class="bg-[#1e1f20] border border-[#333537] rounded-[24px] overflow-hidden shadow-sm">
+            <div class="js-toggle-widget flex items-center justify-between p-4 cursor-pointer active:bg-[#252627] transition-colors select-none" data-target="widget-todo-content">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">📝</span>
+                    <h2 class="text-base font-bold text-neutral-100">Zadania</h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span id="widget-todo-badge" class="hidden px-2.5 py-1 bg-[#004a77]/30 text-[#a8c7fa] border border-[#004a77]/40 rounded-lg text-[10px] font-bold uppercase tracking-wider"></span>
+                    <span class="text-neutral-500 transition-transform duration-200" id="widget-todo-chevron">▼</span>
+                </div>
+            </div>
+            <div id="widget-todo-content" class="hidden border-t border-[#333537]/50 bg-[#131314]/50 p-2">
+                </div>
+        </div>
+
     </div>
 
-    <div id="today-plan-container" class="mb-6 hidden"></div>
+    <div id="dashboard-horizon-container" class="mb-6">
+        </div>
 
-    <div id="dashboard-overview-list" class="flex flex-col space-y-4"></div>
+</div>
+
+<div id="dashboard-history-overlay" class="fixed inset-0 z-50 bg-[#131314] hidden flex-col animate-fade-in">
+    <div class="p-4 sm:p-6 border-b border-[#333537] bg-[#1e1f20] flex items-center gap-3">
+        <button class="js-close-history text-neutral-400 text-2xl active:scale-90 pb-1 px-2">←</button>
+        <div>
+            <h2 class="text-lg font-bold text-neutral-100">Historia Ostatnich Zdarzeń</h2>
+            <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-0.5">Kto i kiedy odhaczył</p>
+        </div>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4 sm:p-6 no-scrollbar" id="dashboard-history-list">
+        </div>
 </div>
