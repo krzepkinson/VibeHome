@@ -736,35 +736,28 @@ window.HealthModule = (() => {
         }
     };
 
-    document.addEventListener('click', (e) => {
-        const pillBtn = e.target.closest('.js-select-health-profile');
-        if (pillBtn) return window.selectHealthProfile(pillBtn.dataset.id);
+    // ==========================================
+    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
+    // ==========================================
+    if (window.EventDispatcher) {
+        window.EventDispatcher.onClick('.js-select-health-profile', (e, el) => window.selectHealthProfile(el.dataset.id));
+        window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLog(el.dataset.id));
+        window.EventDispatcher.onClick('.js-start-health-log', (e, el) => window.startHealthLog(el.dataset.id, el.dataset.type));
+        window.EventDispatcher.onClick('.js-open-health-settings', (e, el) => window.openHealthSettingsScreen(el.dataset.id));
+        window.EventDispatcher.onClick('.js-open-day-details', (e, el) => window.openDayDetails(el.dataset.date));
+        window.EventDispatcher.onClick('.js-select-profile', (e, el) => window.selectHealthProfile(el.dataset.id));
+        window.EventDispatcher.onClick('.js-delete-pharmacy-item', (e, el) => window.deletePharmacyItem(el.dataset.id));
         
-        const closeLogBtn = e.target.closest('.js-close-health-log');
-        if(closeLogBtn) return window.closeHealthLog(closeLogBtn.dataset.id);
-        const startLogBtn = e.target.closest('.js-start-health-log');
-        if(startLogBtn) return window.startHealthLog(startLogBtn.dataset.id, startLogBtn.dataset.type);
-        const openSettingsBtn = e.target.closest('.js-open-health-settings');
-        if(openSettingsBtn) return window.openHealthSettingsScreen(openSettingsBtn.dataset.id);
-        const dayDetailsBtn = e.target.closest('.js-open-day-details');
-        if(dayDetailsBtn) return window.openDayDetails(dayDetailsBtn.dataset.date);
-        const profileSelBtn = e.target.closest('.js-select-profile');
-        if(profileSelBtn) return window.selectHealthProfile(profileSelBtn.dataset.id);
-        
-        // --- DELEGACJA APTECZKI ---
-        const delPharmBtn = e.target.closest('.js-delete-pharmacy-item');
-        if(delPharmBtn) return window.deletePharmacyItem(delPharmBtn.dataset.id);
-        
-        const editPharmBtn = e.target.closest('.js-open-edit-pharmacy');
-        if(editPharmBtn) {
-            // Blokujemy odpalenie edycji, jeśli user jednak zdołał kliknąć ikonę usuwania ze swipe'a
+        window.EventDispatcher.onClick('.js-open-edit-pharmacy', (e, el) => {
+            // Blokujemy odpalenie edycji, jeśli user zdołał kliknąć ikonę usuwania ze swipe'a
             if (e.target.closest('.js-delete-pharmacy-item')) return;
-            return window.openEditPharmacyModal(editPharmBtn.dataset.id);
-        }
+            window.openEditPharmacyModal(el.dataset.id);
+        });
         
-        const delHistBtn = e.target.closest('.js-delete-health-log');
-        if(delHistBtn) return window.deleteHealthLog(delHistBtn.dataset.id);
-    });
+        window.EventDispatcher.onClick('.js-delete-health-log', (e, el) => window.deleteHealthLog(el.dataset.id));
+    } else {
+        console.error("EventDispatcher nie został załadowany!");
+    }
 
     return {};
 })();
