@@ -338,16 +338,15 @@ window.quickLogHealthDashboard = async function(taskId) {
     window.showToast('Zapisano! ❤️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true);
 };
 
-// --- DELEGACJA ZDARZEŃ ---
-document.addEventListener('click', (e) => {
-    const navBtn = e.target.closest('.js-dash-nav');
-    if (navBtn) return window.switchView(navBtn.dataset.view);
-    const todoBtn = e.target.closest('.js-dash-complete-todo');
-    if (todoBtn) return window.quickCompleteTodoDashboard(todoBtn.dataset.id);
-    const homeBtn = e.target.closest('.js-dash-log-task');
-    if (homeBtn) return window.quickLogTaskDashboard(homeBtn.dataset.id);
-    const healthBtn = e.target.closest('.js-quick-log-health');
-    if (healthBtn) return window.quickLogHealthDashboard(healthBtn.dataset.id);
-    const userBtn = e.target.closest('.js-dash-change-user');
-    if (userBtn) window.openChangeUserModal(userBtn.dataset.table, userBtn.dataset.id, userBtn.dataset.username);
-});
+// ==========================================
+// DELEGACJA ZDARZEŃ (VIA DISPATCHER)
+// ==========================================
+if (window.EventDispatcher) {
+    window.EventDispatcher.onClick('.js-dash-nav', (e, el) => window.switchView(el.dataset.view));
+    window.EventDispatcher.onClick('.js-dash-complete-todo', (e, el) => window.quickCompleteTodoDashboard(el.dataset.id));
+    window.EventDispatcher.onClick('.js-dash-log-task', (e, el) => window.quickLogTaskDashboard(el.dataset.id));
+    window.EventDispatcher.onClick('.js-quick-log-health', (e, el) => window.quickLogHealthDashboard(el.dataset.id));
+    window.EventDispatcher.onClick('.js-dash-change-user', (e, el) => window.openChangeUserModal(el.dataset.table, el.dataset.id, el.dataset.username));
+} else {
+    console.error("EventDispatcher nie został załadowany!");
+}
