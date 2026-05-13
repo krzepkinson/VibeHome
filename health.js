@@ -19,19 +19,15 @@ window.toggleHealthView = function() {
 };
 
 window.initHealthModule = async function() {
-    // --- ZMIANA: Faza 3 - Bezpieczne pobieranie ze Store'a ---
     let storeProfiles = window.AppStore && typeof window.AppStore.get === 'function' ? window.AppStore.get('profiles') : null;
+    let pData = Array.isArray(storeProfiles) ? storeProfiles : (storeProfiles ? storeProfiles.data || [] : []);
     
-    if (storeProfiles) {
-        // Bezpiecznik: jeśli AppStore ma obiekt Supabase {data: ...}, wyciągamy z niego tablicę
-        healthProfiles = Array.isArray(storeProfiles) ? storeProfiles : (storeProfiles.data || []);
-    }
-    
-    // Jeśli z jakiegoś powodu Store był pusty, robimy fallback do bazy danych
-    if (!healthProfiles || healthProfiles.length === 0) {
+    if (pData.length > 0) {
+        healthProfiles = pData;
+    } else {
         const hid = window.currentUser.household_id;
-        const { data: pData } = await window.supabaseClient.from('profiles').select('*').eq('household_id', hid).order('name');
-        healthProfiles = pData || [];
+        const res = await window.supabaseClient.from('profiles').select('*').eq('household_id', hid).order('name');
+        healthProfiles = res.data || [];
     }
     
     if (healthProfiles.length > 0 && !currentProfileId) {
@@ -45,32 +41,43 @@ window.initHealthModule = async function() {
 
 window.refreshHealthData = async function() {
     if (!currentProfileId) return;
+    const hid = window.currentUser.household_id;
 
-    // --- ZMIANA: Faza 3 - Bezpieczne pobieranie zadań i logów ze Store'a ---
-    let storeTasks = window.AppStore && typeof window.AppStore.get === 'function' ? window.AppStore.get('healthTasks') : null;
-    let storeLogs = window.AppStore && typeof window.AppStore.get === 'function' ? window.AppStore.get('healthLogs') : null;
+    let needTasksFetch = true;
+    let needLogsFetch = true;
 
-    if (storeTasks && storeLogs) {
-        // Ponownie zabezpieczamy się na wypadek obiektów {data: ...}
-        let allTasks = Array.isArray(storeTasks) ? storeTasks : (storeTasks.data || []);
-        let allLogs = Array.isArray(storeLogs) ? storeLogs : (storeLogs.data || []);
+    // Faza 3 - Bezpieczne i Niezależne sprawdzanie Store'a
+    if (window.AppStore && typeof window.AppStore.get === 'function') {
+        // Sprawdzamy dwie potencjalne nazwy kluczy, by wykluczyć literówki
+        const storeTasks = window.AppStore.get('healthTasks') || window.AppStore.get('health_tasks');
+        const storeLogs = window.AppStore.get('healthLogs') || window.AppStore.get('health_logs');
 
-        // Jeśli udało się pobrać tablice, omijamy zapytania sieciowe!
-        if (allTasks.length > 0 || allLogs.length > 0 || (storeTasks && !storeTasks.error)) {
-            healthTasks = allTasks.filter(t => t.profile_id === currentProfileId && !t.is_archived);
+        const allTasks = Array.isArray(storeTasks) ? storeTasks : (storeTasks ? storeTasks.data || [] : []);
+        const allLogs = Array.isArray(storeLogs) ? storeLogs : (storeLogs ? storeLogs.data || [] : []);
+
+        if (allTasks.length > 0) {
+            // Podwójny znak równości (==) chroni nas przed problemem z niedopasowaniem typów (np. UUID z bazy jako String vs INT)
+            healthTasks = allTasks.filter(t => t.profile_id == currentProfileId && t.is_archived !== true);
+            needTasksFetch = false;
+        }
+        
+        if (allLogs.length > 0) {
             healthLogs = allLogs;
-            return; 
+            needLogsFetch = false;
         }
     }
 
-    // Fallback: W razie gdyby Store nie miał tych danych, uderzamy do DB
-    const hid = window.currentUser.household_id;
-    const [tRes, lRes] = await Promise.all([
-        window.supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId).eq('household_id', hid).eq('is_archived', false),
-        window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }).limit(500)
-    ]);
-    healthTasks = tRes.data || []; 
-    healthLogs = lRes.data || [];
+    // Fallback 1: Dociągamy TYLKO ZADANIA, jeśli AppStore ich nie miał
+    if (needTasksFetch) {
+        const { data: tData } = await window.supabaseClient.from('health_tasks').select('*').eq('profile_id', currentProfileId).eq('household_id', hid).eq('is_archived', false);
+        healthTasks = tData || [];
+    }
+
+    // Fallback 2: Dociągamy TYLKO LOGI, jeśli AppStore ich nie miał
+    if (needLogsFetch) {
+        const { data: lData } = await window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }).limit(500);
+        healthLogs = lData || [];
+    }
 };
 
 window.renderHealthUI = function() {
