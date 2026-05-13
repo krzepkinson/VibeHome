@@ -133,23 +133,26 @@ window.UI = {
     },
 
     renderPharmacyItem: function(item, statusHtml, borderClass, opacityClass) {
-        return `
-        <div class="relative overflow-hidden mb-1 rounded-[14px] group ${opacityClass}">
-            <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-4">
-                <button class="js-delete-pharmacy-item text-[#ffb4ab] text-lg active:scale-90 transition-transform" data-id="${item.id}">🗑️</button>
+    return `
+    <div class="relative overflow-hidden mb-1.5 rounded-[14px] group ${opacityClass} animate-fade-in">
+        <div class="absolute inset-0 bg-[#3c1414] flex justify-end items-center pr-5">
+            <button class="js-delete-pharmacy-item text-[#ffb4ab] flex flex-col items-center gap-1 active:scale-90 transition-transform" data-id="${item.id}">
+                <span class="text-xl">🗑️</span>
+                <span class="text-[8px] font-bold uppercase">Usuń</span>
+            </button>
+        </div>
+        <div class="js-open-edit-pharmacy swipe-front relative z-10 flex items-center justify-between p-3 bg-[#1e1f20] rounded-[14px] border ${borderClass} w-full transition-transform shadow-sm cursor-pointer active:bg-[#252627]" 
+             data-id="${item.id}">
+            <div class="flex flex-col flex-1 min-w-0 pr-2">
+                <h3 class="font-medium text-neutral-100 text-sm truncate leading-tight">${window.esc(item.name)}</h3>
+                ${item.purpose ? `<p class="text-[10px] text-neutral-500 truncate leading-tight mt-0.5">${window.esc(item.purpose)}</p>` : ''}
             </div>
-            <div class="swipe-front relative z-10 flex items-center justify-between p-2.5 bg-[#1e1f20] rounded-[14px] border ${borderClass} w-full transition-transform shadow-sm">
-                <div class="flex flex-col flex-1 min-w-0 pr-2">
-                    <h3 class="font-medium text-neutral-100 text-sm truncate leading-tight">${window.esc(item.name)}</h3>
-                    ${item.purpose ? `<p class="text-[10px] text-neutral-500 truncate leading-tight mt-0.5">${window.esc(item.purpose)}</p>` : ''}
-                </div>
-                <div class="shrink-0 flex items-center gap-2">
-                    ${statusHtml}
-                    <button class="js-delete-pharmacy-item hidden md:block opacity-0 group-hover:opacity-100 text-neutral-600 hover:text-[#ffb4ab] px-1 text-sm shrink-0 transition-opacity" data-id="${item.id}">✕</button>
-                </div>
+            <div class="shrink-0 flex items-center gap-2">
+                ${statusHtml}
             </div>
-        </div>`;
-    },
+        </div>
+    </div>`;
+}
 
     renderHealthHistoryLog: function(log) {
         return `
