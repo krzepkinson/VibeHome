@@ -3,12 +3,10 @@
 // ==========================================
 
 window.SettingsModule = (() => {
-    // --- PRYWATNY STAN MODUŁU (Bezpieczne, nie wyciekają do window!) ---
     let appRooms = []; 
     let appProfiles = [];
     let currentEditingTaskId = null;
 
-    // --- FUNKCJE UDOSTĘPNIONE DLA INTERFEJSU ---
     window.initSettingsModule = function() {
         const hidLabel = document.getElementById('household-id-label');
         if (hidLabel && window.currentUser) hidLabel.innerText = window.currentUser.household_id; 
@@ -89,22 +87,33 @@ window.SettingsModule = (() => {
 
     window.loadAppRooms = async function() {
         const listEl = document.getElementById('settings-rooms-list'); 
+        if(!listEl) return;
         await window.fetchRoomsFromDB();
         if (appRooms.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak pomieszczeń.</p>`; return; }
         listEl.innerHTML = appRooms.map(room => `
             <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
                 <div class="flex items-center gap-3"><span class="text-xl">${window.esc(room.icon || '📦')}</span><span class="text-sm font-medium text-neutral-200">${window.esc(room.name)}</span></div>
                 <div class="flex gap-1">
-                    <button class="js-edit-room w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] text-sm" data-name="${window.esc(room.name)}" data-icon="${window.esc(room.icon || '📦')}">✏️</button>
-                    <button class="js-delete-room w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] text-sm" data-name="${window.esc(room.name)}">🗑️</button>
+                    <button class="js-edit-room w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] text-sm cursor-pointer" data-name="${window.esc(room.name)}" data-icon="${window.esc(room.icon || '📦')}">✏️</button>
+                    <button class="js-delete-room w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] text-sm cursor-pointer" data-name="${window.esc(room.name)}">🗑️</button>
                 </div>
             </div>`).join('');
     };
 
     window.openNewRoomModal = function() { 
-        document.getElementById('new-room-name').value = ''; document.getElementById('new-room-icon').value = '🏠'; document.getElementById('new-room-modal').classList.remove('hidden'); 
+        document.getElementById('new-room-name').value = ''; document.getElementById('new-room-icon').value = '🏠'; 
+        const modal = document.getElementById('new-room-modal');
+        if (modal) modal.classList.remove('hidden'); 
     };
-    window.closeNewRoomModal = function() { document.getElementById('new-room-modal').classList.add('hidden'); };
+
+    window.closeNewRoomModal = function() { 
+        const modal = document.getElementById('new-room-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.pointerEvents = 'none';
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+        }
+    };
 
     window.saveNewRoom = async function() {
         const name = document.getElementById('new-room-name').value.trim(); const icon = document.getElementById('new-room-icon').value.trim();
@@ -114,9 +123,21 @@ window.SettingsModule = (() => {
     };
 
     window.openEditRoomModal = function(name, icon) {
-        document.getElementById('edit-room-old-name').value = name; document.getElementById('edit-room-name').value = name; document.getElementById('edit-room-icon').value = icon || '📦'; document.getElementById('edit-room-modal').classList.remove('hidden');
+        document.getElementById('edit-room-old-name').value = name; 
+        document.getElementById('edit-room-name').value = name; 
+        document.getElementById('edit-room-icon').value = icon || '📦'; 
+        const modal = document.getElementById('edit-room-modal');
+        if (modal) modal.classList.remove('hidden');
     };
-    window.closeEditRoomModal = function() { document.getElementById('edit-room-modal').classList.add('hidden'); };
+
+    window.closeEditRoomModal = function() { 
+        const modal = document.getElementById('edit-room-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.pointerEvents = 'none';
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+        }
+    };
 
     window.saveEditRoom = async function() {
         const oldName = document.getElementById('edit-room-old-name').value; const newName = document.getElementById('edit-room-name').value.trim(); const newIcon = document.getElementById('edit-room-icon').value.trim() || '📦';
@@ -147,6 +168,7 @@ window.SettingsModule = (() => {
     // --- ZARZĄDZANIE DOMOWNIKAMI ---
     window.loadAppProfiles = async function() {
         const listEl = document.getElementById('settings-profiles-list');
+        if (!listEl) return;
         const { data } = await window.supabaseClient.from('profiles').select('*').eq('household_id', window.currentUser.household_id).order('name');
         appProfiles = data || [];
         if (appProfiles.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak domowników.</p>`; return; }
@@ -156,45 +178,110 @@ window.SettingsModule = (() => {
                     <div class="w-8 h-8 ${window.getAvatarColor(p.name)} text-white rounded-full flex items-center justify-center font-bold shadow-md border-2 border-[#131314]">${window.esc(p.name.charAt(0).toUpperCase())}</div>
                     <span class="text-sm font-medium text-neutral-200">${window.esc(p.name)}</span>
                 </div>
-                <button class="js-edit-profile w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] text-sm" data-id="${p.id}">⚙️</button>
+                <button class="js-edit-profile w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] text-sm cursor-pointer" data-id="${p.id}">⚙️</button>
             </div>`).join('');
     };
 
-    window.openNewProfileModal = function() { document.getElementById('new-profile-name').value = ''; document.getElementById('new-profile-modal').classList.remove('hidden'); };
-    window.closeNewProfileModal = function() { document.getElementById('new-profile-modal').classList.add('hidden'); };
+    window.openNewProfileModal = function() { 
+        document.getElementById('new-profile-name').value = ''; 
+        const modal = document.getElementById('new-profile-modal');
+        if (modal) modal.classList.remove('hidden');
+    };
+
+    window.closeNewProfileModal = function() { 
+        const modal = document.getElementById('new-profile-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.pointerEvents = 'none';
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+        }
+    };
 
     window.saveNewProfile = async function() {
         const name = document.getElementById('new-profile-name').value.trim(); 
         if (!name) return;
         const { error } = await window.supabaseClient.from('profiles').insert([{ name: name, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id }]);
-        if (error) window.showToast("Błąd: " + error.message); else { window.closeNewProfileModal(); window.showToast('Dodano!'); window.loadAppProfiles(); }
+        if (error) window.showToast("Błąd: " + error.message); 
+        else { 
+            window.closeNewProfileModal(); 
+            window.showToast('Dodano domownika!'); 
+            window.loadAppProfiles(); 
+            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+        }
     };
 
+    // ZMIANA: Zamiast "goForward('edit-profile-screen')", używamy zgrabnego Modala!
     window.openEditProfileScreen = function(id) {
-        const profile = appProfiles.find(p => p.id === id); if(!profile) return;
-        document.getElementById('edit-profile-id').value = profile.id; document.getElementById('edit-profile-name').value = profile.name; 
-        document.getElementById('edit-profile-birth').value = profile.birth_date || ''; document.getElementById('edit-profile-height').value = profile.height || ''; 
-        document.getElementById('edit-profile-weight').value = profile.weight || ''; document.getElementById('edit-profile-title').innerText = `Edytuj: ${profile.name}`; 
-        window.goForward('edit-profile-screen');
+        const profile = appProfiles.find(p => p.id === id); 
+        if(!profile) return;
+        
+        document.getElementById('edit-profile-id').value = profile.id; 
+        document.getElementById('edit-profile-name').value = profile.name; 
+        document.getElementById('edit-profile-birth').value = profile.birth_date || ''; 
+        document.getElementById('edit-profile-height').value = profile.height || ''; 
+        document.getElementById('edit-profile-weight').value = profile.weight || ''; 
+        document.getElementById('edit-profile-title').innerText = `Edytuj: ${profile.name}`; 
+        
+        const modal = document.getElementById('edit-profile-modal');
+        if (modal) modal.classList.remove('hidden');
     };
+
+    window.closeEditProfileModal = function() {
+        const modal = document.getElementById('edit-profile-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.pointerEvents = 'none';
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+        }
+    }
 
     window.saveProfileDetails = async function() {
-        const id = document.getElementById('edit-profile-id').value; const name = document.getElementById('edit-profile-name').value.trim(); 
+        const id = document.getElementById('edit-profile-id').value; 
+        const name = document.getElementById('edit-profile-name').value.trim(); 
         if(!name) return;
+        
         const { error } = await window.supabaseClient.from('profiles').update({ 
-            name: name, birth_date: document.getElementById('edit-profile-birth').value || null, 
-            height: document.getElementById('edit-profile-height').value || null, weight: document.getElementById('edit-profile-weight').value || null 
+            name: name, 
+            birth_date: document.getElementById('edit-profile-birth').value || null, 
+            height: document.getElementById('edit-profile-height').value || null, 
+            weight: document.getElementById('edit-profile-weight').value || null 
         }).eq('id', id);
-        if (error) window.showToast("Błąd zapisu"); else { window.showToast('Zapisano profil'); window.goBack(); window.loadAppProfiles(); setTimeout(() => window.refreshCurrentView(), 150); }
+        
+        if (error) { 
+            window.showToast("Błąd zapisu: " + error.message); 
+        } else { 
+            window.showToast('Zapisano profil'); 
+            window.closeEditProfileModal(); 
+            window.loadAppProfiles(); 
+            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+        }
     };
 
+    // ZMIANA: Zupełnie nowa funkcja bezpiecznego usuwania profili (nie mogłeś jej w ogóle przetestować!)
+    window.deleteProfile = function() {
+        const id = document.getElementById('edit-profile-id').value; 
+        const name = document.getElementById('edit-profile-name').value.trim();
+
+        window.customConfirm(`Usunąć profil ${name}? Uwaga: Usunie to całą książeczkę zdrowia tej osoby.`, async () => {
+            const { error } = await window.supabaseClient.from('profiles').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+            if (error) { 
+                window.showToast('Błąd: ' + error.message); 
+            } else { 
+                window.showToast('Profil usunięto'); 
+                window.closeEditProfileModal(); 
+                window.loadAppProfiles(); 
+                if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+            }
+        });
+    }
+
+    // --- EDYCJA ZADAŃ I LOGÓW Z USTAWIEN ---
     window.openSettingsScreen = async function(taskId) {
         try {
             const { data, error } = await window.supabaseClient.from('tasks').select('*').eq('id', taskId).single();
             if (error || !data) { window.showToast('Nie znaleziono zadania.'); return; }
             const task = data;
             
-            // ZMIANA: używamy zmiennej domkniętej, a nie na window
             currentEditingTaskId = task.id; 
             
             await window.switchView('settings-screen');
@@ -225,8 +312,8 @@ window.SettingsModule = (() => {
                     ${l.notes ? `<p class="text-[9px] text-neutral-500 truncate mt-0.5">${window.esc(l.notes)}</p>` : ''}
                 </div>
                 <div class="flex gap-3 shrink-0">
-                    <button class="js-edit-log text-neutral-400 hover:text-[#a8c7fa] text-sm active:scale-90 transition-transform" data-id="${l.id}">✏️</button>
-                    <button class="js-delete-log text-neutral-500 hover:text-[#ffb4ab] text-sm active:scale-90 transition-transform" data-id="${l.id}">🗑️</button>
+                    <button class="js-edit-log text-neutral-400 hover:text-[#a8c7fa] text-sm active:scale-90 transition-transform cursor-pointer" data-id="${l.id}">✏️</button>
+                    <button class="js-delete-log text-neutral-500 hover:text-[#ffb4ab] text-sm active:scale-90 transition-transform cursor-pointer" data-id="${l.id}">🗑️</button>
                 </div>
             </div>`).join('') || '<p class="text-neutral-500 text-xs py-4 text-center">Brak historii.</p>';
     };
@@ -276,8 +363,8 @@ window.SettingsModule = (() => {
                     <div><h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4><p class="text-[9px] text-neutral-500 uppercase tracking-widest">${item.typeName}</p></div>
                 </div>
                 <div class="flex gap-1">
-                    <button class="js-restore-archive px-3 py-1.5 rounded-full bg-[#0f5223]/20 text-[#c4eed0] text-[9px] font-bold uppercase border border-[#0f5223]/50" data-table="${item.type}" data-id="${item.id}">Przywróć</button>
-                    <button class="js-delete-archive w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:text-[#ffb4ab] text-xs" data-table="${item.type}" data-id="${item.id}">🗑️</button>
+                    <button class="js-restore-archive px-3 py-1.5 rounded-full bg-[#0f5223]/20 text-[#c4eed0] text-[9px] font-bold uppercase border border-[#0f5223]/50 cursor-pointer" data-table="${item.type}" data-id="${item.id}">Przywróć</button>
+                    <button class="js-delete-archive w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:text-[#ffb4ab] text-xs cursor-pointer" data-table="${item.type}" data-id="${item.id}">🗑️</button>
                 </div>
             </div>`).join('');
     };
@@ -298,8 +385,8 @@ window.SettingsModule = (() => {
         const { error } = await window.supabaseClient.auth.signOut();
         if (error) window.showToast("Błąd wylogowania"); else window.location.reload();
     };
+    
     window.closeSettingsScreen = function() { window.goBack(); };
-    window.closeEditProfileScreen = function() { window.goBack(); };
 
     // ==========================================
     // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
@@ -307,9 +394,12 @@ window.SettingsModule = (() => {
     if (window.EventDispatcher) {
         window.EventDispatcher.onClick('.js-edit-room', (e, el) => window.openEditRoomModal(el.dataset.name, el.dataset.icon));
         window.EventDispatcher.onClick('.js-delete-room', (e, el) => window.deleteRoom(el.dataset.name));
+        
         window.EventDispatcher.onClick('.js-edit-profile', (e, el) => window.openEditProfileScreen(parseInt(el.dataset.id)));
+        
         window.EventDispatcher.onClick('.js-edit-log', (e, el) => window.openEditLogModal(parseInt(el.dataset.id)));
         window.EventDispatcher.onClick('.js-delete-log', (e, el) => window.deleteLog(parseInt(el.dataset.id)));
+        
         window.EventDispatcher.onClick('.js-restore-archive', (e, el) => window.restoreFromArchive(el.dataset.table, parseInt(el.dataset.id)));
         window.EventDispatcher.onClick('.js-delete-archive', (e, el) => window.permanentlyDelete(el.dataset.table, parseInt(el.dataset.id)));
     } else {
