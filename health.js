@@ -7,7 +7,7 @@ window.HealthModule = (() => {
     let healthTasks = []; 
     let healthLogs = [];
     let currentProfileId = null; 
-    let isSwitchingProfile = false; // Zapobiega wielokrotnym kliknięciom
+    let isSwitchingProfile = false; 
     let healthViewMode = 'list';
     let currentMonth = new Date().getMonth(); 
     let currentYear = new Date().getFullYear();
@@ -17,6 +17,13 @@ window.HealthModule = (() => {
         const m = String(dObj.getMonth() + 1).padStart(2, '0');
         const d = String(dObj.getDate()).padStart(2, '0');
         return `${y}-${m}-${d}`;
+    };
+
+    // Trik "odmrażający" dotyk na mobilnym Safari
+    const forceTouchRepaint = () => {
+        if (document.activeElement) document.activeElement.blur();
+        document.body.style.cursor = 'default';
+        setTimeout(() => { document.body.style.cursor = ''; }, 50);
     };
 
     window.toggleHealthView = function() {
@@ -343,6 +350,7 @@ window.HealthModule = (() => {
             menu.style.pointerEvents = 'none';
             setTimeout(() => { menu.style.pointerEvents = ''; }, 300);
         }
+        forceTouchRepaint();
     };
 
     window.openNewHealthTaskModal = function(defaultType = 'cyclical') { 
@@ -362,6 +370,7 @@ window.HealthModule = (() => {
             modal.style.pointerEvents = 'none';
             setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
         }
+        forceTouchRepaint();
     };
 
     window.toggleHealthInterval = function() { 
@@ -493,11 +502,10 @@ window.HealthModule = (() => {
             modal.classList.add('hidden');
             modal.style.pointerEvents = 'none'; 
             setTimeout(() => { modal.style.pointerEvents = ''; }, 300); 
-            if (document.activeElement) document.activeElement.blur();
         }
+        forceTouchRepaint();
     };
 
-    // ZMIANA KLUCZOWA: Przyciemniamy kontener, nie niszczymy HTMLa!
     window.selectHealthProfile = async function(id) { 
         if (isSwitchingProfile) return; 
         isSwitchingProfile = true;
@@ -547,6 +555,7 @@ window.HealthModule = (() => {
             modal.style.pointerEvents = 'none'; 
             setTimeout(() => { modal.style.pointerEvents = ''; }, 300); 
         }
+        forceTouchRepaint();
     };
 
     // ==========================================
@@ -555,7 +564,7 @@ window.HealthModule = (() => {
 
     window.allPharmacyItems = [];
     window.openPharmacyScreen = function() { window.goForward('pharmacy-screen'); window.loadPharmacyItems(); };
-    window.closePharmacyScreen = function() { window.goBack(); };
+    window.closePharmacyScreen = function() { window.goBack(); forceTouchRepaint(); };
     
     window.loadPharmacyItems = async function() {
         const listEl = document.getElementById('pharmacy-list');
@@ -627,6 +636,7 @@ window.HealthModule = (() => {
             modal.style.pointerEvents = 'none';
             setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
         }
+        forceTouchRepaint();
     };
 
     window.saveNewPharmacyItem = async function() {
@@ -675,6 +685,7 @@ window.HealthModule = (() => {
             modal.style.pointerEvents = 'none';
             setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
         }
+        forceTouchRepaint();
     };
 
     window.saveEditedPharmacyItem = async function() {
@@ -725,6 +736,7 @@ window.HealthModule = (() => {
             modal.style.pointerEvents = 'none';
             setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
         }
+        forceTouchRepaint();
     };
 
     window.saveNewMeasurement = async function() {
@@ -749,7 +761,25 @@ window.HealthModule = (() => {
     };
 
     window.openHealthBook = function() { window.goForward('health-book-screen'); window.loadHealthBook(); };
-    window.closeHealthBook = function() { window.goBack(); };
+    window.closeHealthBook = function() { window.goBack(); forceTouchRepaint(); };
+
+    // NOWA FUNKCJA: Usuwanie wpisu z książeczki zdrowia!
+    window.deleteHealthBookItem = function(id, type) {
+        window.customConfirm("Czy na pewno usunąć ten wpis z historii?", async () => {
+            const table = type === 'measurement' ? 'health_measurements' : 'health_logs';
+            const { error } = await window.supabaseClient.from(table).delete().eq('id', id);
+            
+            if (error) { window.showToast("Błąd: " + error.message); return; }
+            
+            window.showToast("Usunięto wpis!");
+            
+            await window.refreshHealthData();
+            if(typeof window.loadDashboardOverview === 'function') {
+                window.invalidateDashboardCache();
+            }
+            window.loadHealthBook();
+        });
+    };
 
     window.loadHealthBook = async function() {
         const tl = document.getElementById('health-book-timeline');
@@ -781,6 +811,8 @@ window.HealthModule = (() => {
 
             (measurements || []).forEach(m => {
                 timelineItems.push({
+                    id: m.id,
+                    type: 'measurement',
                     date: new Date(m.created_at),
                     title: `Pomiar: ${m.measurement_type}`,
                     desc: `Wynik: <span class="text-[#c2e7ff] font-bold">${m.value} ${m.unit || ''}</span>${m.notes ? `<br><span class="text-[10px] opacity-70">${window.esc(m.notes)}</span>` : ''}`,
@@ -804,9 +836,11 @@ window.HealthModule = (() => {
                 }
 
                 timelineItems.push({
+                    id: l.id,
+                    type: 'log',
                     date: new Date(l.start_date),
                     title: task.name,
-                    desc: `<span class="text-neutral-400">Pacjent:</span> ${window.esc(profile.name)}<br><span class="text-neutral-400">Wpisał(a):</span> ${window.esc(wykonawca)}`,
+                    desc: `<span class="text-neutral-400">Pacjent:</span> ${window.esc(profile.name)}<br><span class="text-neutral-400">Wpisał(a):</span> ${window.esc(wykonawca)}<br><span class="text-[10px] text-neutral-500">${szczegoly}</span>`,
                     icon: task.task_type === 'duration' ? '🤒' : '🔄',
                     color: task.task_type === 'duration' ? 'text-[#ffb4ab]' : 'text-[#c4eed0]',
                     bg: task.task_type === 'duration' ? 'bg-[#3c1414]/30 border-[#8c1d18]/40' : 'bg-[#0f5223]/10 border-[#0f5223]/30'
@@ -822,13 +856,27 @@ window.HealthModule = (() => {
 
             let html = '';
             let lastMonthYear = '';
+            
+            // ZMIANA: Renderowanie wpisów bezpośrednio w JS, by osadzić poprawny przycisk usuwania!
             timelineItems.forEach(item => {
                 const monthYear = item.date.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' });
                 if (monthYear !== lastMonthYear) {
-                    html += window.UI.renderHealthBookSeparator(monthYear);
+                    html += `<div class="sticky top-0 bg-[#131314]/90 backdrop-blur-md z-10 py-2 border-b border-[#333537] mb-4 mt-6"><h3 class="text-xs font-bold text-neutral-400 uppercase tracking-widest pl-2">${monthYear}</h3></div>`;
                     lastMonthYear = monthYear;
                 }
-                html += window.UI.renderHealthBookTimelineItem(item);
+                
+                html += `
+                <div class="relative pl-6 sm:pl-8 py-3 group border-l-2 border-[#333537] ml-4 sm:ml-6 animate-fade-in">
+                    <div class="absolute -left-[17px] top-3 w-8 h-8 rounded-full ${item.bg} border flex items-center justify-center text-sm shadow-sm">${item.icon}</div>
+                    <div class="bg-[#1e1f20] rounded-[16px] p-4 border border-[#333537] shadow-sm relative overflow-hidden flex justify-between items-start gap-3">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[10px] text-neutral-500 font-medium mb-1">${item.date.toLocaleDateString('pl-PL')} • ${item.date.toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'})}</p>
+                            <h4 class="text-sm font-bold ${item.color} mb-1 truncate">${window.esc(item.title)}</h4>
+                            <p class="text-xs text-neutral-400 leading-relaxed">${item.desc}</p>
+                        </div>
+                        <button class="js-delete-health-book-item w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-[#3c1414]/40 text-[#ffb4ab] border border-[#8c1d18]/50 active:scale-90 transition-transform cursor-pointer" data-id="${item.id}" data-type="${item.type}" title="Usuń wpis">🗑️</button>
+                    </div>
+                </div>`;
             });
             tl.innerHTML = html;
 
@@ -865,7 +913,10 @@ window.HealthModule = (() => {
             window.openEditPharmacyModal(el.dataset.id);
         });
         
-        window.EventDispatcher.onClick('.js-delete-health-log', (e, el) => window.deleteHealthLog(el.dataset.id));
+        // ZMIANA: Nasłuchiwanie na usunięcie wpisu bezpośrednio z książeczki zdrowia
+        window.EventDispatcher.onClick('.js-delete-health-book-item', (e, el) => {
+            window.deleteHealthBookItem(el.dataset.id, el.dataset.type);
+        });
     } else {
         console.error("EventDispatcher nie został załadowany!");
     }
