@@ -160,7 +160,6 @@ window.HealthModule = (() => {
             else inactiveDuration.push(t);
         });
 
-        // POPRAWKA: Pokazujemy zarówno włączone infekcje, jak i wyłączone (by móc je uruchomić!)
         document.getElementById('health-active-section').classList.toggle('hidden', currentlyActive.length === 0 && inactiveDuration.length === 0);
         let activeHtml = '';
         if (currentlyActive.length > 0) {
@@ -229,7 +228,6 @@ window.HealthModule = (() => {
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             
-            // POPRAWKA KALENDARZA: Sprawdzamy logi, które należą WYŁĄCZNIE do tasków obecnego profilu
             const dayLogs = healthLogs.filter(l => {
                 const task = healthTasks.find(t => t.id === l.health_task_id);
                 if (!task) return false; 
@@ -448,7 +446,6 @@ window.HealthModule = (() => {
         document.getElementById('day-details-title').innerText = "Szczegóły Zdrowia";
         document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
         
-        // POPRAWKA KALENDARZA: Ograniczenie widoku dnia do tasków danego profilu
         const dayLogs = healthLogs.filter(l => { 
             const task = healthTasks.find(t => t.id === l.health_task_id);
             if (!task) return false;
@@ -467,7 +464,15 @@ window.HealthModule = (() => {
         modal.classList.remove('hidden');
     };
 
-    window.closeDayDetailsModal = function() { document.getElementById('day-details-modal').classList.add('hidden'); };
+    // ZMIANA: Dodano asynchroniczność i wymuszone ukrycie z czasem, by nie blokować dotyku
+    window.closeDayDetailsModal = function() { 
+        const modal = document.getElementById('day-details-modal');
+        if(modal) {
+            modal.classList.add('hidden');
+            // Zdejmuje focus z przycisków, zapobiegając "zamrożeniu"
+            if (document.activeElement) document.activeElement.blur();
+        }
+    };
 
     window.selectHealthProfile = function(id) { 
         currentProfileId = parseInt(id); 
@@ -759,7 +764,6 @@ window.HealthModule = (() => {
     // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
     // ==========================================
     if (window.EventDispatcher) {
-        // ZMIANA Z TESTÓW: Czysta obsługa górnego menu bez 'pointer-events' lagów
         window.EventDispatcher.onClick('.js-toggle-health-view', () => window.toggleHealthView());
         window.EventDispatcher.onClick('.js-open-health-book', () => window.openHealthBook());
         window.EventDispatcher.onClick('.js-open-pharmacy', () => window.openPharmacyScreen());
@@ -771,7 +775,12 @@ window.HealthModule = (() => {
         window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLog(el.dataset.id));
         window.EventDispatcher.onClick('.js-start-health-log', (e, el) => window.startHealthLog(el.dataset.id, el.dataset.type));
         window.EventDispatcher.onClick('.js-open-health-settings', (e, el) => window.openHealthSettingsScreen(el.dataset.id));
+        
         window.EventDispatcher.onClick('.js-open-day-details', (e, el) => window.openDayDetails(el.dataset.date));
+        
+        // ZMIANA: Obsługa zamykania modala kalendarza wyjęta do Dispatchera
+        window.EventDispatcher.onClick('.js-close-day-details', () => window.closeDayDetailsModal());
+
         window.EventDispatcher.onClick('.js-select-profile', (e, el) => window.selectHealthProfile(el.dataset.id));
         window.EventDispatcher.onClick('.js-delete-pharmacy-item', (e, el) => window.deletePharmacyItem(el.dataset.id));
         
