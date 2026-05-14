@@ -13,7 +13,7 @@
         </div>
     </header>
 
-    <div class="mb-6 cursor-pointer group" onclick="window.openGlobalSearch()">
+    <div class="js-open-search mb-6 cursor-pointer group">
         <div class="bg-[#131314] border border-[#333537] group-hover:border-[#a8c7fa]/50 rounded-[20px] p-3 flex items-center gap-3 transition-colors shadow-sm">
             <span class="text-xl opacity-50 pl-1">🔍</span>
             <span class="text-sm text-neutral-500 font-medium">Szukaj zadań, leków, wpisów...</span>
@@ -23,6 +23,7 @@
     <div id="dashboard-today-container" class="mb-6 hidden"></div>
 
     <div class="flex flex-col gap-3 mb-6">
+        
         <div class="bg-[#1e1f20] border border-[#333537] rounded-[24px] overflow-hidden shadow-sm">
             <div class="js-toggle-widget flex items-center justify-between p-4 cursor-pointer active:bg-[#252627] transition-colors select-none" data-target="widget-home-content">
                 <div class="flex items-center gap-3">
@@ -64,12 +65,14 @@
             </div>
             <div id="widget-todo-content" class="hidden border-t border-[#333537]/50 bg-[#131314]/50 p-2"></div>
         </div>
+
     </div>
 
     <div id="dashboard-horizon-container" class="mb-6"></div>
+
 </div>
 
-<div id="dashboard-history-overlay" class="fixed inset-0 z-[100] bg-[#131314] hidden flex-col animate-fade-in">
+<div id="dashboard-history-overlay" class="fixed inset-0 z-50 bg-[#131314] hidden flex flex-col animate-fade-in">
     
     <div class="p-4 sm:p-6 border-b border-[#333537] bg-[#1e1f20] flex items-center gap-3 shrink-0">
         <button class="js-close-history text-neutral-400 text-3xl active:scale-90 pb-1 px-2 cursor-pointer">←</button>
