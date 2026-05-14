@@ -79,7 +79,6 @@ window.DashboardModule = (() => {
         const todayContainer = document.getElementById('dashboard-today-container');
         if (!todayContainer) return;
 
-        // ZMIANA: Zdrowie na dziś (łapie teraz jednorazowe wydarzenia ORAZ rutyny cykliczne)
         const healthToday = state.hTasks.filter(ht => {
             if (ht.task_type === 'one_time' && ht.event_date === todayStr) {
                 const isDone = state.hLogs.some(l => l.health_task_id === ht.id);
@@ -112,24 +111,37 @@ window.DashboardModule = (() => {
                 <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
             `;
             
+            // ZMIANA: Kompaktowy, poziomy układ dla ZDROWIA
             html += healthToday.map(ht => {
                 const icon = ht.task_type === 'cyclical' ? '❤️' : '📅';
                 const subtitle = ht.task_type === 'cyclical' ? 'Rutyna na dziś' : 'Zdarzenie';
                 return `
-                <div class="js-quick-log-health min-w-[140px] p-3 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[20px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}">
-                    <div class="text-xl mb-1">${icon}</div>
-                    <div class="text-[11px] font-bold text-[#c2e7ff] leading-tight mb-1 truncate">${window.esc(ht.name)}</div>
-                    <div class="text-[9px] text-[#a8c7fa]/70 uppercase font-medium">${subtitle}</div>
+                <div class="js-quick-log-health flex items-center gap-3 w-[200px] p-2.5 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}">
+                    <div class="text-lg bg-[#004a77]/30 w-10 h-10 rounded-full flex items-center justify-center shrink-0">${icon}</div>
+                    <div class="flex-1 min-w-0 pr-1">
+                        <div class="text-[12px] font-bold text-[#c2e7ff] leading-tight truncate mb-0.5">${window.esc(ht.name)}</div>
+                        <div class="text-[9px] text-[#a8c7fa]/70 uppercase font-medium">${subtitle}</div>
+                    </div>
                 </div>`;
             }).join('');
 
-            html += homeToday.map(t => `
-                <div class="js-dash-log-task min-w-[140px] p-3 bg-[#1e1f20] border border-[#333537] rounded-[20px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${t.id}">
-                    <div class="text-xl mb-1">🏠</div>
-                    <div class="text-[11px] font-bold text-neutral-200 leading-tight mb-1 truncate">${window.esc(t.name)}</div>
-                    <div class="text-[9px] text-neutral-500 uppercase font-medium">Cykl wypada dziś</div>
-                </div>
-            `).join('');
+            // ZMIANA: Kompaktowy układ dla DOMU + pobieranie ikony pokoju
+            html += homeToday.map(t => {
+                let roomIcon = '🏠';
+                if (t.room && state.rooms) {
+                    const roomObj = state.rooms.find(r => r.name === t.room);
+                    if (roomObj && roomObj.icon) roomIcon = roomObj.icon;
+                }
+
+                return `
+                <div class="js-dash-log-task flex items-center gap-3 w-[200px] p-2.5 bg-[#1e1f20] border border-[#333537] rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${t.id}">
+                    <div class="text-lg bg-[#333537]/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">${window.esc(roomIcon)}</div>
+                    <div class="flex-1 min-w-0 pr-1">
+                        <div class="text-[12px] font-bold text-neutral-200 leading-tight truncate mb-0.5">${window.esc(t.name)}</div>
+                        <div class="text-[9px] text-neutral-500 uppercase font-medium">Cykl na dziś</div>
+                    </div>
+                </div>`;
+            }).join('');
 
             html += `</div>`;
             todayContainer.innerHTML = html;
