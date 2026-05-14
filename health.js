@@ -333,7 +333,14 @@ window.HealthModule = (() => {
     };
 
     window.openHealthFabMenu = function() { document.getElementById('health-fab-menu').classList.remove('hidden'); };
-    window.closeHealthFabMenu = function() { document.getElementById('health-fab-menu').classList.add('hidden'); };
+    window.closeHealthFabMenu = function() { 
+        const menu = document.getElementById('health-fab-menu');
+        if (menu) {
+            menu.classList.add('hidden'); 
+            menu.style.pointerEvents = 'none';
+            setTimeout(() => { menu.style.pointerEvents = ''; }, 300);
+        }
+    };
 
     window.openNewHealthTaskModal = function(defaultType = 'cyclical') { 
         document.getElementById('h-task-name').value = ''; 
@@ -344,7 +351,14 @@ window.HealthModule = (() => {
     window.openNewDurationModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('duration'); };
     window.openNewEventModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('one_time'); };
     window.openNewRoutineModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('cyclical'); };
-    window.closeNewHealthTaskModal = function() { document.getElementById('new-health-task-modal').classList.add('hidden'); };
+    window.closeNewHealthTaskModal = function() { 
+        const modal = document.getElementById('new-health-task-modal');
+        if (modal) {
+            modal.classList.add('hidden'); 
+            modal.style.pointerEvents = 'none';
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+        }
+    };
 
     window.toggleHealthInterval = function() { 
         const type = document.getElementById('h-task-type').value;
@@ -469,7 +483,8 @@ window.HealthModule = (() => {
         const modal = document.getElementById('day-details-modal');
         if(modal) {
             modal.classList.add('hidden');
-            // Zdejmuje focus z przycisków, zapobiegając "zamrożeniu"
+            modal.style.pointerEvents = 'none'; // iOS Safari Fix
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300); // Reset
             if (document.activeElement) document.activeElement.blur();
         }
     };
@@ -506,7 +521,11 @@ window.HealthModule = (() => {
 
     window.closeProfileSwitcher = function() { 
         const modal = document.getElementById('profile-switcher-modal');
-        if (modal) modal.classList.add('hidden'); 
+        if (modal) {
+            modal.classList.add('hidden'); 
+            modal.style.pointerEvents = 'none'; // iOS Safari Fix
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300); // Reset po animacji
+        }
     };
 
     // ==========================================
