@@ -19,13 +19,6 @@ window.HealthModule = (() => {
         return `${y}-${m}-${d}`;
     };
 
-    // Trik "odmrażający" dotyk na mobilnym Safari
-    const forceTouchRepaint = () => {
-        if (document.activeElement) document.activeElement.blur();
-        document.body.style.cursor = 'default';
-        setTimeout(() => { document.body.style.cursor = ''; }, 50);
-    };
-
     window.toggleHealthView = function() {
         healthViewMode = healthViewMode === 'list' ? 'calendar' : 'list';
         const toggleBtn = document.getElementById('health-view-toggle-btn');
@@ -345,12 +338,7 @@ window.HealthModule = (() => {
     
     window.closeHealthFabMenu = function() { 
         const menu = document.getElementById('health-fab-menu');
-        if (menu) {
-            menu.classList.add('hidden'); 
-            menu.style.pointerEvents = 'none';
-            setTimeout(() => { menu.style.pointerEvents = ''; }, 300);
-        }
-        forceTouchRepaint();
+        if (menu) menu.classList.add('hidden'); 
     };
 
     window.openNewHealthTaskModal = function(defaultType = 'cyclical') { 
@@ -365,12 +353,7 @@ window.HealthModule = (() => {
     
     window.closeNewHealthTaskModal = function() { 
         const modal = document.getElementById('new-health-task-modal');
-        if (modal) {
-            modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
-        }
-        forceTouchRepaint();
+        if (modal) modal.classList.add('hidden'); 
     };
 
     window.toggleHealthInterval = function() { 
@@ -498,14 +481,10 @@ window.HealthModule = (() => {
 
     window.closeDayDetailsModal = function() { 
         const modal = document.getElementById('day-details-modal');
-        if(modal) {
-            modal.classList.add('hidden');
-            modal.style.pointerEvents = 'none'; 
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300); 
-        }
-        forceTouchRepaint();
+        if(modal) modal.classList.add('hidden');
     };
 
+    // ZMIANA: Czysty kod blokujący podwójne kliknięcia. Ukrywanie modala z polegniem całkowicie na CSS w index.html
     window.selectHealthProfile = async function(id) { 
         if (isSwitchingProfile) return; 
         isSwitchingProfile = true;
@@ -519,24 +498,18 @@ window.HealthModule = (() => {
             
             if (healthViewMode === 'list' && sectionsWrapper) {
                 sectionsWrapper.style.opacity = '0.3';
-                sectionsWrapper.style.pointerEvents = 'none';
             } else if (calWrapper) {
                 calWrapper.style.opacity = '0.3';
-                calWrapper.style.pointerEvents = 'none';
             }
 
             await window.initHealthModule(); 
+        } catch (error) {
+            console.error(error);
         } finally {
             const sectionsWrapper = document.getElementById('health-sections-wrapper');
             const calWrapper = document.getElementById('calendar-container');
-            if (sectionsWrapper) {
-                sectionsWrapper.style.opacity = '1';
-                sectionsWrapper.style.pointerEvents = 'auto';
-            }
-            if (calWrapper) {
-                calWrapper.style.opacity = '1';
-                calWrapper.style.pointerEvents = 'auto';
-            }
+            if (sectionsWrapper) sectionsWrapper.style.opacity = '';
+            if (calWrapper) calWrapper.style.opacity = '';
             isSwitchingProfile = false; 
         }
     };
@@ -550,12 +523,7 @@ window.HealthModule = (() => {
 
     window.closeProfileSwitcher = function() { 
         const modal = document.getElementById('profile-switcher-modal');
-        if (modal) {
-            modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none'; 
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300); 
-        }
-        forceTouchRepaint();
+        if (modal) modal.classList.add('hidden'); 
     };
 
     // ==========================================
@@ -564,7 +532,7 @@ window.HealthModule = (() => {
 
     window.allPharmacyItems = [];
     window.openPharmacyScreen = function() { window.goForward('pharmacy-screen'); window.loadPharmacyItems(); };
-    window.closePharmacyScreen = function() { window.goBack(); forceTouchRepaint(); };
+    window.closePharmacyScreen = function() { window.goBack(); };
     
     window.loadPharmacyItems = async function() {
         const listEl = document.getElementById('pharmacy-list');
@@ -631,12 +599,7 @@ window.HealthModule = (() => {
     
     window.closeNewPharmacyItemModal = function() { 
         const modal = document.getElementById('new-pharmacy-item-modal');
-        if (modal) {
-            modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
-        }
-        forceTouchRepaint();
+        if (modal) modal.classList.add('hidden'); 
     };
 
     window.saveNewPharmacyItem = async function() {
@@ -680,12 +643,7 @@ window.HealthModule = (() => {
 
     window.closeEditPharmacyModal = function() { 
         const modal = document.getElementById('edit-pharmacy-item-modal');
-        if (modal) {
-            modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
-        }
-        forceTouchRepaint();
+        if (modal) modal.classList.add('hidden'); 
     };
 
     window.saveEditedPharmacyItem = async function() {
@@ -731,12 +689,7 @@ window.HealthModule = (() => {
     
     window.closeNewMeasurementModal = function() { 
         const modal = document.getElementById('new-measurement-modal');
-        if (modal) {
-            modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
-        }
-        forceTouchRepaint();
+        if (modal) modal.classList.add('hidden'); 
     };
 
     window.saveNewMeasurement = async function() {
@@ -761,9 +714,8 @@ window.HealthModule = (() => {
     };
 
     window.openHealthBook = function() { window.goForward('health-book-screen'); window.loadHealthBook(); };
-    window.closeHealthBook = function() { window.goBack(); forceTouchRepaint(); };
+    window.closeHealthBook = function() { window.goBack(); };
 
-    // NOWA FUNKCJA: Usuwanie wpisu z książeczki zdrowia!
     window.deleteHealthBookItem = function(id, type) {
         window.customConfirm("Czy na pewno usunąć ten wpis z historii?", async () => {
             const table = type === 'measurement' ? 'health_measurements' : 'health_logs';
@@ -808,118 +760,3 @@ window.HealthModule = (() => {
             const profileLogs = logs.filter(l => taskMap.has(l.health_task_id));
             
             let timelineItems = [];
-
-            (measurements || []).forEach(m => {
-                timelineItems.push({
-                    id: m.id,
-                    type: 'measurement',
-                    date: new Date(m.created_at),
-                    title: `Pomiar: ${m.measurement_type}`,
-                    desc: `Wynik: <span class="text-[#c2e7ff] font-bold">${m.value} ${m.unit || ''}</span>${m.notes ? `<br><span class="text-[10px] opacity-70">${window.esc(m.notes)}</span>` : ''}`,
-                    icon: '📏',
-                    color: 'text-[#c2e7ff]',
-                    bg: 'bg-[#004a77]/10 border-[#004a77]/30'
-                });
-            });
-
-            profileLogs.forEach(l => {
-                const task = taskMap.get(l.health_task_id); 
-                if (!task) return;
-
-                const wykonawca = l.user_name || 'Domownik';
-                let szczegoly = '';
-                
-                if (task.task_type === 'duration') {
-                    szczegoly = l.end_date ? `Zdarzenie trwało do ${new Date(l.end_date).toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'})}` : 'Zdarzenie nadal trwa';
-                } else {
-                    szczegoly = `Zarejestrowano wykonanie zadania`;
-                }
-
-                timelineItems.push({
-                    id: l.id,
-                    type: 'log',
-                    date: new Date(l.start_date),
-                    title: task.name,
-                    desc: `<span class="text-neutral-400">Pacjent:</span> ${window.esc(profile.name)}<br><span class="text-neutral-400">Wpisał(a):</span> ${window.esc(wykonawca)}<br><span class="text-[10px] text-neutral-500">${szczegoly}</span>`,
-                    icon: task.task_type === 'duration' ? '🤒' : '🔄',
-                    color: task.task_type === 'duration' ? 'text-[#ffb4ab]' : 'text-[#c4eed0]',
-                    bg: task.task_type === 'duration' ? 'bg-[#3c1414]/30 border-[#8c1d18]/40' : 'bg-[#0f5223]/10 border-[#0f5223]/30'
-                });
-            });
-
-            timelineItems.sort((a, b) => b.date - a.date);
-
-            if (timelineItems.length === 0) {
-                tl.innerHTML = `<div class="py-10 text-neutral-500 text-xs text-center">Brak wpisów w książeczce dla: ${profile.name}</div>`;
-                return;
-            }
-
-            let html = '';
-            let lastMonthYear = '';
-            
-            // ZMIANA: Renderowanie wpisów bezpośrednio w JS, by osadzić poprawny przycisk usuwania!
-            timelineItems.forEach(item => {
-                const monthYear = item.date.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' });
-                if (monthYear !== lastMonthYear) {
-                    html += `<div class="sticky top-0 bg-[#131314]/90 backdrop-blur-md z-10 py-2 border-b border-[#333537] mb-4 mt-6"><h3 class="text-xs font-bold text-neutral-400 uppercase tracking-widest pl-2">${monthYear}</h3></div>`;
-                    lastMonthYear = monthYear;
-                }
-                
-                html += `
-                <div class="relative pl-6 sm:pl-8 py-3 group border-l-2 border-[#333537] ml-4 sm:ml-6 animate-fade-in">
-                    <div class="absolute -left-[17px] top-3 w-8 h-8 rounded-full ${item.bg} border flex items-center justify-center text-sm shadow-sm">${item.icon}</div>
-                    <div class="bg-[#1e1f20] rounded-[16px] p-4 border border-[#333537] shadow-sm relative overflow-hidden flex justify-between items-start gap-3">
-                        <div class="flex-1 min-w-0">
-                            <p class="text-[10px] text-neutral-500 font-medium mb-1">${item.date.toLocaleDateString('pl-PL')} • ${item.date.toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'})}</p>
-                            <h4 class="text-sm font-bold ${item.color} mb-1 truncate">${window.esc(item.title)}</h4>
-                            <p class="text-xs text-neutral-400 leading-relaxed">${item.desc}</p>
-                        </div>
-                        <button class="js-delete-health-book-item w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-[#3c1414]/40 text-[#ffb4ab] border border-[#8c1d18]/50 active:scale-90 transition-transform cursor-pointer" data-id="${item.id}" data-type="${item.type}" title="Usuń wpis">🗑️</button>
-                    </div>
-                </div>`;
-            });
-            tl.innerHTML = html;
-
-        } catch (err) {
-            console.error("Błąd ładowania Książeczki:", err);
-            tl.innerHTML = `<p class="text-center text-rose-400 text-xs py-10">Błąd: ${err.message}</p>`;
-        }
-    };
-
-    // ==========================================
-    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
-    // ==========================================
-    if (window.EventDispatcher) {
-        window.EventDispatcher.onClick('.js-toggle-health-view', () => window.toggleHealthView());
-        window.EventDispatcher.onClick('.js-open-health-book', () => window.openHealthBook());
-        window.EventDispatcher.onClick('.js-open-pharmacy', () => window.openPharmacyScreen());
-        window.EventDispatcher.onClick('.js-toggle-profile-switcher', () => window.toggleProfileSwitcher());
-        window.EventDispatcher.onClick('.js-open-health-fab-menu', () => window.openHealthFabMenu());
-        window.EventDispatcher.onClick('.js-change-cal-month', (e, el) => window.changeCalendarMonth(el.dataset.offset));
-
-        window.EventDispatcher.onClick('.js-select-health-profile', (e, el) => window.selectHealthProfile(el.dataset.id));
-        window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLog(el.dataset.id));
-        window.EventDispatcher.onClick('.js-start-health-log', (e, el) => window.startHealthLog(el.dataset.id, el.dataset.type));
-        window.EventDispatcher.onClick('.js-open-health-settings', (e, el) => window.openHealthSettingsScreen(el.dataset.id));
-        
-        window.EventDispatcher.onClick('.js-open-day-details', (e, el) => window.openDayDetails(el.dataset.date));
-        window.EventDispatcher.onClick('.js-close-day-details', () => window.closeDayDetailsModal());
-
-        window.EventDispatcher.onClick('.js-select-profile', (e, el) => window.selectHealthProfile(el.dataset.id));
-        window.EventDispatcher.onClick('.js-delete-pharmacy-item', (e, el) => window.deletePharmacyItem(el.dataset.id));
-        
-        window.EventDispatcher.onClick('.js-open-edit-pharmacy', (e, el) => {
-            if (e.target.closest('.js-delete-pharmacy-item')) return;
-            window.openEditPharmacyModal(el.dataset.id);
-        });
-        
-        // ZMIANA: Nasłuchiwanie na usunięcie wpisu bezpośrednio z książeczki zdrowia
-        window.EventDispatcher.onClick('.js-delete-health-book-item', (e, el) => {
-            window.deleteHealthBookItem(el.dataset.id, el.dataset.type);
-        });
-    } else {
-        console.error("EventDispatcher nie został załadowany!");
-    }
-
-    return {};
-})();
