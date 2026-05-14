@@ -111,7 +111,6 @@ window.DashboardModule = (() => {
                 <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
             `;
             
-            // ZMIANA: Kompaktowy, poziomy układ dla ZDROWIA
             html += healthToday.map(ht => {
                 const icon = ht.task_type === 'cyclical' ? '❤️' : '📅';
                 const subtitle = ht.task_type === 'cyclical' ? 'Rutyna na dziś' : 'Zdarzenie';
@@ -125,7 +124,6 @@ window.DashboardModule = (() => {
                 </div>`;
             }).join('');
 
-            // ZMIANA: Kompaktowy układ dla DOMU + pobieranie ikony pokoju
             html += homeToday.map(t => {
                 let roomIcon = '🏠';
                 if (t.room && state.rooms) {
@@ -490,6 +488,7 @@ window.DashboardModule = (() => {
             return;
         }
 
+        // ZMIANA: Dodano przycisk cofania (Koszyk) w historii
         listEl.innerHTML = `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">` + historyItems.slice(0, 50).map(item => {
             const initial = (item.user || '?')[0].toUpperCase();
             return `
@@ -500,12 +499,18 @@ window.DashboardModule = (() => {
                         <h4 class="text-sm font-medium text-neutral-200 truncate">${window.esc(item.title)}</h4>
                         <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
-                    <div class="js-dash-change-user w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold shrink-0 cursor-pointer active:scale-90 transition-transform" data-table="${item.table}" data-id="${item.id}" data-username="${window.esc(item.user)}">${initial}</div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <div class="js-dash-change-user w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold cursor-pointer active:scale-90 transition-transform" data-table="${item.table}" data-id="${item.id}" data-username="${window.esc(item.user)}">${initial}</div>
+                        <button class="js-dash-undo-log text-neutral-500 hover:text-[#ffb4ab] p-1.5 active:scale-90 transition-transform text-xs" data-table="${item.table}" data-id="${item.id}" title="Cofnij">🗑️</button>
+                    </div>
                 </div>
             </div>`;
         }).join('') + `</div>`;
     }
 
+    // ==========================================
+    // SZYBKIE AKCJE I AKORDIONY
+    // ==========================================
     window.openQuickShoppingList = async function() {
         const state = window.AppStore.get();
         let shoppingList = (state.checklists || []).find(l => l.list_type === 'shopping' && !l.is_archived);
@@ -526,15 +531,9 @@ window.DashboardModule = (() => {
                 is_archived: false
             }]).select().single();
 
-            if (error) {
-                window.showToast("Błąd koszyka: " + error.message);
-                return;
-            }
+            if (error) { window.showToast("Błąd koszyka: " + error.message); return; }
 
-            window.AppStore.set({
-                checklists: [...(state.checklists || []), data]
-            });
-
+            window.AppStore.set({ checklists: [...(state.checklists || []), data] });
             window.switchView('todo');
             setTimeout(() => window.openChecklistScreen(data.id, data.title, 'shopping'), 50);
         }
@@ -545,7 +544,6 @@ window.DashboardModule = (() => {
         if (!content) return;
         
         const isHidden = content.classList.contains('hidden');
-        
         if (isHidden) {
             content.classList.remove('hidden');
             if (chevronEl) chevronEl.style.transform = 'rotate(180deg)';
@@ -555,27 +553,30 @@ window.DashboardModule = (() => {
         }
     };
 
+    // ZMIANA: Dodano window.customConfirm (Zabezpieczenie przed kliknięciem)
     window.quickLogTaskDashboard = async function(taskId) {
-        if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
-        const finalTaskId = isNaN(taskId) ? taskId : Number(taskId);
-        const state = window.AppStore.get();
-        const task = state.tasks.find(t => t.id == finalTaskId);
-        const now = new Date();
+        window.customConfirm("Odhaczyć jako zrobione?", async () => {
+            if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+            const finalTaskId = isNaN(taskId) ? taskId : Number(taskId);
+            const state = window.AppStore.get();
+            const task = state.tasks.find(t => t.id == finalTaskId);
+            const now = new Date();
 
-        const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
-            task_id: finalTaskId, activity_name: task ? task.name : 'Zadanie', created_at: now.toISOString(), 
-            user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
-        }]);
+            const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
+                task_id: finalTaskId, activity_name: task ? task.name : 'Zadanie', created_at: now.toISOString(), 
+                user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
+            }]);
 
-        if (error) { window.showToast("Błąd bazy: " + error.message); return; }
+            if (error) { window.showToast("Błąd bazy: " + error.message); return; }
 
-        if (task && task.interval_days > 0) {
-            const nextDate = new Date(now); nextDate.setDate(nextDate.getDate() + task.interval_days);
-            await window.supabaseClient.from('tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', finalTaskId);
-        } else if (task) {
-            await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', finalTaskId);
-        }
-        window.showToast('Zapisano! ✔️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true); 
+            if (task && task.interval_days > 0) {
+                const nextDate = new Date(now); nextDate.setDate(nextDate.getDate() + task.interval_days);
+                await window.supabaseClient.from('tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', finalTaskId);
+            } else if (task) {
+                await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', finalTaskId);
+            }
+            window.showToast('Zapisano! ✔️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true); 
+        });
     };
 
     window.quickCompleteTodoDashboard = async function(id) {
@@ -585,24 +586,27 @@ window.DashboardModule = (() => {
         window.invalidateDashboardCache(); window.loadDashboardOverview(true);
     };
 
+    // ZMIANA: Dodano window.customConfirm (Zabezpieczenie przed kliknięciem)
     window.quickLogHealthDashboard = async function(taskId) {
-        const finalId = isNaN(taskId) ? taskId : Number(taskId);
-        const state = window.AppStore.get();
-        const task = state.hTasks.find(t => t.id == finalId);
-        const now = new Date();
+        window.customConfirm("Odhaczyć to zdarzenie?", async () => {
+            const finalId = isNaN(taskId) ? taskId : Number(taskId);
+            const state = window.AppStore.get();
+            const task = state.hTasks.find(t => t.id == finalId);
+            const now = new Date();
 
-        const { error } = await window.supabaseClient.from('health_logs').insert([{ 
-            health_task_id: finalId, start_date: now.toISOString(), end_date: now.toISOString(), 
-            user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
-        }]);
-        
-        if (error) { window.showToast("Błąd: " + error.message); return; }
+            const { error } = await window.supabaseClient.from('health_logs').insert([{ 
+                health_task_id: finalId, start_date: now.toISOString(), end_date: now.toISOString(), 
+                user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
+            }]);
+            
+            if (error) { window.showToast("Błąd: " + error.message); return; }
 
-        if (task && task.interval_days > 0) {
-            const nextDate = new Date(now); nextDate.setDate(nextDate.getDate() + task.interval_days);
-            await window.supabaseClient.from('health_tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', finalId);
-        }
-        window.showToast('Zapisano! ❤️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true);
+            if (task && task.interval_days > 0) {
+                const nextDate = new Date(now); nextDate.setDate(nextDate.getDate() + task.interval_days);
+                await window.supabaseClient.from('health_tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', finalId);
+            }
+            window.showToast('Zapisano! ❤️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true);
+        });
     };
 
     window.closeHealthLogDashboard = async function(logId) {
@@ -614,6 +618,33 @@ window.DashboardModule = (() => {
         window.loadDashboardOverview(true);
     };
 
+    // ZMIANA: Obsługa Cofania Logów z Historii (Undo)
+    window.undoActionDashboard = function(table, id) {
+        window.customConfirm("Cofnąć to wykonanie?", async () => {
+            let errorObj = null;
+            if (table === 'todos') {
+                const { error } = await window.supabaseClient.from('todos').update({ is_completed: false, completed_at: null, completer_name: null }).eq('id', id);
+                errorObj = error;
+            } else {
+                const { error } = await window.supabaseClient.from(table).delete().eq('id', id);
+                errorObj = error;
+            }
+
+            if (errorObj) { 
+                window.showToast("Błąd: " + errorObj.message); 
+            } else {
+                window.showToast("Cofnięto!");
+                window.invalidateDashboardCache();
+                window.loadDashboardOverview(true);
+                // Automatycznie zamykamy historię, żeby zobaczyć powrót na ekran
+                document.getElementById('dashboard-history-overlay').classList.add('hidden');
+            }
+        });
+    };
+
+    // ==========================================
+    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
+    // ==========================================
     if (window.EventDispatcher) {
         
         window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
@@ -642,6 +673,10 @@ window.DashboardModule = (() => {
 
         window.EventDispatcher.onClick('.js-dash-nav', (e, el) => window.switchView(el.dataset.view));
         window.EventDispatcher.onClick('.js-dash-complete-todo', (e, el) => window.quickCompleteTodoDashboard(el.dataset.id));
+        
+        // ZMIANA: Obsługa Cofań w Historii
+        window.EventDispatcher.onClick('.js-dash-undo-log', (e, el) => window.undoActionDashboard(el.dataset.table, el.dataset.id));
+
         window.EventDispatcher.onClick('.js-dash-log-task', (e, el) => window.quickLogTaskDashboard(el.dataset.id));
         window.EventDispatcher.onClick('.js-quick-log-health', (e, el) => window.quickLogHealthDashboard(el.dataset.id));
         window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLogDashboard(el.dataset.id));
