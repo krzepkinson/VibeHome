@@ -111,19 +111,20 @@ window.DashboardModule = (() => {
                 <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
             `;
             
+            // ZMIANA: Kompaktowe, pionowe kafelki dla zdrowia z zawijaniem tekstu (line-clamp)
             html += healthToday.map(ht => {
                 const icon = ht.task_type === 'cyclical' ? '❤️' : '📅';
-                const subtitle = ht.task_type === 'cyclical' ? 'Rutyna na dziś' : 'Zdarzenie';
                 return `
-                <div class="js-quick-log-health flex items-center gap-3 w-[200px] p-2.5 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}">
-                    <div class="text-lg bg-[#004a77]/30 w-10 h-10 rounded-full flex items-center justify-center shrink-0">${icon}</div>
-                    <div class="flex-1 min-w-0 pr-1">
-                        <div class="text-[12px] font-bold text-[#c2e7ff] leading-tight truncate mb-0.5">${window.esc(ht.name)}</div>
-                        <div class="text-[9px] text-[#a8c7fa]/70 uppercase font-medium">${subtitle}</div>
+                <div class="js-quick-log-health flex flex-col justify-between w-[115px] h-[90px] p-3 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}">
+                    <div class="text-[12px] font-bold text-[#c2e7ff] leading-tight line-clamp-2">${window.esc(ht.name)}</div>
+                    <div class="flex justify-between items-center mt-1">
+                        <span class="text-[10px] text-[#a8c7fa]/80 uppercase font-medium">Dziś</span>
+                        <span class="text-xs opacity-80">${icon}</span>
                     </div>
                 </div>`;
             }).join('');
 
+            // ZMIANA: Kompaktowe, pionowe kafelki dla domu z zawijaniem tekstu (line-clamp)
             html += homeToday.map(t => {
                 let roomIcon = '🏠';
                 if (t.room && state.rooms) {
@@ -132,11 +133,11 @@ window.DashboardModule = (() => {
                 }
 
                 return `
-                <div class="js-dash-log-task flex items-center gap-3 w-[200px] p-2.5 bg-[#1e1f20] border border-[#333537] rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${t.id}">
-                    <div class="text-lg bg-[#333537]/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">${window.esc(roomIcon)}</div>
-                    <div class="flex-1 min-w-0 pr-1">
-                        <div class="text-[12px] font-bold text-neutral-200 leading-tight truncate mb-0.5">${window.esc(t.name)}</div>
-                        <div class="text-[9px] text-neutral-500 uppercase font-medium">Cykl na dziś</div>
+                <div class="js-dash-log-task flex flex-col justify-between w-[115px] h-[90px] p-3 bg-[#1e1f20] border border-[#333537] rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${t.id}">
+                    <div class="text-[12px] font-bold text-neutral-200 leading-tight line-clamp-2">${window.esc(t.name)}</div>
+                    <div class="flex justify-between items-center mt-1">
+                        <span class="text-[10px] text-neutral-500 uppercase font-medium">Dziś</span>
+                        <span class="text-xs opacity-80">${window.esc(roomIcon)}</span>
                     </div>
                 </div>`;
             }).join('');
@@ -203,12 +204,7 @@ window.DashboardModule = (() => {
                 }).join('');
             }
             content.innerHTML = html;
-
-            if (overdueHome.length > 0) {
-                content.classList.remove('hidden');
-                const chevron = document.getElementById('widget-home-chevron');
-                if (chevron) chevron.style.transform = 'rotate(180deg)';
-            }
+            // Usunięto: Zawsze domyślnie schowane akordeony (zgodnie z prośbą)
         } else {
             content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
                 <span class="text-3xl opacity-50 mb-2">✨</span>
@@ -334,12 +330,7 @@ window.DashboardModule = (() => {
                 }).join('');
             }
             content.innerHTML = html;
-
-            if (activeHealth.length > 0 || overdueEvents.length > 0) {
-                content.classList.remove('hidden');
-                const chevron = document.getElementById('widget-health-chevron');
-                if (chevron) chevron.style.transform = 'rotate(180deg)';
-            }
+            // Usunięto: Zawsze domyślnie schowane akordeony
         } else {
             content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
                 <span class="text-3xl opacity-50 mb-2">🌿</span>
@@ -373,11 +364,7 @@ window.DashboardModule = (() => {
                 html += `<div class="text-[10px] text-neutral-500 text-center mt-2 cursor-pointer hover:text-[#a8c7fa] py-2 js-dash-nav" data-view="todo">+${activeTodos.length - 5} więcej w module</div>`;
             }
             content.innerHTML = html;
-
-            content.classList.remove('hidden');
-            const chevron = document.getElementById('widget-todo-chevron');
-            if (chevron) chevron.style.transform = 'rotate(180deg)';
-
+            // Usunięto: Zawsze domyślnie schowane akordeony
         } else {
             badge.classList.add('hidden');
             content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
@@ -488,7 +475,6 @@ window.DashboardModule = (() => {
             return;
         }
 
-        // ZMIANA: Dodano przycisk cofania (Koszyk) w historii
         listEl.innerHTML = `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">` + historyItems.slice(0, 50).map(item => {
             const initial = (item.user || '?')[0].toUpperCase();
             return `
@@ -509,7 +495,7 @@ window.DashboardModule = (() => {
     }
 
     // ==========================================
-    // SZYBKIE AKCJE I AKORDIONY
+    // NIEŚMIERTELNY KOSZYK (SZYBKIE ZAKUPY)
     // ==========================================
     window.openQuickShoppingList = async function() {
         const state = window.AppStore.get();
@@ -531,9 +517,15 @@ window.DashboardModule = (() => {
                 is_archived: false
             }]).select().single();
 
-            if (error) { window.showToast("Błąd koszyka: " + error.message); return; }
+            if (error) {
+                window.showToast("Błąd koszyka: " + error.message);
+                return;
+            }
 
-            window.AppStore.set({ checklists: [...(state.checklists || []), data] });
+            window.AppStore.set({
+                checklists: [...(state.checklists || []), data]
+            });
+
             window.switchView('todo');
             setTimeout(() => window.openChecklistScreen(data.id, data.title, 'shopping'), 50);
         }
@@ -544,6 +536,7 @@ window.DashboardModule = (() => {
         if (!content) return;
         
         const isHidden = content.classList.contains('hidden');
+        
         if (isHidden) {
             content.classList.remove('hidden');
             if (chevronEl) chevronEl.style.transform = 'rotate(180deg)';
@@ -553,7 +546,6 @@ window.DashboardModule = (() => {
         }
     };
 
-    // ZMIANA: Dodano window.customConfirm (Zabezpieczenie przed kliknięciem)
     window.quickLogTaskDashboard = async function(taskId) {
         window.customConfirm("Odhaczyć jako zrobione?", async () => {
             if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
@@ -586,7 +578,6 @@ window.DashboardModule = (() => {
         window.invalidateDashboardCache(); window.loadDashboardOverview(true);
     };
 
-    // ZMIANA: Dodano window.customConfirm (Zabezpieczenie przed kliknięciem)
     window.quickLogHealthDashboard = async function(taskId) {
         window.customConfirm("Odhaczyć to zdarzenie?", async () => {
             const finalId = isNaN(taskId) ? taskId : Number(taskId);
@@ -618,7 +609,6 @@ window.DashboardModule = (() => {
         window.loadDashboardOverview(true);
     };
 
-    // ZMIANA: Obsługa Cofania Logów z Historii (Undo)
     window.undoActionDashboard = function(table, id) {
         window.customConfirm("Cofnąć to wykonanie?", async () => {
             let errorObj = null;
@@ -636,7 +626,6 @@ window.DashboardModule = (() => {
                 window.showToast("Cofnięto!");
                 window.invalidateDashboardCache();
                 window.loadDashboardOverview(true);
-                // Automatycznie zamykamy historię, żeby zobaczyć powrót na ekran
                 document.getElementById('dashboard-history-overlay').classList.add('hidden');
             }
         });
@@ -673,10 +662,7 @@ window.DashboardModule = (() => {
 
         window.EventDispatcher.onClick('.js-dash-nav', (e, el) => window.switchView(el.dataset.view));
         window.EventDispatcher.onClick('.js-dash-complete-todo', (e, el) => window.quickCompleteTodoDashboard(el.dataset.id));
-        
-        // ZMIANA: Obsługa Cofań w Historii
         window.EventDispatcher.onClick('.js-dash-undo-log', (e, el) => window.undoActionDashboard(el.dataset.table, el.dataset.id));
-
         window.EventDispatcher.onClick('.js-dash-log-task', (e, el) => window.quickLogTaskDashboard(el.dataset.id));
         window.EventDispatcher.onClick('.js-quick-log-health', (e, el) => window.quickLogHealthDashboard(el.dataset.id));
         window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLogDashboard(el.dataset.id));
