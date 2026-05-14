@@ -111,7 +111,6 @@ window.DashboardModule = (() => {
                 <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
             `;
             
-            // ZMIANA: Kompaktowe, pionowe kafelki dla zdrowia z zawijaniem tekstu (line-clamp)
             html += healthToday.map(ht => {
                 const icon = ht.task_type === 'cyclical' ? '❤️' : '📅';
                 return `
@@ -124,7 +123,6 @@ window.DashboardModule = (() => {
                 </div>`;
             }).join('');
 
-            // ZMIANA: Kompaktowe, pionowe kafelki dla domu z zawijaniem tekstu (line-clamp)
             html += homeToday.map(t => {
                 let roomIcon = '🏠';
                 if (t.room && state.rooms) {
@@ -472,6 +470,7 @@ window.DashboardModule = (() => {
             return;
         }
 
+        // ZMIANA: cursor-pointer dla buttona Cofnij (żeby iOS łapał z EventDispatchera)
         listEl.innerHTML = `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">` + historyItems.slice(0, 50).map(item => {
             const initial = (item.user || '?')[0].toUpperCase();
             return `
@@ -484,7 +483,7 @@ window.DashboardModule = (() => {
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
                         <div class="js-dash-change-user w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold cursor-pointer active:scale-90 transition-transform" data-table="${item.table}" data-id="${item.id}" data-username="${window.esc(item.user)}">${initial}</div>
-                        <button class="js-dash-undo-log text-neutral-500 hover:text-[#ffb4ab] p-1.5 active:scale-90 transition-transform text-xs" data-table="${item.table}" data-id="${item.id}" title="Cofnij">🗑️</button>
+                        <button class="js-dash-undo-log cursor-pointer text-neutral-500 hover:text-[#ffb4ab] p-1.5 active:scale-90 transition-transform text-xs" data-table="${item.table}" data-id="${item.id}" title="Cofnij">🗑️</button>
                     </div>
                 </div>
             </div>`;
@@ -499,7 +498,6 @@ window.DashboardModule = (() => {
         let shoppingList = (state.checklists || []).find(l => l.list_type === 'shopping' && !l.is_archived);
 
         if (shoppingList) {
-            // ZMIANA: Usunięto switchView('todo'), żeby wrócić prawidłowo wstecz
             setTimeout(() => window.openChecklistScreen(shoppingList.id, shoppingList.title, 'shopping'), 50);
         } else {
             window.showToast("Tworzę nowy koszyk...");
@@ -523,7 +521,6 @@ window.DashboardModule = (() => {
                 checklists: [...(state.checklists || []), data]
             });
 
-            // ZMIANA: Usunięto switchView('todo')
             setTimeout(() => window.openChecklistScreen(data.id, data.title, 'shopping'), 50);
         }
     };
@@ -613,73 +610,4 @@ window.DashboardModule = (() => {
                 const { error } = await window.supabaseClient.from('todos').update({ is_completed: false, completed_at: null, completer_name: null }).eq('id', id);
                 errorObj = error;
             } else {
-                const { error } = await window.supabaseClient.from(table).delete().eq('id', id);
-                errorObj = error;
-            }
-
-            if (errorObj) { 
-                window.showToast("Błąd: " + errorObj.message); 
-            } else {
-                window.showToast("Cofnięto!");
-                window.invalidateDashboardCache();
-                window.loadDashboardOverview(true);
-                const ov = document.getElementById('dashboard-history-overlay');
-                if (ov) {
-                    ov.classList.add('hidden');
-                    ov.classList.add('pointer-events-none');
-                }
-            }
-        });
-    };
-
-    // ==========================================
-    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
-    // ==========================================
-    if (window.EventDispatcher) {
-        
-        window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
-            const chevron = el.querySelector('.js-chevron');
-            window.toggleWidgetAccordion(el.dataset.target, chevron);
-        });
-
-        window.EventDispatcher.onClick('.js-open-packing-list', (e, el) => {
-            window.switchView('todo');
-            setTimeout(() => window.openChecklistScreen(el.dataset.id, el.dataset.title, 'packing'), 50);
-        });
-
-        window.EventDispatcher.onClick('.js-open-cart', () => window.openQuickShoppingList());
-        
-        // ZMIANA: Zdjęcie blokady dotyku
-        window.EventDispatcher.onClick('.js-open-history', () => {
-            const ov = document.getElementById('dashboard-history-overlay');
-            ov.classList.remove('hidden');
-            ov.classList.remove('pointer-events-none');
-            _renderHistoryOverlay(window.AppStore.get());
-        });
-        
-        // ZMIANA: Założenie blokady dotyku
-        window.EventDispatcher.onClick('.js-close-history', () => {
-            const ov = document.getElementById('dashboard-history-overlay');
-            ov.classList.add('hidden');
-            ov.classList.add('pointer-events-none');
-        });
-
-        window.EventDispatcher.onClick('.js-dashboard-refresh', () => {
-            window.invalidateDashboardCache();
-            window.loadDashboardOverview(true);
-        });
-
-        window.EventDispatcher.onClick('.js-dash-nav', (e, el) => window.switchView(el.dataset.view));
-        window.EventDispatcher.onClick('.js-dash-complete-todo', (e, el) => window.quickCompleteTodoDashboard(el.dataset.id));
-        window.EventDispatcher.onClick('.js-dash-undo-log', (e, el) => window.undoActionDashboard(el.dataset.table, el.dataset.id));
-        window.EventDispatcher.onClick('.js-dash-log-task', (e, el) => window.quickLogTaskDashboard(el.dataset.id));
-        window.EventDispatcher.onClick('.js-quick-log-health', (e, el) => window.quickLogHealthDashboard(el.dataset.id));
-        window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLogDashboard(el.dataset.id));
-        window.EventDispatcher.onClick('.js-dash-change-user', (e, el) => window.openChangeUserModal(el.dataset.table, el.dataset.id, el.dataset.username));
-        
-    } else {
-        console.error("EventDispatcher nie został załadowany!");
-    }
-
-    return { load: window.loadDashboardOverview };
-})();
+                const { error } = await window.
