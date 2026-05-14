@@ -69,7 +69,7 @@
     <div id="dashboard-horizon-container" class="mb-6"></div>
 </div>
 
-<div id="dashboard-history-overlay" class="fixed inset-0 z-[100] bg-[#131314] hidden pointer-events-none flex-col animate-fade-in h-[100dvh]">
+<div id="dashboard-history-overlay" class="fixed top-0 left-0 right-0 bottom-0 z-[100] bg-[#131314] hidden pointer-events-none flex-col animate-fade-in">
     <div class="p-4 sm:p-6 border-b border-[#333537] bg-[#1e1f20] flex items-center gap-3 shrink-0">
         <button class="js-close-history text-neutral-400 text-2xl active:scale-90 pb-1 px-2">←</button>
         <div>
@@ -77,5 +77,5 @@
             <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-0.5">Kto i kiedy odhaczył</p>
         </div>
     </div>
-    <div class="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-32 no-scrollbar min-h-0" style="-webkit-overflow-scrolling: touch;" id="dashboard-history-list"></div>
+    <div class="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-32 no-scrollbar" style="-webkit-overflow-scrolling: touch;" id="dashboard-history-list"></div>
 </div>
