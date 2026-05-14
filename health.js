@@ -7,7 +7,7 @@ window.HealthModule = (() => {
     let healthTasks = []; 
     let healthLogs = [];
     let currentProfileId = null; 
-
+    let isSwitchingProfile = false;
     let healthViewMode = 'list';
     let currentMonth = new Date().getMonth(); 
     let currentYear = new Date().getFullYear();
@@ -474,10 +474,27 @@ window.HealthModule = (() => {
         }
     };
 
-    window.selectHealthProfile = function(id) { 
-        currentProfileId = parseInt(id); 
-        if (typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
-        window.initHealthModule(); 
+    window.selectHealthProfile = async function(id) { 
+        if (isSwitchingProfile) return; // Zapobiega podwójnym kliknięciom
+        isSwitchingProfile = true;
+        
+        try {
+            currentProfileId = parseInt(id); 
+            if (typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
+            
+            // Pokazujemy loader podczas zmiany profilu, żeby UI nie było "martwe"
+            const sectionsWrapper = document.getElementById('health-sections-wrapper');
+            const calWrapper = document.getElementById('health-calendar-wrapper');
+            if (healthViewMode === 'list' && sectionsWrapper) {
+                sectionsWrapper.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Ładowanie profilu...</p>`;
+            } else if (calWrapper) {
+                document.getElementById('calendar-container').innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Ładowanie kalendarza...</p>`;
+            }
+
+            await window.initHealthModule(); // Teraz czekamy na zakończenie!
+        } finally {
+            isSwitchingProfile = false; // Zwalniamy blokadę
+        }
     };
 
     window.toggleProfileSwitcher = function() {
