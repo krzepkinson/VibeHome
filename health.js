@@ -27,7 +27,6 @@ window.HealthModule = (() => {
     };
 
     window.initHealthModule = async function() {
-        // ZMIANA Z AUDYTU: Bezpieczne odpytywanie Store'a
         const state = window.AppStore && typeof window.AppStore.get === 'function' ? window.AppStore.get() : {};
         let pData = state.profiles || [];
         
@@ -56,7 +55,6 @@ window.HealthModule = (() => {
         let needLogsFetch = true;
 
         if (window.AppStore && typeof window.AppStore.get === 'function') {
-            // ZMIANA Z AUDYTU: Bezpośrednie pobieranie wyznaczonych kluczy
             const state = window.AppStore.get();
             const allTasks = state.hTasks || [];
             const allLogs = state.hLogs || [];
@@ -97,7 +95,7 @@ window.HealthModule = (() => {
                     ? `${color} text-white border-transparent shadow-md scale-105`
                     : 'bg-[#1e1f20] text-neutral-400 border-[#333537]';
                 return `
-                <button class="js-select-health-profile flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all active:scale-95 ${activeClass}" data-id="${p.id}">
+                <button class="js-select-health-profile flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all active:scale-95 ${activeClass} cursor-pointer" data-id="${p.id}">
                     <span class="font-bold">${window.esc(p.name.charAt(0).toUpperCase())}</span>
                     <span>${window.esc(p.name)}</span>
                 </button>`;
@@ -119,7 +117,7 @@ window.HealthModule = (() => {
                         <div class="text-7xl mb-6 opacity-80 drop-shadow-lg">👨‍👩‍👧‍👦</div>
                         <h3 class="text-neutral-100 font-medium text-xl mb-2 tracking-wide">Brak domowników</h3>
                         <p class="text-neutral-400 text-xs mb-8 max-w-[260px] leading-relaxed">Dodaj pierwszy profil domownika, by móc śledzić jego leki, wizyty lekarskie i samopoczucie.</p>
-                        <button onclick="window.openNewProfileModal()" class="bg-[#e3e3e3] text-[#131314] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
+                        <button onclick="window.openNewProfileModal()" class="bg-[#e3e3e3] text-[#131314] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2 cursor-pointer">
                             <span class="text-xl pb-1">+</span> Dodaj osobę
                         </button>
                     </div>`;
@@ -132,7 +130,7 @@ window.HealthModule = (() => {
         if (nameTitle) nameTitle.innerText = profile.name; 
         
         if (headerAvatar) {
-            headerAvatar.className = `w-9 h-9 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 text-xs ${window.getAvatarColor ? window.getAvatarColor(profile.name) : 'bg-rose-600'}`;
+            headerAvatar.className = `js-toggle-profile-switcher w-9 h-9 rounded-full flex items-center justify-center font-bold border-2 border-[#131314] shadow-md text-white transition-transform active:scale-90 text-xs cursor-pointer ${window.getAvatarColor ? window.getAvatarColor(profile.name) : 'bg-rose-600'}`;
             headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
         }
 
@@ -155,13 +153,32 @@ window.HealthModule = (() => {
 
         const activeTasks = healthTasks.filter(t => t.task_type === 'duration');
         const currentlyActive = [];
+        const inactiveDuration = [];
         activeTasks.forEach(t => {
             const log = healthLogs.find(l => l.health_task_id === t.id && l.end_date === null);
             if (log) currentlyActive.push({ task: t, log: log });
+            else inactiveDuration.push(t);
         });
 
-        document.getElementById('health-active-section').classList.toggle('hidden', currentlyActive.length === 0);
-        if(activeList) activeList.innerHTML = currentlyActive.map(item => window.UI.renderHealthActiveTask(item.task, item.log)).join('');
+        // POPRAWKA: Pokazujemy zarówno włączone infekcje, jak i wyłączone (by móc je uruchomić!)
+        document.getElementById('health-active-section').classList.toggle('hidden', currentlyActive.length === 0 && inactiveDuration.length === 0);
+        let activeHtml = '';
+        if (currentlyActive.length > 0) {
+            activeHtml += currentlyActive.map(item => window.UI.renderHealthActiveTask(item.task, item.log)).join('');
+        }
+        if (inactiveDuration.length > 0) {
+            activeHtml += inactiveDuration.map(t => {
+                return `
+                <div class="flex items-center justify-between p-3 bg-[#1e1f20] border border-[#333537] rounded-xl mb-1.5 hover:bg-[#252627] transition-colors">
+                    <div class="flex-1 min-w-0 pr-3 js-open-health-settings cursor-pointer" data-id="${t.id}">
+                        <h3 class="text-sm font-medium text-neutral-300 truncate">🤒 ${window.esc(t.name)}</h3>
+                        <p class="text-[10px] text-neutral-500 mt-0.5">Gotowe do uruchomienia</p>
+                    </div>
+                    <button class="js-start-health-log w-8 h-8 rounded-full bg-rose-900/40 text-rose-200 flex items-center justify-center active:scale-90 border border-rose-800/60 shadow-inner shrink-0 cursor-pointer" data-id="${t.id}" data-type="duration">▶</button>
+                </div>`;
+            }).join('');
+        }
+        if(activeList) activeList.innerHTML = activeHtml;
 
         const upcoming = healthTasks.filter(t => {
             if (t.task_type !== 'one_time' || !t.event_date) return false;
@@ -211,7 +228,11 @@ window.HealthModule = (() => {
         
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            
+            // POPRAWKA KALENDARZA: Sprawdzamy logi, które należą WYŁĄCZNIE do tasków obecnego profilu
             const dayLogs = healthLogs.filter(l => {
+                const task = healthTasks.find(t => t.id === l.health_task_id);
+                if (!task) return false; 
                 const start = l.start_date.split('T')[0];
                 const end = l.end_date ? l.end_date.split('T')[0] : getLocalDayStr();
                 return dateStr >= start && dateStr <= end;
@@ -232,7 +253,7 @@ window.HealthModule = (() => {
     };
 
     window.changeCalendarMonth = function(offset) {
-        currentMonth += offset;
+        currentMonth += parseInt(offset);
         if (currentMonth < 0) { currentMonth = 11; currentYear--; } 
         else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
         window.renderCalendar();
@@ -380,9 +401,7 @@ window.HealthModule = (() => {
         if (task.task_type === 'cyclical') { 
             document.getElementById('health-settings-interval').value = task.interval_days || 0; 
             document.getElementById('health-settings-remind-days').value = task.remind_days_before || 0; 
-        } else if (task.task_type === 'one_time') { 
-            // Fallback for UI elements if present in your specific health-settings.html
-        }
+        } 
         window.goForward('health-settings-screen');
     };
     
@@ -428,7 +447,11 @@ window.HealthModule = (() => {
         const list = document.getElementById('day-details-list');
         document.getElementById('day-details-title').innerText = "Szczegóły Zdrowia";
         document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+        
+        // POPRAWKA KALENDARZA: Ograniczenie widoku dnia do tasków danego profilu
         const dayLogs = healthLogs.filter(l => { 
+            const task = healthTasks.find(t => t.id === l.health_task_id);
+            if (!task) return false;
             const start = l.start_date.split('T')[0]; 
             const end = l.end_date ? l.end_date.split('T')[0] : getLocalDayStr(); 
             return dateStr >= start && dateStr <= end; 
@@ -438,7 +461,7 @@ window.HealthModule = (() => {
         else {
             let itemsHtml = '';
             oneTimeEvents.forEach(t => { const isDone = healthLogs.some(l => l.health_task_id === t.id); itemsHtml += window.UI.renderHealthDayEvent(t, isDone); });
-            dayLogs.forEach(l => { const task = healthTasks.find(t => t.id === l.health_task_id) || { name: 'Usunięte zadanie' }; itemsHtml += window.UI.renderHealthDayLog(task, l); });
+            dayLogs.forEach(l => { const task = healthTasks.find(t => t.id === l.health_task_id); itemsHtml += window.UI.renderHealthDayLog(task, l); });
             list.innerHTML = itemsHtml;
         }
         modal.classList.remove('hidden');
@@ -481,7 +504,6 @@ window.HealthModule = (() => {
         window.renderPharmacyList();
     };
 
-    // LOKALNA WYSZUKIWARKA W APTECZCE
     window.renderPharmacyList = function() {
         const listEl = document.getElementById('pharmacy-list');
         const searchInput = document.getElementById('pharmacy-search-input');
@@ -560,7 +582,6 @@ window.HealthModule = (() => {
         window.closeNewPharmacyItemModal(); window.showToast("Lek dodany!"); window.loadPharmacyItems();
     };
 
-    // --- NOWE FUNKCJE EDYCJI LEKÓW ---
     window.openEditPharmacyModal = function(id) {
         const item = window.allPharmacyItems.find(p => p.id == id);
         if (!item) return;
@@ -738,6 +759,14 @@ window.HealthModule = (() => {
     // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
     // ==========================================
     if (window.EventDispatcher) {
+        // ZMIANA Z TESTÓW: Czysta obsługa górnego menu bez 'pointer-events' lagów
+        window.EventDispatcher.onClick('.js-toggle-health-view', () => window.toggleHealthView());
+        window.EventDispatcher.onClick('.js-open-health-book', () => window.openHealthBook());
+        window.EventDispatcher.onClick('.js-open-pharmacy', () => window.openPharmacyScreen());
+        window.EventDispatcher.onClick('.js-toggle-profile-switcher', () => window.toggleProfileSwitcher());
+        window.EventDispatcher.onClick('.js-open-health-fab-menu', () => window.openHealthFabMenu());
+        window.EventDispatcher.onClick('.js-change-cal-month', (e, el) => window.changeCalendarMonth(el.dataset.offset));
+
         window.EventDispatcher.onClick('.js-select-health-profile', (e, el) => window.selectHealthProfile(el.dataset.id));
         window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLog(el.dataset.id));
         window.EventDispatcher.onClick('.js-start-health-log', (e, el) => window.startHealthLog(el.dataset.id, el.dataset.type));
