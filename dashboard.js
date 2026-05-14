@@ -92,28 +92,26 @@ window.DashboardModule = (() => {
     };
 
     // --- RENDEROWANIE: ZADANIA NA DZIŚ ---
-    function _renderTodaySection(state, todayStr) {
+    function _renderTodaySection(state, today, todayStr) {
         const todayContainer = document.getElementById('dashboard-today-container');
         if (!todayContainer) return;
 
-        const hTasks = state.hTasks || [];
-        const hLogs = state.hLogs || [];
-        const tasks = state.tasks || [];
-        const logs = state.logs || [];
-        const rooms = state.rooms || [];
+        const hTasks = state.hTasks || []; const hLogs = state.hLogs || [];
+        const tasks = state.tasks || []; const logs = state.logs || []; const rooms = state.rooms || [];
 
         const healthToday = hTasks.filter(ht => {
-            if (ht.task_type === 'one_time' && ht.event_date === todayStr) {
-                const isDone = hLogs.some(l => l.health_task_id === ht.id);
-                return !isDone;
+            if (ht.task_type === 'one_time' && ht.event_date) {
+                if (hLogs.some(l => l.health_task_id === ht.id)) return false;
+                const evDate = new Date(ht.event_date); evDate.setHours(0,0,0,0);
+                return evDate <= today;
             }
             if (ht.task_type === 'cyclical' && ht.interval_days) {
                 const taskLogs = hLogs.filter(l => l.health_task_id === ht.id);
                 if (taskLogs.length === 0) return false;
-                const lastLog = taskLogs[0];
-                const nextDate = new Date(lastLog.start_date);
+                const nextDate = new Date(taskLogs[0].start_date);
                 nextDate.setDate(nextDate.getDate() + ht.interval_days);
-                return getLocalDayStr(nextDate) === todayStr;
+                nextDate.setHours(0,0,0,0);
+                return nextDate <= today;
             }
             return false;
         });
@@ -121,61 +119,64 @@ window.DashboardModule = (() => {
         const homeToday = tasks.filter(t => {
             if (!t.interval_days) return false;
             const taskLogs = logs.filter(l => l.task_id === t.id);
-            if (taskLogs.length === 0) return false;
-            const lastLog = taskLogs[0];
-            const nextDate = new Date(lastLog.created_at);
+            if (taskLogs.length === 0) return true; // Czeka na zrobienie
+            const nextDate = new Date(taskLogs[0].created_at);
             nextDate.setDate(nextDate.getDate() + t.interval_days);
-            return getLocalDayStr(nextDate) === todayStr;
+            nextDate.setHours(0,0,0,0);
+            return nextDate <= today;
         });
 
         if (healthToday.length > 0 || homeToday.length > 0) {
-            let html = `
-                <h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Plan na dziś</h3>
-                <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-            `;
+            let html = `<h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Plan na dziś</h3><div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">`;
             
-            // ZMIANA: Dodano wyświetlanie imienia profilu w kafelkach zdrowia!
             html += healthToday.map(ht => {
                 const icon = ht.task_type === 'cyclical' ? '❤️' : '📅';
-                let profileName = 'Zdrowie';
+                let profileName = '';
                 if (ht.profile_id && state.profiles) {
-                    const profile = state.profiles.find(p => p.id === ht.profile_id);
-                    if (profile) profileName = profile.name;
+                    const p = state.profiles.find(px => px.id === ht.profile_id);
+                    if (p) profileName = p.name;
                 }
+                
+                let diff = 0;
+                if (ht.task_type === 'one_time') {
+                    const evDate = new Date(ht.event_date); evDate.setHours(0,0,0,0);
+                    diff = Math.ceil((evDate - today) / 86400000);
+                } else {
+                    const taskLogs = hLogs.filter(l => l.health_task_id === ht.id);
+                    const nextDate = new Date(taskLogs[0].start_date);
+                    nextDate.setDate(nextDate.getDate() + ht.interval_days); nextDate.setHours(0,0,0,0);
+                    diff = Math.ceil((nextDate - today) / 86400000);
+                }
+                
+                let timeLabel = 'Dziś'; let timeColor = 'text-[#a8c7fa]/80';
+                if (diff === -1) { timeLabel = 'Wczoraj'; timeColor = 'text-[#ffb4ab] font-bold'; }
+                else if (diff < -1) { timeLabel = `${Math.abs(diff)} dni temu`; timeColor = 'text-[#ffb4ab] font-bold'; }
+                
+                const fullName = profileName ? `${window.esc(ht.name)} (${window.esc(profileName)})` : window.esc(ht.name);
 
-                return `
-                <div class="js-quick-log-health flex flex-col justify-between w-[115px] h-[90px] p-3 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}">
-                    <div class="text-[12px] font-bold text-[#c2e7ff] leading-tight line-clamp-2">${window.esc(ht.name)}</div>
-                    <div class="flex justify-between items-center mt-1">
-                        <span class="text-[10px] text-[#a8c7fa]/80 uppercase font-medium truncate pr-1">${window.esc(profileName)}</span>
-                        <span class="text-xs opacity-80 shrink-0">${icon}</span>
-                    </div>
-                </div>`;
+                return `<div class="js-quick-log-health flex flex-col justify-between w-[115px] h-[90px] p-3 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}"><div class="text-[12px] font-bold text-[#c2e7ff] leading-tight line-clamp-2">${fullName}</div><div class="flex justify-between items-center mt-1"><span class="text-[10px] ${timeColor} uppercase font-medium truncate pr-1">${timeLabel}</span><span class="text-xs opacity-80 shrink-0">${icon}</span></div></div>`;
             }).join('');
 
             html += homeToday.map(t => {
-                let roomIcon = '🏠';
-                if (t.room) {
-                    const roomObj = rooms.find(r => r.name === t.room);
-                    if (roomObj && roomObj.icon) roomIcon = roomObj.icon;
+                let roomIcon = '🏠'; if (t.room) { const r = rooms.find(rx => rx.name === t.room); if (r && r.icon) roomIcon = r.icon; }
+                
+                let diff = 0; const taskLogs = logs.filter(l => l.task_id === t.id);
+                if (taskLogs.length > 0) {
+                    const nextDate = new Date(taskLogs[0].created_at); nextDate.setDate(nextDate.getDate() + t.interval_days); nextDate.setHours(0,0,0,0);
+                    diff = Math.ceil((nextDate - today) / 86400000);
+                } else { diff = -1; }
+                
+                let timeLabel = 'Dziś'; let timeColor = 'text-neutral-500';
+                if (diff < 0) {
+                    timeLabel = 'Zaległe'; timeColor = 'text-[#ffb4ab] font-bold';
+                    if (taskLogs.length > 0) { if (diff === -1) timeLabel = 'Wczoraj'; else timeLabel = `${Math.abs(diff)} dni temu`; }
                 }
 
-                return `
-                <div class="js-dash-log-task flex flex-col justify-between w-[115px] h-[90px] p-3 bg-[#1e1f20] border border-[#333537] rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${t.id}">
-                    <div class="text-[12px] font-bold text-neutral-200 leading-tight line-clamp-2">${window.esc(t.name)}</div>
-                    <div class="flex justify-between items-center mt-1">
-                        <span class="text-[10px] text-neutral-500 uppercase font-medium">Dziś</span>
-                        <span class="text-xs opacity-80">${window.esc(roomIcon)}</span>
-                    </div>
-                </div>`;
+                return `<div class="js-dash-log-task flex flex-col justify-between w-[115px] h-[90px] p-3 bg-[#1e1f20] border border-[#333537] rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${t.id}"><div class="text-[12px] font-bold text-neutral-200 leading-tight line-clamp-2">${window.esc(t.name)}</div><div class="flex justify-between items-center mt-1"><span class="text-[10px] ${timeColor} uppercase font-medium truncate pr-1">${timeLabel}</span><span class="text-xs opacity-80 shrink-0">${window.esc(roomIcon)}</span></div></div>`;
             }).join('');
 
-            html += `</div>`;
-            todayContainer.innerHTML = html;
-            todayContainer.classList.remove('hidden');
-        } else {
-            todayContainer.classList.add('hidden');
-        }
+            html += `</div>`; todayContainer.innerHTML = html; todayContainer.classList.remove('hidden');
+        } else { todayContainer.classList.add('hidden'); }
     }
 
     // --- RENDEROWANIE: WIDGET DOMU (Zaległe + Wkrótce) ---
