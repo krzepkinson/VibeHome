@@ -225,14 +225,13 @@ window.HealthModule = (() => {
         const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
         for (let i = 0; i < firstDay; i++) { html += `<div></div>`; }
         
-        // ZMIANA W WYDAJNOŚCI: Tworzymy Mapę dla szybkiego dostępu (O(1) zamiast O(n))
         const taskMap = new Map(healthTasks.map(t => [t.id, t]));
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             
             const dayLogs = healthLogs.filter(l => {
-                const task = taskMap.get(l.health_task_id); // Używamy mapy
+                const task = taskMap.get(l.health_task_id);
                 if (!task) return false; 
                 const start = l.start_date.split('T')[0];
                 const end = l.end_date ? l.end_date.split('T')[0] : getLocalDayStr();
@@ -337,7 +336,6 @@ window.HealthModule = (() => {
 
     window.openHealthFabMenu = function() { document.getElementById('health-fab-menu').classList.remove('hidden'); };
     
-    // ZMIANA: Zdejmowanie zdarzeń dotykowych
     window.closeHealthFabMenu = function() { 
         const menu = document.getElementById('health-fab-menu');
         if (menu) {
@@ -357,7 +355,6 @@ window.HealthModule = (() => {
     window.openNewEventModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('one_time'); };
     window.openNewRoutineModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('cyclical'); };
     
-    // ZMIANA: Zdejmowanie zdarzeń dotykowych
     window.closeNewHealthTaskModal = function() { 
         const modal = document.getElementById('new-health-task-modal');
         if (modal) {
@@ -467,7 +464,6 @@ window.HealthModule = (() => {
         document.getElementById('day-details-title').innerText = "Szczegóły Zdrowia";
         document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
         
-        // ZMIANA W WYDAJNOŚCI: Szybka mapa dla otwierania szczegółów dnia
         const taskMap = new Map(healthTasks.map(t => [t.id, t]));
 
         const dayLogs = healthLogs.filter(l => { 
@@ -495,12 +491,13 @@ window.HealthModule = (() => {
         const modal = document.getElementById('day-details-modal');
         if(modal) {
             modal.classList.add('hidden');
-            modal.style.pointerEvents = 'none'; // iOS Safari Fix
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300); // Reset
+            modal.style.pointerEvents = 'none'; 
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300); 
             if (document.activeElement) document.activeElement.blur();
         }
     };
 
+    // ZMIANA KLUCZOWA: Przyciemniamy kontener, nie niszczymy HTMLa!
     window.selectHealthProfile = async function(id) { 
         if (isSwitchingProfile) return; 
         isSwitchingProfile = true;
@@ -510,15 +507,28 @@ window.HealthModule = (() => {
             if (typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
             
             const sectionsWrapper = document.getElementById('health-sections-wrapper');
-            const calWrapper = document.getElementById('health-calendar-wrapper');
+            const calWrapper = document.getElementById('calendar-container');
+            
             if (healthViewMode === 'list' && sectionsWrapper) {
-                sectionsWrapper.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Ładowanie profilu...</p>`;
+                sectionsWrapper.style.opacity = '0.3';
+                sectionsWrapper.style.pointerEvents = 'none';
             } else if (calWrapper) {
-                document.getElementById('calendar-container').innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Ładowanie kalendarza...</p>`;
+                calWrapper.style.opacity = '0.3';
+                calWrapper.style.pointerEvents = 'none';
             }
 
             await window.initHealthModule(); 
         } finally {
+            const sectionsWrapper = document.getElementById('health-sections-wrapper');
+            const calWrapper = document.getElementById('calendar-container');
+            if (sectionsWrapper) {
+                sectionsWrapper.style.opacity = '1';
+                sectionsWrapper.style.pointerEvents = 'auto';
+            }
+            if (calWrapper) {
+                calWrapper.style.opacity = '1';
+                calWrapper.style.pointerEvents = 'auto';
+            }
             isSwitchingProfile = false; 
         }
     };
@@ -534,8 +544,8 @@ window.HealthModule = (() => {
         const modal = document.getElementById('profile-switcher-modal');
         if (modal) {
             modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none'; // iOS Safari Fix
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300); // Reset po animacji
+            modal.style.pointerEvents = 'none'; 
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300); 
         }
     };
 
@@ -610,7 +620,6 @@ window.HealthModule = (() => {
         });
     };
     
-    // ZMIANA: Zdejmowanie zdarzeń dotykowych
     window.closeNewPharmacyItemModal = function() { 
         const modal = document.getElementById('new-pharmacy-item-modal');
         if (modal) {
@@ -709,7 +718,6 @@ window.HealthModule = (() => {
     // --- KSIĄŻECZKA ZDROWIA I POMIARY ---
     window.openNewMeasurementModal = function() { window.closeHealthFabMenu(); document.getElementById('measurement-value').value = ''; document.getElementById('measurement-date').value = getLocalDayStr(); document.getElementById('measurement-notes').value = ''; document.getElementById('new-measurement-modal').classList.remove('hidden'); };
     
-    // ZMIANA: Zdejmowanie zdarzeń dotykowych
     window.closeNewMeasurementModal = function() { 
         const modal = document.getElementById('new-measurement-modal');
         if (modal) {
@@ -766,7 +774,6 @@ window.HealthModule = (() => {
             const tasks = healthTasks || [];
             const logs = healthLogs || [];
             
-            // ZMIANA W WYDAJNOŚCI: Szybka mapa dla Książeczki Zdrowia
             const taskMap = new Map(tasks.map(t => [t.id, t]));
             const profileLogs = logs.filter(l => taskMap.has(l.health_task_id));
             
@@ -784,7 +791,7 @@ window.HealthModule = (() => {
             });
 
             profileLogs.forEach(l => {
-                const task = taskMap.get(l.health_task_id); // Zoptymalizowane
+                const task = taskMap.get(l.health_task_id); 
                 if (!task) return;
 
                 const wykonawca = l.user_name || 'Domownik';
