@@ -3,7 +3,6 @@
 // ==========================================
 
 window.HealthModule = (() => {
-    // --- BEZPIECZNY STAN PRYWATNY ---
     let healthProfiles = []; 
     let healthTasks = []; 
     let healthLogs = [];
@@ -13,7 +12,6 @@ window.HealthModule = (() => {
     let currentMonth = new Date().getMonth(); 
     let currentYear = new Date().getFullYear();
 
-    // Helper: Poprawne daty lokalne (zamiast split('T')[0] w UTC)
     const getLocalDayStr = (dObj = new Date()) => {
         const y = dObj.getFullYear();
         const m = String(dObj.getMonth() + 1).padStart(2, '0');
@@ -29,8 +27,9 @@ window.HealthModule = (() => {
     };
 
     window.initHealthModule = async function() {
-        let storeProfiles = window.AppStore && typeof window.AppStore.get === 'function' ? window.AppStore.get('profiles') : null;
-        let pData = Array.isArray(storeProfiles) ? storeProfiles : (storeProfiles ? storeProfiles.data || [] : []);
+        // ZMIANA Z AUDYTU: Bezpieczne odpytywanie Store'a
+        const state = window.AppStore && typeof window.AppStore.get === 'function' ? window.AppStore.get() : {};
+        let pData = state.profiles || [];
         
         if (pData.length > 0) {
             healthProfiles = pData;
@@ -57,11 +56,10 @@ window.HealthModule = (() => {
         let needLogsFetch = true;
 
         if (window.AppStore && typeof window.AppStore.get === 'function') {
-            const storeTasks = window.AppStore.get('hTasks') || window.AppStore.get('healthTasks');
-            const storeLogs = window.AppStore.get('hLogs') || window.AppStore.get('healthLogs');
-
-            const allTasks = Array.isArray(storeTasks) ? storeTasks : (storeTasks ? storeTasks.data || [] : []);
-            const allLogs = Array.isArray(storeLogs) ? storeLogs : (storeLogs ? storeLogs.data || [] : []);
+            // ZMIANA Z AUDYTU: Bezpośrednie pobieranie wyznaczonych kluczy
+            const state = window.AppStore.get();
+            const allTasks = state.hTasks || [];
+            const allLogs = state.hLogs || [];
 
             if (allTasks.length > 0) {
                 healthTasks = allTasks.filter(t => t.profile_id == currentProfileId && t.is_archived !== true);
@@ -749,7 +747,6 @@ window.HealthModule = (() => {
         window.EventDispatcher.onClick('.js-delete-pharmacy-item', (e, el) => window.deletePharmacyItem(el.dataset.id));
         
         window.EventDispatcher.onClick('.js-open-edit-pharmacy', (e, el) => {
-            // Blokujemy odpalenie edycji, jeśli user zdołał kliknąć ikonę usuwania ze swipe'a
             if (e.target.closest('.js-delete-pharmacy-item')) return;
             window.openEditPharmacyModal(el.dataset.id);
         });
