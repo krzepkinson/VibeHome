@@ -204,7 +204,6 @@ window.DashboardModule = (() => {
                 }).join('');
             }
             content.innerHTML = html;
-            // Usunięto: Zawsze domyślnie schowane akordeony (zgodnie z prośbą)
         } else {
             content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
                 <span class="text-3xl opacity-50 mb-2">✨</span>
@@ -330,7 +329,6 @@ window.DashboardModule = (() => {
                 }).join('');
             }
             content.innerHTML = html;
-            // Usunięto: Zawsze domyślnie schowane akordeony
         } else {
             content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
                 <span class="text-3xl opacity-50 mb-2">🌿</span>
@@ -364,7 +362,6 @@ window.DashboardModule = (() => {
                 html += `<div class="text-[10px] text-neutral-500 text-center mt-2 cursor-pointer hover:text-[#a8c7fa] py-2 js-dash-nav" data-view="todo">+${activeTodos.length - 5} więcej w module</div>`;
             }
             content.innerHTML = html;
-            // Usunięto: Zawsze domyślnie schowane akordeony
         } else {
             badge.classList.add('hidden');
             content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
@@ -502,7 +499,7 @@ window.DashboardModule = (() => {
         let shoppingList = (state.checklists || []).find(l => l.list_type === 'shopping' && !l.is_archived);
 
         if (shoppingList) {
-            window.switchView('todo');
+            // ZMIANA: Usunięto switchView('todo'), żeby wrócić prawidłowo wstecz
             setTimeout(() => window.openChecklistScreen(shoppingList.id, shoppingList.title, 'shopping'), 50);
         } else {
             window.showToast("Tworzę nowy koszyk...");
@@ -526,7 +523,7 @@ window.DashboardModule = (() => {
                 checklists: [...(state.checklists || []), data]
             });
 
-            window.switchView('todo');
+            // ZMIANA: Usunięto switchView('todo')
             setTimeout(() => window.openChecklistScreen(data.id, data.title, 'shopping'), 50);
         }
     };
@@ -626,7 +623,11 @@ window.DashboardModule = (() => {
                 window.showToast("Cofnięto!");
                 window.invalidateDashboardCache();
                 window.loadDashboardOverview(true);
-                document.getElementById('dashboard-history-overlay').classList.add('hidden');
+                const ov = document.getElementById('dashboard-history-overlay');
+                if (ov) {
+                    ov.classList.add('hidden');
+                    ov.classList.add('pointer-events-none');
+                }
             }
         });
     };
@@ -648,12 +649,20 @@ window.DashboardModule = (() => {
 
         window.EventDispatcher.onClick('.js-open-cart', () => window.openQuickShoppingList());
         
+        // ZMIANA: Zdjęcie blokady dotyku
         window.EventDispatcher.onClick('.js-open-history', () => {
-            document.getElementById('dashboard-history-overlay').classList.remove('hidden');
+            const ov = document.getElementById('dashboard-history-overlay');
+            ov.classList.remove('hidden');
+            ov.classList.remove('pointer-events-none');
             _renderHistoryOverlay(window.AppStore.get());
         });
         
-        window.EventDispatcher.onClick('.js-close-history', () => document.getElementById('dashboard-history-overlay').classList.add('hidden'));
+        // ZMIANA: Założenie blokady dotyku
+        window.EventDispatcher.onClick('.js-close-history', () => {
+            const ov = document.getElementById('dashboard-history-overlay');
+            ov.classList.add('hidden');
+            ov.classList.add('pointer-events-none');
+        });
 
         window.EventDispatcher.onClick('.js-dashboard-refresh', () => {
             window.invalidateDashboardCache();
