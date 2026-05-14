@@ -43,11 +43,7 @@ window.HomeModule = (() => {
         const backBtn = document.getElementById('home-back-btn');
         
         if (roomFilter) {
-            if (backBtn) { 
-                backBtn.classList.remove('hidden'); 
-                backBtn.innerHTML = '←'; 
-                backBtn.onclick = (e) => { e.preventDefault(); window.clearRoomFilter(); };
-            }
+            if (backBtn) backBtn.classList.remove('hidden'); 
             const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
             if (h1) h1.innerText = roomFilter; if (p) p.innerText = 'Lista zadań';
             if (calWrapper) calWrapper.classList.add('hidden');
@@ -66,10 +62,13 @@ window.HomeModule = (() => {
             }
         }
 
-        // --- POBIERANIE ZE STORE'A ---
-        await window.loadDashboardOverview(); 
+        // POPRAWKA WYDAJNOŚCI: Robimy fetch z bazy tylko jeśli AppStore jest całkowicie pusty!
+        let state = window.AppStore.get() || {};
+        if (!state.tasks || state.tasks.length === 0) {
+            await window.loadDashboardOverview(); 
+            state = window.AppStore.get() || {};
+        }
         
-        const state = window.AppStore.get();
         tasks = state.tasks || []; 
         logs = state.logs || [];
         const dbRooms = state.rooms || [];
@@ -187,7 +186,6 @@ window.HomeModule = (() => {
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            // POPRAWKA: Użycie lokalnej daty
             const isToday = window.getTodayLocalString() === dateStr;
 
             const dayLogs = logs.filter(l => l.created_at.startsWith(dateStr));
@@ -198,7 +196,6 @@ window.HomeModule = (() => {
                 const lastLog = taskLogs[0];
                 const lastDate = new Date(lastLog.created_at); lastDate.setHours(0,0,0,0);
                 const nextDate = new Date(lastDate); nextDate.setDate(nextDate.getDate() + task.interval_days);
-                // POPRAWKA: getTodayLocalString dla spójności porównania w kalendarzu
                 return window.getTodayLocalString(nextDate) === dateStr;
             });
 
@@ -294,7 +291,6 @@ window.HomeModule = (() => {
         window.loadAndShowModal('add-log-modal', '/modals/add-log.html', () => {
             document.getElementById('add-log-subtitle').innerText = name;
             document.getElementById('add-log-name').value = id; 
-            // POPRAWKA: Użycie lokalnej daty
             document.getElementById('add-log-date').value = window.getTodayLocalString();
             document.getElementById('add-log-notes').value = '';
             setTimeout(() => { const input = document.getElementById('add-log-notes'); if (input) input.focus(); }, 50);
@@ -310,7 +306,6 @@ window.HomeModule = (() => {
         const nt = document.getElementById('add-log-notes').value;
         const taskObj = tasks.find(t => t.id == taskId);
         
-        // POPRAWKA: Użycie lokalnej daty do porównania
         const todayStr = window.getTodayLocalString();
         const finalDate = (d === todayStr) ? new Date().toISOString() : `${d}T12:00:00.000Z`;
         
@@ -382,7 +377,6 @@ window.HomeModule = (() => {
 
         window.loadAndShowModal('edit-log-modal', '/modals/edit-log.html', () => {
             document.getElementById('edit-log-id').value = log.id;
-            // POPRAWKA: Obsługa daty z bazy (wycinanie części YYYY-MM-DD)
             document.getElementById('edit-log-date').value = log.created_at.split('T')[0];
             document.getElementById('edit-log-notes').value = log.notes || '';
             setTimeout(() => { const input = document.getElementById('edit-log-notes'); if (input) input.focus(); }, 50);
@@ -397,7 +391,6 @@ window.HomeModule = (() => {
         const notes = document.getElementById('edit-log-notes').value.trim();
 
         if (!id || !date) return;
-        // POPRAWKA: Użycie lokalnej daty
         const todayStr = window.getTodayLocalString();
         const finalDate = (date === todayStr) ? new Date().toISOString() : `${date}T12:00:00.000Z`;
 
@@ -425,7 +418,6 @@ window.HomeModule = (() => {
         });
     };
 
-    // --- DELEGACJA ZDARZEŃ I GESTY ---
     let touchStartX = 0;
     let currentSwipeItem = null;
 
@@ -456,41 +448,29 @@ window.HomeModule = (() => {
         currentSwipeItem = null;
     });
 
-    // ==========================================
-    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
-    // ==========================================
     if (window.EventDispatcher) {
+        // ZMIANA: Obsługa powrotu wyciągnięta z HTMLa dla większej stabilności
+        window.EventDispatcher.onClick('.js-home-back', () => window.clearRoomFilter());
+
         window.EventDispatcher.onClick('.js-add-log', (e, el) => {
-            e.preventDefault(); 
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             window.openAddLogModal(el.dataset.id, el.dataset.name);
         });
 
         window.EventDispatcher.onClick('.js-swipe-item', (e, el) => {
-            if (e.target.closest('.js-add-log')) return; // ignoruj jeśli kliknięto w "plusik"
-            if (el.style.transform === 'translateX(-80px)') { 
-                el.style.transform = 'translateX(0px)'; 
-                return; 
-            }
+            if (e.target.closest('.js-add-log')) return; 
+            if (el.style.transform === 'translateX(-80px)') { el.style.transform = 'translateX(0px)'; return; }
             window.openSettingsScreen(el.dataset.id);
         });
 
-        window.EventDispatcher.onClick('.js-delete-task', (e, el) => {
-            window.deleteTaskFromHome(el.dataset.id, el.dataset.name);
-        });
-
-        window.EventDispatcher.onClick('.js-filter-room', (e, el) => {
-            window.filterHomeByRoom(el.dataset.room);
-        });
+        window.EventDispatcher.onClick('.js-delete-task', (e, el) => window.deleteTaskFromHome(el.dataset.id, el.dataset.name));
+        window.EventDispatcher.onClick('.js-filter-room', (e, el) => window.filterHomeByRoom(el.dataset.room));
     } else {
         console.error("EventDispatcher nie został załadowany!");
     }
 
-    // --- PUBLICZNE API ---
     return {
-        getLogs: () => logs,
-        setLogs: (newLogs) => logs = newLogs,
-        getRoomFilter: () => roomFilter
+        getLogs: () => logs, setLogs: (newLogs) => logs = newLogs, getRoomFilter: () => roomFilter
     };
 
 })();
