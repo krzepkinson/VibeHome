@@ -59,7 +59,6 @@ window.TodoModule = (() => {
             html += lists.map(list => {
                 const lType = window.LIST_TYPES[list.list_type] || window.LIST_TYPES.generic;
                 
-                // ZMIANA: Etykieta daty wyjazdu
                 let dateBadge = '';
                 if (list.list_type === 'packing' && list.start_date) {
                     const st = new Date(list.start_date).toLocaleDateString('pl-PL', {day:'2-digit', month:'2-digit'});
@@ -140,7 +139,6 @@ window.TodoModule = (() => {
         else { window.closeNewTodoModal(); window.showToast("Zadanie dodane!"); window.loadTodosAndLists(); }
     };
 
-    // --- ZMIANA: TWORZENIE LIST I DATY WYJAZDÓW ---
     window.openNewChecklistModal = function() {
         window.loadAndShowModal('new-checklist-modal', '/modals/new-checklist.html', () => {
             document.getElementById('new-checklist-title').value = '';
@@ -349,7 +347,6 @@ window.TodoModule = (() => {
 
     // --- DELEGACJA ZDARZEŃ (VIA DISPATCHER) ---
     if (window.EventDispatcher) {
-        // ZMIANA: Zarejestrowanie przycisku tworzenia nowej listy
         window.EventDispatcher.onClick('.js-open-new-checklist', () => window.openNewChecklistModal());
 
         window.EventDispatcher.onClick('.js-open-checklist', (e, el) => {
@@ -371,6 +368,12 @@ window.TodoModule = (() => {
             e.stopPropagation();
             const isDone = el.dataset.status === 'true';
             window.toggleTodo(parseInt(el.dataset.id, 10), isDone, el);
+        });
+
+        // ZMIANA: Obsługa kliknięcia kółeczka z domownikiem dla zadań z Todo
+        window.EventDispatcher.onClick('.js-change-user', (e, el) => {
+            e.stopPropagation(); // żeby nie kliknęło się przypadkiem samo zadanie
+            window.openChangeUserModal(el.dataset.type, el.dataset.id, el.dataset.username);
         });
 
         window.EventDispatcher.onClick('.js-delete-checklist-item', (e, el) => {
