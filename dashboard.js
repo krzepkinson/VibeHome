@@ -26,7 +26,6 @@ window.DashboardModule = (() => {
             const state = window.AppStore.get() || {};
             
             // ZMIANA: Pokazujemy "Ładowanie..." TYLKO wtedy, gdy nie mamy starych danych w pamięci.
-            // Dzięki temu w trybie offline nie nadpisujemy starego widoku napisem "Ładowanie".
             if (!state.tasks || state.tasks.length === 0) {
                 const containers = ['widget-home-content', 'widget-health-content', 'widget-todo-content'];
                 containers.forEach(id => {
@@ -79,7 +78,7 @@ window.DashboardModule = (() => {
             greetingEl.innerText = `Dzień dobry, ${window.currentUser.name}!`;
         }
 
-        _renderTodaySection(state, todayStr);
+        _renderTodaySection(state, today, todayStr);
         _renderHomeWidget(state, today);
         _renderHealthWidget(state, today);
         _renderTodoWidget(state);
@@ -116,13 +115,17 @@ window.DashboardModule = (() => {
             return false;
         });
 
+        // POPRAWKA LOGIKI DAT DLA ZADAŃ DOMOWYCH
         const homeToday = tasks.filter(t => {
             if (!t.interval_days) return false;
             const taskLogs = logs.filter(l => l.task_id === t.id);
-            if (taskLogs.length === 0) return true; // Czeka na zrobienie
+            if (taskLogs.length === 0) return true; // Czeka na zrobienie (zaległe)
+            
             const nextDate = new Date(taskLogs[0].created_at);
             nextDate.setDate(nextDate.getDate() + t.interval_days);
             nextDate.setHours(0,0,0,0);
+            
+            // Jeśli przewidywana data wykonania jest DZISIAJ lub w przeszłości, pokazujemy w sekcji "Na dziś"
             return nextDate <= today;
         });
 
