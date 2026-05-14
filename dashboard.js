@@ -23,9 +23,17 @@ window.DashboardModule = (() => {
         const now = Date.now();
         if (forceRefresh || (now - window.dashboardCacheTime > window.CONFIG.CACHE_TTL)) {
             
-            document.getElementById('widget-home-content').innerHTML = `<p class="text-neutral-500 text-xs text-center py-4 animate-pulse">Ładowanie...</p>`;
-            document.getElementById('widget-health-content').innerHTML = `<p class="text-neutral-500 text-xs text-center py-4 animate-pulse">Ładowanie...</p>`;
-            document.getElementById('widget-todo-content').innerHTML = `<p class="text-neutral-500 text-xs text-center py-4 animate-pulse">Ładowanie...</p>`;
+            const state = window.AppStore.get() || {};
+            
+            // ZMIANA: Pokazujemy "Ładowanie..." TYLKO wtedy, gdy nie mamy starych danych w pamięci.
+            // Dzięki temu w trybie offline nie nadpisujemy starego widoku napisem "Ładowanie".
+            if (!state.tasks || state.tasks.length === 0) {
+                const containers = ['widget-home-content', 'widget-health-content', 'widget-todo-content'];
+                containers.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = `<p class="text-neutral-500 text-xs text-center py-4 animate-pulse">Ładowanie...</p>`;
+                });
+            }
             
             const hid = window.currentUser.household_id; 
             
@@ -55,7 +63,7 @@ window.DashboardModule = (() => {
                 window.dashboardCacheTime = now;
             } catch (err) {
                 console.error("Dashboard fetch error:", err);
-                window.showToast("Błąd synchronizacji");
+                window.showToast("Brak połączenia - ładuję zapisane dane");
             }
         }
         window.renderDashboardUI();
@@ -126,14 +134,21 @@ window.DashboardModule = (() => {
                 <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
             `;
             
+            // ZMIANA: Dodano wyświetlanie imienia profilu w kafelkach zdrowia!
             html += healthToday.map(ht => {
                 const icon = ht.task_type === 'cyclical' ? '❤️' : '📅';
+                let profileName = 'Zdrowie';
+                if (ht.profile_id && state.profiles) {
+                    const profile = state.profiles.find(p => p.id === ht.profile_id);
+                    if (profile) profileName = profile.name;
+                }
+
                 return `
                 <div class="js-quick-log-health flex flex-col justify-between w-[115px] h-[90px] p-3 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[16px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}">
                     <div class="text-[12px] font-bold text-[#c2e7ff] leading-tight line-clamp-2">${window.esc(ht.name)}</div>
                     <div class="flex justify-between items-center mt-1">
-                        <span class="text-[10px] text-[#a8c7fa]/80 uppercase font-medium">Dziś</span>
-                        <span class="text-xs opacity-80">${icon}</span>
+                        <span class="text-[10px] text-[#a8c7fa]/80 uppercase font-medium truncate pr-1">${window.esc(profileName)}</span>
+                        <span class="text-xs opacity-80 shrink-0">${icon}</span>
                     </div>
                 </div>`;
             }).join('');
@@ -664,9 +679,9 @@ window.DashboardModule = (() => {
     // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
     // ==========================================
     if (window.EventDispatcher) {
-
-        window.EventDispatcher.onClick('.js-open-search', () => window.openGlobalSearch());
         
+        window.EventDispatcher.onClick('.js-open-search', () => window.openGlobalSearch());
+
         window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
             const chevron = el.querySelector('.js-chevron');
             window.toggleWidgetAccordion(el.dataset.target, chevron);
