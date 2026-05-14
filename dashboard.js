@@ -68,7 +68,6 @@ window.DashboardModule = (() => {
         _renderTodoWidget(state);
         _renderHorizonSection(state, today);
         
-        // ZMIANA Z AUDYTU: Renderujemy Historię dopiero jak jest wywołana z palca, oszczędzamy DOM!
         const overlay = document.getElementById('dashboard-history-overlay');
         if (overlay && !overlay.classList.contains('hidden')) {
             _renderHistoryOverlay(state);
@@ -80,7 +79,23 @@ window.DashboardModule = (() => {
         const todayContainer = document.getElementById('dashboard-today-container');
         if (!todayContainer) return;
 
-        const healthToday = state.hTasks.filter(ht => ht.event_date === todayStr);
+        // ZMIANA: Zdrowie na dziś (łapie teraz jednorazowe wydarzenia ORAZ rutyny cykliczne)
+        const healthToday = state.hTasks.filter(ht => {
+            if (ht.task_type === 'one_time' && ht.event_date === todayStr) {
+                const isDone = state.hLogs.some(l => l.health_task_id === ht.id);
+                return !isDone;
+            }
+            if (ht.task_type === 'cyclical' && ht.interval_days) {
+                const taskLogs = state.hLogs.filter(l => l.health_task_id === ht.id);
+                if (taskLogs.length === 0) return false;
+                const lastLog = taskLogs[0];
+                const nextDate = new Date(lastLog.start_date);
+                nextDate.setDate(nextDate.getDate() + ht.interval_days);
+                return window.getTodayLocalString(nextDate) === todayStr;
+            }
+            return false;
+        });
+
         const homeToday = state.tasks.filter(t => {
             if (!t.interval_days) return false;
             const taskLogs = state.logs.filter(l => l.task_id === t.id);
@@ -97,13 +112,16 @@ window.DashboardModule = (() => {
                 <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
             `;
             
-            html += healthToday.map(ht => `
+            html += healthToday.map(ht => {
+                const icon = ht.task_type === 'cyclical' ? '❤️' : '📅';
+                const subtitle = ht.task_type === 'cyclical' ? 'Rutyna na dziś' : 'Zdarzenie';
+                return `
                 <div class="js-quick-log-health min-w-[140px] p-3 bg-[#004a77]/20 border border-[#004a77]/40 rounded-[20px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${ht.id}">
-                    <div class="text-xl mb-1">📅</div>
+                    <div class="text-xl mb-1">${icon}</div>
                     <div class="text-[11px] font-bold text-[#c2e7ff] leading-tight mb-1 truncate">${window.esc(ht.name)}</div>
-                    <div class="text-[9px] text-[#a8c7fa]/70 uppercase font-medium">Kliknij, by odhaczyć</div>
-                </div>
-            `).join('');
+                    <div class="text-[9px] text-[#a8c7fa]/70 uppercase font-medium">${subtitle}</div>
+                </div>`;
+            }).join('');
 
             html += homeToday.map(t => `
                 <div class="js-dash-log-task min-w-[140px] p-3 bg-[#1e1f20] border border-[#333537] rounded-[20px] shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform" data-id="${t.id}">
@@ -176,7 +194,6 @@ window.DashboardModule = (() => {
             }
             content.innerHTML = html;
 
-            // ZMIANA Z AUDYTU: Auto-expand, jeśli są zaległości!
             if (overdueHome.length > 0) {
                 content.classList.remove('hidden');
                 const chevron = document.getElementById('widget-home-chevron');
@@ -230,7 +247,6 @@ window.DashboardModule = (() => {
             if (diff <= 3) upcomingRoutines.push({ task: t, days: diff });
         });
 
-        // ZMIANA Z AUDYTU: Wyłapywanie zaległych wizyt medycznych!
         let overdueEvents = [];
         const eventTasks = state.hTasks.filter(t => t.task_type === 'one_time');
         eventTasks.forEach(t => {
@@ -309,7 +325,6 @@ window.DashboardModule = (() => {
             }
             content.innerHTML = html;
 
-            // ZMIANA Z AUDYTU: Auto-expand
             if (activeHealth.length > 0 || overdueEvents.length > 0) {
                 content.classList.remove('hidden');
                 const chevron = document.getElementById('widget-health-chevron');
@@ -349,7 +364,6 @@ window.DashboardModule = (() => {
             }
             content.innerHTML = html;
 
-            // ZMIANA Z AUDYTU: Auto-expand
             content.classList.remove('hidden');
             const chevron = document.getElementById('widget-todo-chevron');
             if (chevron) chevron.style.transform = 'rotate(180deg)';
@@ -480,9 +494,6 @@ window.DashboardModule = (() => {
         }).join('') + `</div>`;
     }
 
-    // ==========================================
-    // NIEŚMIERTELNY KOSZYK (SZYBKIE ZAKUPY)
-    // ==========================================
     window.openQuickShoppingList = async function() {
         const state = window.AppStore.get();
         let shoppingList = (state.checklists || []).find(l => l.list_type === 'shopping' && !l.is_archived);
@@ -508,7 +519,6 @@ window.DashboardModule = (() => {
                 return;
             }
 
-            // ZMIANA Z AUDYTU: Bezpieczna, niemutująca aktualizacja Store'a!
             window.AppStore.set({
                 checklists: [...(state.checklists || []), data]
             });
@@ -518,9 +528,6 @@ window.DashboardModule = (() => {
         }
     };
 
-    // ==========================================
-    // SZYBKIE AKCJE I AKORDIONY
-    // ==========================================
     window.toggleWidgetAccordion = function(targetId, chevronEl) {
         const content = document.getElementById(targetId);
         if (!content) return;
@@ -595,9 +602,6 @@ window.DashboardModule = (() => {
         window.loadDashboardOverview(true);
     };
 
-    // ==========================================
-    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
-    // ==========================================
     if (window.EventDispatcher) {
         
         window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
@@ -612,7 +616,6 @@ window.DashboardModule = (() => {
 
         window.EventDispatcher.onClick('.js-open-cart', () => window.openQuickShoppingList());
         
-        // ZMIANA Z AUDYTU: Historia Renderuje się dopiero po kliknięciu
         window.EventDispatcher.onClick('.js-open-history', () => {
             document.getElementById('dashboard-history-overlay').classList.remove('hidden');
             _renderHistoryOverlay(window.AppStore.get());
@@ -620,7 +623,6 @@ window.DashboardModule = (() => {
         
         window.EventDispatcher.onClick('.js-close-history', () => document.getElementById('dashboard-history-overlay').classList.add('hidden'));
 
-        // ZMIANA Z AUDYTU: Złapanie nowej klasy js-dashboard-refresh zamiast onclicka
         window.EventDispatcher.onClick('.js-dashboard-refresh', () => {
             window.invalidateDashboardCache();
             window.loadDashboardOverview(true);
@@ -637,5 +639,5 @@ window.DashboardModule = (() => {
         console.error("EventDispatcher nie został załadowany!");
     }
 
-    return {};
+    return { load: window.loadDashboardOverview };
 })();
