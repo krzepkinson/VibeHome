@@ -62,7 +62,6 @@ window.HomeModule = (() => {
             }
         }
 
-        // POPRAWKA WYDAJNOŚCI: Robimy fetch z bazy tylko jeśli AppStore jest całkowicie pusty!
         let state = window.AppStore.get() || {};
         if (!state.tasks || state.tasks.length === 0) {
             await window.loadDashboardOverview(); 
@@ -87,6 +86,9 @@ window.HomeModule = (() => {
             return;
         }
 
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         if (!roomFilter) {
             if (viewMode === 'calendar') {
                 window.renderHomeCalendar();
@@ -102,9 +104,22 @@ window.HomeModule = (() => {
                 const rName = task.room || 'Inne';
                 if (!roomStats[rName]) roomStats[rName] = { icon: '📦', total: 0, overdue: 0 };
                 roomStats[rName].total++;
-                if (window.isTaskOverdue(task, logs)) {
-                    roomStats[rName].overdue++; 
-                    totalOverdueAll++;
+                
+                // POPRAWKA LOGIKI DLA STATYSTYK W POKOJACH
+                const taskLogs = logs.filter(l => l.task_id === task.id);
+                if (task.interval_days && task.interval_days > 0) {
+                    if (taskLogs.length === 0) {
+                        roomStats[rName].overdue++; 
+                        totalOverdueAll++;
+                    } else {
+                        const nextDate = new Date(taskLogs[0].created_at);
+                        nextDate.setDate(nextDate.getDate() + task.interval_days);
+                        nextDate.setHours(0,0,0,0);
+                        if (nextDate < today) {
+                            roomStats[rName].overdue++; 
+                            totalOverdueAll++;
+                        }
+                    }
                 }
             });
 
@@ -130,24 +145,26 @@ window.HomeModule = (() => {
         }
 
         let tasksToDisplay = roomFilter === 'Wszystkie' ? tasks : tasks.filter(t => (t.room || 'Inne') === roomFilter);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
 
         let scored = tasksToDisplay.map(t => {
             const taskLogs = logs.filter(l => l.task_id === t.id);
             const lastLog = taskLogs[0]; 
             let daysRemaining;
             
+            // POPRAWKA LOGIKI SORTOWANIA WIDOKU LISTY
             if (!t.interval_days || t.interval_days === 0) {
                 daysRemaining = taskLogs.length > 0 ? 999999 : 0; 
             } else {
-                const baseDateStr = lastLog ? (lastLog.created_at || lastLog.start_date) : t.created_at;
-                const baseDate = new Date(baseDateStr);
-                baseDate.setHours(0, 0, 0, 0);
-                const nextDueDate = new Date(baseDate);
-                nextDueDate.setDate(nextDueDate.getDate() + t.interval_days);
-                const diffTime = nextDueDate.getTime() - today.getTime();
-                daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (!lastLog) {
+                    daysRemaining = -999999; // Jeśli nie zrobione, rzuć na samą górę
+                } else {
+                    const lastDate = new Date(lastLog.created_at);
+                    lastDate.setHours(0,0,0,0);
+                    const nextDueDate = new Date(lastDate);
+                    nextDueDate.setDate(nextDueDate.getDate() + t.interval_days);
+                    const diffTime = nextDueDate.getTime() - today.getTime();
+                    daysRemaining = Math.ceil(diffTime / 86400000);
+                }
             }
             return { t, last: lastLog, daysRemaining };
         });
@@ -281,7 +298,8 @@ window.HomeModule = (() => {
         const relText = `Ostatnio ${window.getRelativeTime(lastDate)}`;
         
         const next = new Date(lastDate); next.setDate(next.getDate() + interval);
-        const diff = Math.ceil((next - new Date().setHours(0,0,0,0)) / 86400000);
+        const diff = Math.ceil((next.setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
+        
         return diff < 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` } 
                : diff === 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: 'Dzisiaj!' } 
                : { color: 'text-[#c4eed0]', label: relText, tooltip: `Za ${diff} dni.` };
@@ -449,7 +467,6 @@ window.HomeModule = (() => {
     });
 
     if (window.EventDispatcher) {
-        // ZMIANA: Obsługa powrotu wyciągnięta z HTMLa dla większej stabilności
         window.EventDispatcher.onClick('.js-home-back', () => window.clearRoomFilter());
 
         window.EventDispatcher.onClick('.js-add-log', (e, el) => {
