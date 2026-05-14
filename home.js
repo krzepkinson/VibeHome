@@ -20,7 +20,7 @@ window.HomeModule = (() => {
     };
 
     window.changeHomeMonth = function(offset) {
-        currentMonth += offset;
+        currentMonth += parseInt(offset);
         if (currentMonth < 0) { currentMonth = 11; currentYear--; } 
         else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
         window.loadDashboard();
@@ -105,7 +105,6 @@ window.HomeModule = (() => {
                 if (!roomStats[rName]) roomStats[rName] = { icon: '📦', total: 0, overdue: 0 };
                 roomStats[rName].total++;
                 
-                // POPRAWKA LOGIKI DLA STATYSTYK W POKOJACH
                 const taskLogs = logs.filter(l => l.task_id === task.id);
                 if (task.interval_days && task.interval_days > 0) {
                     if (taskLogs.length === 0) {
@@ -151,12 +150,11 @@ window.HomeModule = (() => {
             const lastLog = taskLogs[0]; 
             let daysRemaining;
             
-            // POPRAWKA LOGIKI SORTOWANIA WIDOKU LISTY
             if (!t.interval_days || t.interval_days === 0) {
                 daysRemaining = taskLogs.length > 0 ? 999999 : 0; 
             } else {
                 if (!lastLog) {
-                    daysRemaining = -999999; // Jeśli nie zrobione, rzuć na samą górę
+                    daysRemaining = -999999;
                 } else {
                     const lastDate = new Date(lastLog.created_at);
                     lastDate.setHours(0,0,0,0);
@@ -232,7 +230,7 @@ window.HomeModule = (() => {
 
             if (isToday) dayClass += ' ring-2 ring-[#a8c7fa] ring-offset-2 ring-offset-[#1e1f20]';
 
-            html += `<div onclick="window.openHomeDayDetails('${dateStr}')" class="relative aspect-square flex items-center justify-center rounded-xl cursor-pointer transition-all active:scale-90 ${dayClass}"><span class="text-xs">${d}</span>${indicator}</div>`;
+            html += `<div class="js-open-home-day-details relative aspect-square flex items-center justify-center rounded-xl cursor-pointer transition-all active:scale-90 ${dayClass}" data-date="${dateStr}"><span class="text-xs">${d}</span>${indicator}</div>`;
         }
         html += `</div>`;
         container.innerHTML = html;
@@ -281,6 +279,15 @@ window.HomeModule = (() => {
             list.innerHTML = html;
         }
         modal.classList.remove('hidden');
+    };
+
+    // ZMIANA: Dodana dedykowana asynchroniczna funkcja zamkykania dla kalendarza DOMU
+    window.closeHomeDayDetailsModal = function() { 
+        const modal = document.getElementById('day-details-modal');
+        if(modal) {
+            modal.classList.add('hidden');
+            if (document.activeElement) document.activeElement.blur();
+        }
     };
 
     window.getRelativeTime = function(d) {
@@ -468,6 +475,12 @@ window.HomeModule = (() => {
 
     if (window.EventDispatcher) {
         window.EventDispatcher.onClick('.js-home-back', () => window.clearRoomFilter());
+        
+        // ZMIANA: Obsługa dnia w kalendarzu domowym za pomocą EventDispatchera
+        window.EventDispatcher.onClick('.js-open-home-day-details', (e, el) => window.openHomeDayDetails(el.dataset.date));
+        
+        // ZMIANA: Obsługa zamykania modala kalendarza domowego wyrzucona do Dispatchera
+        window.EventDispatcher.onClick('.js-close-home-day-details', () => window.closeHomeDayDetailsModal());
 
         window.EventDispatcher.onClick('.js-add-log', (e, el) => {
             e.preventDefault(); e.stopPropagation();
