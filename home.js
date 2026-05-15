@@ -3,7 +3,6 @@
 // ==========================================
 
 window.HomeModule = (() => {
-    // --- PRYWATNY STAN MODUŁU ---
     let logs = []; 
     let tasks = []; 
     let roomFilter = null; 
@@ -11,7 +10,6 @@ window.HomeModule = (() => {
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
 
-    // --- FUNKCJE UDOSTĘPNIONE DLA INTERFEJSU ---
     window.toggleHomeView = function() {
         viewMode = viewMode === 'list' ? 'calendar' : 'list';
         const toggleBtn = document.getElementById('home-view-toggle-btn');
@@ -78,7 +76,7 @@ window.HomeModule = (() => {
                 if (calWrapper) calWrapper.classList.add('hidden');
                 list.innerHTML = window.UI.renderEmptyState("Twój dom jest pusty", "Dodaj pierwszą czynność, by zacząć dbać o przestrzeń.") + `
                 <div class="flex justify-center -mt-10">
-                    <button onclick="window.openNewTaskModal()" class="bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
+                    <button class="js-open-new-task-modal bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
                         <span class="text-xl pb-1">+</span> Dodaj pierwszą czynność
                     </button>
                 </div>`;
@@ -281,7 +279,6 @@ window.HomeModule = (() => {
         modal.classList.remove('hidden');
     };
 
-    // ZMIANA: Dodana dedykowana asynchroniczna funkcja zamkykania dla kalendarza DOMU
     window.closeHomeDayDetailsModal = function() { 
         const modal = document.getElementById('day-details-modal');
         if(modal) {
@@ -443,43 +440,16 @@ window.HomeModule = (() => {
         });
     };
 
-    let touchStartX = 0;
-    let currentSwipeItem = null;
-
-    document.addEventListener('touchstart', (e) => {
-        const swipeItem = e.target.closest('.js-swipe-item');
-        if (swipeItem) {
-            touchStartX = e.touches[0].clientX;
-            currentSwipeItem = swipeItem;
-            document.querySelectorAll('.js-swipe-item').forEach(el => {
-                if (el !== swipeItem) el.style.transform = 'translateX(0px)';
-            });
-        }
-    }, { passive: true });
-
-    document.addEventListener('touchmove', (e) => {
-        if (!currentSwipeItem) return;
-        const touchX = e.touches[0].clientX;
-        const diff = touchX - touchStartX;
-        if (diff < 0 && diff > -100) { currentSwipeItem.style.transform = `translateX(${diff}px)`; }
-    }, { passive: true });
-
-    document.addEventListener('touchend', (e) => {
-        if (!currentSwipeItem) return;
-        const touchEndX = e.changedTouches[0].clientX;
-        const diff = touchEndX - touchStartX;
-        if (diff < -50) currentSwipeItem.style.transform = 'translateX(-80px)';
-        else currentSwipeItem.style.transform = 'translateX(0px)';
-        currentSwipeItem = null;
-    });
-
     if (window.EventDispatcher) {
+        // ZMIANA: Dodano dispatchery z home.html do scentralizowanego sterowania
+        window.EventDispatcher.onClick('.js-toggle-home-view', () => window.toggleHomeView());
+        window.EventDispatcher.onClick('.js-open-home-stats', () => window.openStatsScreen());
+        window.EventDispatcher.onClick('.js-refresh-home-view', () => window.refreshCurrentView());
+        window.EventDispatcher.onClick('.js-open-new-task-modal', () => window.openNewTaskModal());
+        window.EventDispatcher.onClick('.js-change-home-month', (e, el) => window.changeHomeMonth(el.dataset.offset));
+
         window.EventDispatcher.onClick('.js-home-back', () => window.clearRoomFilter());
-        
-        // ZMIANA: Obsługa dnia w kalendarzu domowym za pomocą EventDispatchera
         window.EventDispatcher.onClick('.js-open-home-day-details', (e, el) => window.openHomeDayDetails(el.dataset.date));
-        
-        // ZMIANA: Obsługa zamykania modala kalendarza domowego wyrzucona do Dispatchera
         window.EventDispatcher.onClick('.js-close-home-day-details', () => window.closeHomeDayDetailsModal());
 
         window.EventDispatcher.onClick('.js-add-log', (e, el) => {
