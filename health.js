@@ -19,7 +19,6 @@ window.HealthModule = (() => {
         return `${y}-${m}-${d}`;
     };
 
-    // Trik "odmrażający" dotyk na mobilnym Safari
     const forceTouchRepaint = () => {
         if (document.activeElement) document.activeElement.blur();
         document.body.style.cursor = 'default';
