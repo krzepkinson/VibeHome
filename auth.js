@@ -4,7 +4,6 @@
 
 let isLoginMode = true;
 
-// Funkcja wyłączająca ekran ładowania
 window.hideSplashScreen = function() {
     const splash = document.getElementById('splash-screen');
     if (splash) {
@@ -93,10 +92,6 @@ window.finalizeLogin = async function(user) {
 
         window.currentUser = { ...profile, user_id: user.id };
         
-        // ZMIANA: Odkrywamy lupkę na poprawne zalogowanie
-        const searchBtn = document.getElementById('global-search-btn');
-        if (searchBtn) searchBtn.classList.remove('hidden');
-        
         const urlParams = new URLSearchParams(window.location.search);
         const view = urlParams.get('view') || 'dashboard';
         window.switchView(view);
@@ -124,19 +119,12 @@ window.checkSession = async function() {
             window.hideSplashScreen(); 
             return true; 
         } else {
-            // ZMIANA: Ukrywamy lupkę jeśli nie ma sesji
-            const searchBtn = document.getElementById('global-search-btn');
-            if (searchBtn) searchBtn.classList.add('hidden');
-            
             window.switchView('auth');
             window.hideSplashScreen(); 
             return false;
         }
     } catch (e) { 
         console.error("Błąd sesji:", e);
-        const searchBtn = document.getElementById('global-search-btn');
-        if (searchBtn) searchBtn.classList.add('hidden');
-            
         window.switchView('auth');
         window.hideSplashScreen();
         return false;
@@ -146,10 +134,6 @@ window.checkSession = async function() {
 window.logoutUser = async function() {
     await window.supabaseClient.auth.signOut();
     window.currentUser = null;
-    
-    // ZMIANA: Ukrywamy lupkę przy wylogowaniu
-    const searchBtn = document.getElementById('global-search-btn');
-    if (searchBtn) searchBtn.classList.add('hidden');
             
     if (typeof window.invalidateDashboardCache === 'function') {
         window.invalidateDashboardCache();
