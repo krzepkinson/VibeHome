@@ -13,7 +13,6 @@ window.CalendarModule = (() => {
     
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
-    let eventsSetupDone = false; 
 
     const getLocalDayStr = (dObj = new Date()) => {
         const y = dObj.getFullYear();
@@ -25,7 +24,7 @@ window.CalendarModule = (() => {
     async function init() {
         document.getElementById('calendar-subtitle').innerText = 'Ładowanie danych...';
         await fetchAllData();
-        setupEvents();
+        renderProfilePills();
         renderCurrentTab();
     }
 
@@ -47,17 +46,9 @@ window.CalendarModule = (() => {
             ]);
 
             appProfiles = profilesRes.data || [];
-            
-            const personSelect = document.getElementById('cal-subfilter-person');
-            if (personSelect) {
-                personSelect.innerHTML = '<option value="">-- Wszyscy --</option>' + 
-                    appProfiles.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-            }
 
-            // 1. ZADANIA DOMOWE (NAPRAWA: LICZYMY PRZYSZŁOŚĆ ZAMIAST LOGÓW PRZESZŁOŚCI)
             if (tasksRes.data) {
                 tasksRes.data.forEach(t => {
-                    // Ignoruj zadania, do których nie masz przypisania, tak jak robi to główny kokpit
                     let isTaskAssigned = true; 
                     if (t.assigned_to && t.assigned_to !== window.currentUser.id && t.assigned_to !== window.currentUser.name) {
                         isTaskAssigned = false;
@@ -88,7 +79,6 @@ window.CalendarModule = (() => {
                 });
             }
 
-            // 2. ZDROWIE (HIERARCHIA KOLORÓW)
             if (hTasksRes.data && hLogsRes.data) {
                 const taskSelect = document.getElementById('cal-subfilter-task');
                 if (taskSelect) {
@@ -98,7 +88,6 @@ window.CalendarModule = (() => {
 
                 hTasksRes.data.forEach(ht => {
                     if (ht.task_type === 'duration') {
-                        // CZERWONY: Infekcje i zdarzenia trwające
                         const logs = hLogsRes.data.filter(l => l.health_task_id === ht.id);
                         logs.forEach(l => {
                             let start = new Date(l.start_date);
@@ -119,7 +108,6 @@ window.CalendarModule = (() => {
                             }
                         });
                     } else if (ht.task_type === 'one_time' && ht.event_date) {
-                        // POMARAŃCZOWY: Wizyty / Szczepienia (One Time)
                         allEvents.push({
                             id: ht.id, type: 'Zdrowie', title: ht.name, icon: '📅', subTaskId: ht.id,
                             date: ht.event_date.split('T')[0], color: 'text-amber-500', bg: 'bg-[#f59e0b]',
@@ -151,62 +139,49 @@ window.CalendarModule = (() => {
         });
     }
 
-    function setupEvents() {
-        if (eventsSetupDone) return;
-        eventsSetupDone = true;
+    function renderProfilePills() {
+        const container = document.getElementById('cal-profile-filters');
+        if (!container) return;
+        
+        let html = `<button onclick="window.CalendarModule.setProfileFilter(null)" class="js-profile-pill px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 transition-colors ${!activeSubFilterPerson ? 'bg-[#a8c7fa] text-[#004a77]' : 'bg-[#131314] border border-[#333537] text-neutral-400'}">Wszyscy</button>`;
+        
+        appProfiles.forEach(p => {
+            const isActive = activeSubFilterPerson == p.id;
+            const bgClass = isActive ? 'bg-[#004a77] border border-[#a8c7fa]/30 text-[#a8c7fa]' : 'bg-[#131314] border border-[#333537] text-neutral-400';
+            html += `<button onclick="window.CalendarModule.setProfileFilter(${p.id})" class="js-profile-pill px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 transition-colors ${bgClass}">${p.name}</button>`;
+        });
+        
+        container.innerHTML = html;
+    }
 
-        if (window.EventDispatcher) {
-            window.EventDispatcher.onClick('.js-cal-tab', (e, el) => {
-                document.querySelectorAll('.js-cal-tab').forEach(b => {
-                    b.classList.remove('bg-[#333537]', 'text-white', 'shadow-sm');
-                    b.classList.add('text-neutral-500');
-                });
-                el.classList.add('bg-[#333537]', 'text-white', 'shadow-sm');
-                el.classList.remove('text-neutral-500');
-                currentTab = el.dataset.tab;
-                renderCurrentTab();
-            });
+    function setTab(tabName) {
+        currentTab = tabName;
+        document.querySelectorAll('.js-cal-tab').forEach(b => {
+            b.classList.remove('bg-[#333537]', 'text-white', 'shadow-sm');
+            b.classList.add('text-neutral-500');
+        });
+        document.getElementById(`tab-${tabName}`).classList.add('bg-[#333537]', 'text-white', 'shadow-sm');
+        document.getElementById(`tab-${tabName}`).classList.remove('text-neutral-500');
+        renderCurrentTab();
+    }
 
-            window.EventDispatcher.onClick('.js-cal-filter', (e, el) => {
-                document.querySelectorAll('.js-cal-filter').forEach(b => {
-                    b.classList.replace('bg-[#a8c7fa]', 'bg-[#131314]');
-                    b.classList.replace('text-[#004a77]', 'text-neutral-400');
-                    b.classList.add('border', 'border-[#333537]');
-                });
-                el.classList.replace('bg-[#131314]', 'bg-[#a8c7fa]');
-                el.classList.replace('text-neutral-400', 'text-[#004a77]');
-                el.classList.remove('border', 'border-[#333537]');
-                activeFilter = el.dataset.filter;
-                renderCurrentTab();
-            });
+    function setFilter(filterName) {
+        activeFilter = filterName;
+        document.querySelectorAll('.js-cal-filter').forEach(b => {
+            b.classList.replace('bg-[#a8c7fa]', 'bg-[#131314]');
+            b.classList.replace('text-[#004a77]', 'text-neutral-400');
+            b.classList.add('border', 'border-[#333537]');
+        });
+        document.getElementById(`filter-${filterName}`).classList.replace('bg-[#131314]', 'bg-[#a8c7fa]');
+        document.getElementById(`filter-${filterName}`).classList.replace('text-neutral-400', 'text-[#004a77]');
+        document.getElementById(`filter-${filterName}`).classList.remove('border', 'border-[#333537]');
+        renderCurrentTab();
+    }
 
-            window.EventDispatcher.onClick('.js-cal-nav-month', (e, el) => {
-                const offset = parseInt(el.dataset.offset);
-                currentMonth += offset;
-                if (currentMonth < 0) { currentMonth = 11; currentYear--; } 
-                else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
-                renderMonth();
-            });
-
-            window.EventDispatcher.onClick('.js-cal-nav-year', (e, el) => {
-                currentYear += parseInt(el.dataset.offset);
-                renderYearHeatmap();
-            });
-
-            window.EventDispatcher.onClick('.js-cal-day-click', (e, el) => showMonthDetails(el.dataset.date));
-            
-            // NOWOŚĆ: Tooltip / Informacja z Heatmapy na kliknięcie!
-            window.EventDispatcher.onClick('.js-heatmap-cell', (e, el) => {
-                if (el.dataset.info && typeof window.showToast === 'function') {
-                    window.showToast(el.dataset.info);
-                }
-            });
-
-            window.EventDispatcher.onClick('.js-cal-open-subfilter', openSubFilterModal);
-            window.EventDispatcher.onClick('.js-cal-close-subfilter', closeSubFilterModal);
-            window.EventDispatcher.onClick('.js-cal-apply-subfilter', applySubFilter);
-            window.EventDispatcher.onClick('.js-cal-clear-subfilter', clearSubFilter);
-        }
+    function setProfileFilter(id) {
+        activeSubFilterPerson = id;
+        renderProfilePills();
+        renderCurrentTab();
     }
 
     function renderCurrentTab() {
@@ -231,7 +206,6 @@ window.CalendarModule = (() => {
         const events = getFilteredEvents(false);
         const todayStr = getLocalDayStr();
         
-        // Zostawiamy tylko nadchodzące/dzisiejsze zdarzenia!
         const futureEvents = events.filter(e => e.date >= todayStr).sort((a,b) => a.date.localeCompare(b.date));
 
         if (futureEvents.length === 0) {
@@ -250,13 +224,15 @@ window.CalendarModule = (() => {
             }
             
             const durationTxt = e.isDuration ? `<span class="text-[8px] border border-[#ffb4ab]/30 px-1 ml-2 rounded text-neutral-400">Trwa do: ${e.endDate}</span>` : '';
-            
+            const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
+            const pTxt = pName ? ` • ${pName}` : '';
+
             html += `
             <div class="bg-[#1e1f20] p-4 rounded-[16px] border border-[#333537] flex items-center gap-4 mb-2 shadow-sm">
                 <span class="text-2xl">${e.icon}</span>
                 <div>
                     <p class="text-sm font-bold ${e.color}">${window.esc(e.title)} ${durationTxt}</p>
-                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}</p>
+                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}${pTxt}</p>
                 </div>
             </div>`;
         });
@@ -287,9 +263,9 @@ window.CalendarModule = (() => {
             let dotsHtml = '';
             if (dayEvents.length > 0) {
                 const colors = [...new Set(dayEvents.map(e => e.bg))].slice(0, 3);
-                dotsHtml = `<div class="absolute bottom-1 w-full flex justify-center gap-0.5">` + colors.map(c => `<div class="w-1.5 h-1.5 rounded-full ${c}"></div>`).join('') + `</div>`;
+                dotsHtml = `<div class="absolute bottom-1 w-full flex justify-center gap-0.5 pointer-events-none">` + colors.map(c => `<div class="w-1.5 h-1.5 rounded-full ${c}"></div>`).join('') + `</div>`;
             }
-            html += `<div class="js-cal-day-click relative p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center cursor-pointer active:scale-90 transition-transform select-none" data-date="${dateStr}">${d}${dotsHtml}</div>`;
+            html += `<div onclick="window.CalendarModule.showMonthDetails('${dateStr}')" class="relative p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center cursor-pointer active:scale-90 transition-transform select-none">${d}${dotsHtml}</div>`;
         }
         html += `</div>`;
         grid.innerHTML = html;
@@ -343,29 +319,62 @@ window.CalendarModule = (() => {
                 const dayEvents = events.filter(e => e.date === dateStr);
                 
                 let cellClass = "w-3.5 h-3.5 rounded-sm bg-[#1e1f20]"; 
-                let tooltipTxt = dateStr;
 
                 if (dayEvents.length > 0) {
-                    // Priorytety kolorów (Infekcje gaszą inne kolory)
                     const hasInfection = dayEvents.some(e => e.bg === 'bg-[#ef4444]');
                     const hasVisit = dayEvents.some(e => e.bg === 'bg-[#f59e0b]');
 
                     if (hasInfection) cellClass = `w-3.5 h-3.5 rounded-sm bg-[#ef4444] shadow-sm border border-black/20`;
                     else if (hasVisit) cellClass = `w-3.5 h-3.5 rounded-sm bg-[#f59e0b] shadow-sm border border-black/20`;
                     else cellClass = `w-3.5 h-3.5 rounded-sm ${dayEvents[0].bg} shadow-sm border border-black/20`; 
-                    
-                    // Budujemy listę chorób dla Tooltipa
-                    const eventNames = [...new Set(dayEvents.map(e => e.title))].join(', ');
-                    tooltipTxt = `${dateStr}: ${eventNames}`;
                 }
 
-                // Dodano klasę js-heatmap-cell i atrybut data-info pod systemowego Toasta
-                monthHtml += `<div class="${cellClass} js-heatmap-cell cursor-pointer" data-info="${window.esc(tooltipTxt)}" title="${window.esc(tooltipTxt)}"></div>`;
+                monthHtml += `<div class="${cellClass} cursor-pointer active:scale-90 transition-transform" onclick="window.CalendarModule.openHeatmapModal('${dateStr}')"></div>`;
             }
             monthHtml += `</div></div>`;
             html += monthHtml;
         }
         grid.innerHTML = html;
+    }
+
+    function openHeatmapModal(dateStr) {
+        const container = document.getElementById('cal-heatmap-modal-content');
+        const title = document.getElementById('cal-heatmap-modal-title');
+        
+        const dayEvents = getFilteredEvents(true).filter(e => e.date === dateStr);
+        if(dayEvents.length === 0) return; // Nie otwieramy modala dla pustych dni
+
+        const dateObj = new Date(dateStr);
+        title.innerText = dateObj.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
+        
+        let html = '';
+        dayEvents.forEach(e => {
+            const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
+            const pTxt = pName ? ` • ${pName}` : '';
+            html += `
+            <div class="bg-[#131314] border border-[#333537] p-3 rounded-xl flex items-center gap-3">
+                <span class="text-2xl">${e.icon}</span>
+                <div>
+                    <p class="text-sm font-bold ${e.color}">${window.esc(e.title)}</p>
+                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}${pTxt}</p>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+
+        const modal = document.getElementById('cal-heatmap-modal');
+        const panel = document.getElementById('cal-heatmap-panel');
+        modal.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            panel.classList.remove('translate-y-full');
+            panel.classList.add('translate-y-0');
+        });
+    }
+
+    function closeHeatmapModal() {
+        const panel = document.getElementById('cal-heatmap-panel');
+        panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
+        setTimeout(() => document.getElementById('cal-heatmap-modal').classList.add('hidden'), 300);
     }
 
     function openSubFilterModal() {
@@ -383,24 +392,16 @@ window.CalendarModule = (() => {
 
     function applySubFilter() {
         const taskSelect = document.getElementById('cal-subfilter-task');
-        const personSelect = document.getElementById('cal-subfilter-person');
         activeSubFilterTask = taskSelect.value || null;
-        activeSubFilterPerson = personSelect.value || null;
         
         const badgeContainer = document.getElementById('active-subfilter-badge');
-        let badgeHtml = '';
         
-        if (activeSubFilterPerson) {
-            const pName = personSelect.options[personSelect.selectedIndex].text;
-            badgeHtml += `<span class="px-3 py-1.5 bg-[#004a77] border border-[#a8c7fa]/30 text-[#a8c7fa] rounded-full text-[10px] font-bold shadow-sm">Osoba: ${pName}</span>`;
-        }
         if (activeSubFilterTask) {
             const tName = taskSelect.options[taskSelect.selectedIndex].text;
-            badgeHtml += `<span class="px-3 py-1.5 bg-[#3c1414] border border-[#ffb4ab]/30 text-[#ffb4ab] rounded-full text-[10px] font-bold shadow-sm">Typ: ${tName}</span>`;
-        }
-
-        if (badgeHtml) {
-            badgeContainer.innerHTML = badgeHtml + `<button class="js-cal-clear-subfilter text-neutral-500 text-xs font-bold ml-1 active:scale-90">CZYŚĆ ✕</button>`;
+            badgeContainer.innerHTML = `
+                <span class="px-3 py-1.5 bg-[#3c1414] border border-[#ffb4ab]/30 text-[#ffb4ab] rounded-full text-[10px] font-bold shadow-sm">Zdarzenie: ${tName}</span>
+                <button onclick="window.CalendarModule.clearSubFilter()" class="text-neutral-500 text-xs font-bold ml-1 active:scale-90">CZYŚĆ ✕</button>
+            `;
             badgeContainer.classList.remove('hidden');
         } else {
             badgeContainer.classList.add('hidden');
@@ -411,12 +412,25 @@ window.CalendarModule = (() => {
     }
 
     function clearSubFilter() {
-        activeSubFilterTask = null; activeSubFilterPerson = null;
+        activeSubFilterTask = null;
         document.getElementById('cal-subfilter-task').value = "";
-        document.getElementById('cal-subfilter-person').value = "";
         document.getElementById('active-subfilter-badge').classList.add('hidden');
         renderCurrentTab();
     }
 
-    return { init };
+    return { 
+        init, 
+        setTab, 
+        setFilter, 
+        setProfileFilter, 
+        changeMonth: (off) => { currentMonth += off; if (currentMonth < 0) { currentMonth = 11; currentYear--; } else if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderMonth(); }, 
+        changeYear: (off) => { currentYear += off; renderYearHeatmap(); },
+        showMonthDetails, 
+        openHeatmapModal, 
+        closeHeatmapModal, 
+        openSubFilterModal, 
+        closeSubFilterModal, 
+        applySubFilter, 
+        clearSubFilter 
+    };
 })();
