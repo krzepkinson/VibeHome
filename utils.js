@@ -13,7 +13,7 @@ window.getTodayLocalString = function(dateObj = new Date()) {
     const year = dateObj.getFullYear();
     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
     const day = String(dateObj.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`; // Zwraca lokalne YYYY-MM-DD
+    return `${year}-${month}-${day}`; 
 };
 
 window.showToast = function(message) {
@@ -58,14 +58,11 @@ window.isTaskOverdue = function(task, logsArray) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Znajdź logi powiązane z tym zadaniem (obsługa kluczy z Domu i ze Zdrowia)
-    // Zakładamy, że logsArray jest posortowane od najnowszego (co robimy w zapytaniach SQL)
     const taskLogs = logsArray.filter(l => l.task_id === task.id || l.health_task_id === task.id);
     const lastLog = taskLogs[0]; 
 
-    // 1. ZADANIA JEDNORAZOWE (np. Zdarzenia Zdrowotne)
     if (task.task_type === 'one_time') {
-        if (taskLogs.length > 0) return false; // Już zrobione, więc nie zalega
+        if (taskLogs.length > 0) return false; 
         if (!task.event_date) return false;
         
         const evDate = new Date(task.event_date);
@@ -73,11 +70,9 @@ window.isTaskOverdue = function(task, logsArray) {
         return evDate <= today;
     }
 
-    // 2. ZADANIA CYKLICZNE (Domowe "interval_days" oraz Zdrowotne "cyclical")
     if (task.interval_days && task.interval_days > 0) {
-        if (!lastLog) return true; // Nigdy nie robione = trzeba to zrobić (zaległe)
+        if (!lastLog) return true; 
         
-        // Łapiemy datę z odpowiedniej kolumny (Dom vs Zdrowie)
         const lastDateStr = lastLog.created_at || lastLog.start_date;
         if (!lastDateStr) return true;
 
@@ -88,7 +83,7 @@ window.isTaskOverdue = function(task, logsArray) {
         return nextDate <= today;
     }
 
-    return false; // Pozostałe przypadki (np. zadania archiwizowane, bez interwału)
+    return false; 
 };
 
 // --- SYSTEM PULL-TO-REFRESH ---
@@ -122,11 +117,11 @@ window.initPullToRefresh = function() {
 };
 document.addEventListener('DOMContentLoaded', window.initPullToRefresh);
 
-// --- SYSTEM SWIPE-TO-DELETE ---
+// --- SYSTEM SWIPE-TO-DELETE (Globalny, ujednolicony!) ---
 window.setupGlobalSwipe = function() {
     let startX = 0; let isDragging = false; let activeItem = null; let openItem = null;
     const handleStart = (e) => {
-        const swipeFront = e.target.closest('.swipe-front');
+        const swipeFront = e.target.closest('.swipe-front, .js-swipe-item');
         if (openItem && openItem !== swipeFront) { openItem.style.transform = 'translateX(0px)'; openItem = null; }
         if (!swipeFront) return;
         activeItem = swipeFront; startX = e.touches ? e.touches[0].clientX : e.pageX; isDragging = true;
@@ -148,7 +143,7 @@ window.setupGlobalSwipe = function() {
     };
     document.addEventListener('touchstart', handleStart, { passive: true });
     document.addEventListener('touchmove', handleMove, { passive: true });
-    document.addEventListener('touchend', handleEnd);
+    document.addEventListener('touchend', handleEnd, { passive: true }); // ZMIANA: {passive: true} poprawia wydajność Scrolla!
 };
 document.addEventListener('DOMContentLoaded', window.setupGlobalSwipe);
 
@@ -156,6 +151,7 @@ document.addEventListener('DOMContentLoaded', window.setupGlobalSwipe);
 window.triggerHaptic = function() {
     if (navigator && navigator.vibrate) navigator.vibrate(30);
 };
+
 // --- GENERATOR KOLORÓW AWATARÓW ---
 window.getAvatarColor = function(name) {
     if (!name) return 'bg-neutral-600';
@@ -170,25 +166,20 @@ window.getAvatarColor = function(name) {
     ];
     return colors[hash % colors.length];
 };
-// --- SYSTEM DYNAMICZNEGO ŁADOWANIA MODALI (LAZY LOADING) ---
+
+// --- SYSTEM DYNAMICZNEGO ŁADOWANIA MODALI ---
 window.loadAndShowModal = async function(modalId, filePath, onLoadedCallback) {
     let modal = document.getElementById(modalId);
     
-    // Jeśli modala nie ma w pliku index.html, musimy go pobrać
     if (!modal) {
         try {
             const response = await fetch(filePath);
             if (!response.ok) throw new Error('Błąd pliku HTML');
             
             const html = await response.text();
-            
-            // Tworzymy tymczasowy kontener, żeby zamienić tekst na prawdziwy HTML
             const wrapper = document.createElement('div');
             wrapper.innerHTML = html;
-            
-            // Doklejamy pobrany modal na sam koniec naszego body
             document.body.appendChild(wrapper.firstElementChild);
-            
             modal = document.getElementById(modalId);
         } catch (error) {
             console.error("Błąd ładowania modala:", error);
@@ -197,10 +188,8 @@ window.loadAndShowModal = async function(modalId, filePath, onLoadedCallback) {
         }
     }
     
-    // Pokazujemy modal
     modal.classList.remove('hidden');
     
-    // Odpalamy dodatkowe funkcje (np. czyszczenie formularza), jeśli zostały przekazane
     if (typeof onLoadedCallback === 'function') {
         onLoadedCallback();
     }
