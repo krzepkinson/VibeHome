@@ -19,7 +19,7 @@
         });
     </script>
 
-    <script src="/config.js?v=3"></script>
+    <script src="/config.js?v=4"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&display=swap');
@@ -47,21 +47,28 @@
         /* POPRAWKA UX DESKTOP: Hover zamiast swipe */
         @media (hover: hover) and (pointer: fine) {
             .group:hover .swipe-front {
-                transform: translateX(-64px); /* Odsłania ikonę pod spodem (np. w listach) */
+                transform: translateX(-64px); 
             }
             .group:hover .js-swipe-item {
-                 transform: translateX(-80px) !important; /* Odsłania specyficzny układ z Home */
+                 transform: translateX(-80px) !important; 
             }
         }
+        
+        /* POPRAWKA UX: Globalne miejsce dla nowej lupki na każdym ekranie! */
+        main > div > header { padding-right: 3.5rem !important; }
     </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
+<body class="h-screen flex flex-col overflow-hidden relative">
 
     <div id="splash-screen" class="fixed inset-0 z-[9999] bg-[#131314] flex flex-col justify-center items-center transition-opacity duration-500">
         <div class="text-7xl mb-6 animate-pulse">✨</div>
         <h1 class="text-2xl font-bold text-neutral-100 tracking-wider">HomeVibe</h1>
         <p class="text-xs text-neutral-500 mt-2 uppercase tracking-widest">Wczytywanie...</p>
     </div>
+
+    <button id="global-search-btn" onclick="window.openGlobalSearch()" class="hidden fixed top-4 right-4 z-[45] w-10 h-10 bg-[#1e1f20] border border-[#333537] text-neutral-200 rounded-full shadow-lg flex items-center justify-center text-lg active:scale-95 transition-transform cursor-pointer hover:bg-[#333537]">
+        🔍
+    </button>
 
     <div id="ptr-indicator" class="fixed top-0 left-0 w-full flex justify-center items-center z-50 pointer-events-none" style="transform: translateY(-100%); transition: transform 0.3s ease-out;">
         <div class="bg-[#1e1f20] border border-[#333537] rounded-full w-10 h-10 shadow-lg flex items-center justify-center mt-4">
@@ -119,6 +126,16 @@
             </button>
         </div>
     </nav>
+
+    <div id="search-modal" class="hidden fixed inset-0 bg-[#131314]/95 backdrop-blur-xl z-[150] flex flex-col transition-transform duration-300 transform -translate-y-full">
+        <div class="p-4 sm:p-6 border-b border-[#333537] flex items-center gap-3 bg-[#1e1f20] pt-safe shadow-sm">
+            <button onclick="window.closeGlobalSearch()" class="text-neutral-400 text-2xl active:scale-90 transition-transform pb-1 px-2 cursor-pointer">✕</button>
+            <input type="text" id="global-search-input" maxlength="100" oninput="window.performGlobalSearch(this.value)" placeholder="Szukaj zadań, leków..." class="flex-1 bg-transparent text-neutral-200 text-lg focus:outline-none placeholder-neutral-600">
+        </div>
+        <div id="search-results-list" class="flex-1 overflow-y-auto p-4 sm:p-6 no-scrollbar pb-24">
+            <div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>
+        </div>
+    </div>
 
     <div id="toast" class="fixed top-8 left-1/2 -translate-x-1/2 bg-[#e3e3e3] text-[#131314] text-xs font-medium px-5 py-2.5 rounded-full shadow-2xl transition-all duration-300 opacity-0 -translate-y-10 pointer-events-none z-[200] whitespace-nowrap">Wiadomość</div>
 
@@ -341,21 +358,21 @@
         </div>
     </div>
     
-    <script src="/utils.js?v=3"></script>
-    <script src="/store.js?v=3"></script>
-    <script src="/events.js?v=3"></script>
-    <script src="/components.js?v=3"></script>
-    <script src="/user-log.js?v=3"></script>
-    <script src="/household.js?v=3"></script>
-    <script src="/router.js?v=3"></script> 
-    <script src="/auth.js?v=3"></script>
-    <script src="/dashboard.js?v=3"></script>
-    <script src="/home.js?v=3"></script>
-    <script src="/health.js?v=3"></script>
-    <script src="/todo.js?v=3"></script>
-    <script src="/settings.js?v=3"></script>
-    <script src="/search.js?v=3"></script>
-    <script src="/stats.js?v=3"></script>
+    <script src="/utils.js?v=4"></script>
+    <script src="/store.js?v=4"></script>
+    <script src="/events.js?v=4"></script>
+    <script src="/components.js?v=4"></script>
+    <script src="/user-log.js?v=4"></script>
+    <script src="/household.js?v=4"></script>
+    <script src="/router.js?v=4"></script> 
+    <script src="/auth.js?v=4"></script>
+    <script src="/dashboard.js?v=4"></script>
+    <script src="/home.js?v=4"></script>
+    <script src="/health.js?v=4"></script>
+    <script src="/todo.js?v=4"></script>
+    <script src="/settings.js?v=4"></script>
+    <script src="/search.js?v=4"></script>
+    <script src="/stats.js?v=4"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
