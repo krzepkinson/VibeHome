@@ -10,8 +10,8 @@ window.hideSplashScreen = function() {
     if (splash) {
         splash.style.opacity = '0';
         setTimeout(() => {
-            splash.style.display = 'none';
-        }, 500); // Czas musi zgadzać się z duration-500 w klasach Tailwind
+            splash.classList.add('hidden');
+        }, 500); 
     }
 };
 
@@ -93,6 +93,10 @@ window.finalizeLogin = async function(user) {
 
         window.currentUser = { ...profile, user_id: user.id };
         
+        // ZMIANA: Odkrywamy lupkę na poprawne zalogowanie
+        const searchBtn = document.getElementById('global-search-btn');
+        if (searchBtn) searchBtn.classList.remove('hidden');
+        
         const urlParams = new URLSearchParams(window.location.search);
         const view = urlParams.get('view') || 'dashboard';
         window.switchView(view);
@@ -117,15 +121,22 @@ window.checkSession = async function() {
 
         if (session && session.user) { 
             await window.finalizeLogin(session.user); 
-            window.hideSplashScreen(); // Zdejmujemy ekran ładowania
+            window.hideSplashScreen(); 
             return true; 
         } else {
+            // ZMIANA: Ukrywamy lupkę jeśli nie ma sesji
+            const searchBtn = document.getElementById('global-search-btn');
+            if (searchBtn) searchBtn.classList.add('hidden');
+            
             window.switchView('auth');
-            window.hideSplashScreen(); // Zdejmujemy ekran ładowania i pokazujemy login
+            window.hideSplashScreen(); 
             return false;
         }
     } catch (e) { 
         console.error("Błąd sesji:", e);
+        const searchBtn = document.getElementById('global-search-btn');
+        if (searchBtn) searchBtn.classList.add('hidden');
+            
         window.switchView('auth');
         window.hideSplashScreen();
         return false;
@@ -136,6 +147,10 @@ window.logoutUser = async function() {
     await window.supabaseClient.auth.signOut();
     window.currentUser = null;
     
+    // ZMIANA: Ukrywamy lupkę przy wylogowaniu
+    const searchBtn = document.getElementById('global-search-btn');
+    if (searchBtn) searchBtn.classList.add('hidden');
+            
     if (typeof window.invalidateDashboardCache === 'function') {
         window.invalidateDashboardCache();
     }
