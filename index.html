@@ -38,8 +38,11 @@
         input:checked ~ .dot { background-color: #004a77; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .swipe-front { touch-action: pan-y; }
+        
+        /* FIX iOS: Konflikty dotyku */
         button, [role="button"] { touch-action: manipulation; }
+        .swipe-front { touch-action: pan-y; }
+        .swipe-front button { touch-action: manipulation; } /* Jawne nadpisanie dla dzieci elementów przewijanych */
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
@@ -322,21 +325,21 @@
         </div>
     </div>
     
-    <script src="/utils.js?v=1"></script>
-    <script src="/store.js?v=1"></script>
-    <script src="/events.js?v=1"></script>
-    <script src="/components.js?v=1"></script>
-    <script src="/user-log.js?v=1"></script>
-    <script src="/household.js?v=1"></script>
-    <script src="/router.js?v=1"></script> 
-    <script src="/auth.js?v=1"></script>
-    <script src="/dashboard.js?v=1"></script>
-    <script src="/home.js?v=1"></script>
-    <script src="/health.js?v=1"></script>
-    <script src="/todo.js?v=1"></script>
-    <script src="/settings.js?v=1"></script>
-    <script src="/search.js?v=1"></script>
-    <script src="/stats.js?v=1"></script>
+    <script src="/utils.js?v=2"></script>
+    <script src="/store.js?v=2"></script>
+    <script src="/events.js?v=2"></script>
+    <script src="/components.js?v=2"></script>
+    <script src="/user-log.js?v=2"></script>
+    <script src="/household.js?v=2"></script>
+    <script src="/router.js?v=2"></script> 
+    <script src="/auth.js?v=2"></script>
+    <script src="/dashboard.js?v=2"></script>
+    <script src="/home.js?v=2"></script>
+    <script src="/health.js?v=2"></script>
+    <script src="/todo.js?v=2"></script>
+    <script src="/settings.js?v=2"></script>
+    <script src="/search.js?v=2"></script>
+    <script src="/stats.js?v=2"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
