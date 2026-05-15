@@ -43,7 +43,7 @@
             </div>
             <div id="cal-month-grid" class="mb-2"></div>
         </div>
-        <div id="cal-month-details" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#131314]">
+        <div id="cal-month-details" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#131314] scroll-smooth">
             <p class="text-center text-neutral-500 text-xs mt-10">Wybierz dzień z kalendarza, aby zobaczyć szczegóły.</p>
         </div>
     </div>
@@ -71,7 +71,7 @@
 </div>
 
 <div id="cal-subfilter-modal" class="hidden fixed inset-0 bg-[#131314]/80 backdrop-blur-sm z-[200] flex justify-center items-end sm:items-center p-0 sm:p-4">
-    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-subfilter-panel">
+    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 pb-24 sm:pb-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-subfilter-panel">
         <div class="flex justify-between items-center mb-4 border-b border-[#333537] pb-3">
             <h3 class="text-base font-bold text-neutral-100">Wybierz zdarzenie</h3>
             <button onclick="window.CalendarModule.closeSubFilterModal()" class="text-neutral-500 text-xl">✕</button>
@@ -91,7 +91,7 @@
 </div>
 
 <div id="cal-heatmap-modal" class="hidden fixed inset-0 bg-[#131314]/80 backdrop-blur-sm z-[200] flex justify-center items-end p-0 sm:p-4">
-    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-heatmap-panel">
+    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 pb-24 sm:pb-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-heatmap-panel">
         <div class="flex justify-between items-center mb-4 border-b border-[#333537] pb-3">
             <div>
                 <h3 class="text-base font-bold text-neutral-100">Co się działo?</h3>
