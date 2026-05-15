@@ -9,20 +9,26 @@
     <link rel="apple-touch-icon" href="/icon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="/config.js"></script>
+    
+    <script>
+        window.addEventListener('error', function(e) {
+            const errBox = document.createElement('div');
+            errBox.style.cssText = 'position:fixed; top:0; left:0; width:100%; background:red; color:white; z-index:9999; padding:20px; font-size:12px; word-wrap:break-word;';
+            errBox.innerHTML = `<b>BŁĄD KRYTYCZNY:</b> ${e.message}<br><b>Plik:</b> ${e.filename}<br><b>Linia:</b> ${e.lineno}:${e.colno}`;
+            document.body.appendChild(errBox);
+        });
+    </script>
+
+    <script src="/config.js?v=999"></script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500&display=swap');
         body { font-family: 'Outfit', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #131314; color: #e3e3e3; overscroll-behavior-y: none; }
         
-        /* PANCERNE UKRYWANIE (Zapobiega blokowaniu dotyku przez "duchy" modali na iOS) */
         .hidden { display: none !important; pointer-events: none !important; visibility: hidden !important; }
         
-        /* FIX iOS: Zapobiega "uciekającym" przyciskom. Zamienia skurcz na zmianę przezroczystości */
         @media (pointer: coarse) {
-            .active\:scale-90:active, .active\:scale-95:active {
-                transform: none !important;
-                opacity: 0.5 !important;
-            }
+            .active\:scale-90:active, .active\:scale-95:active { transform: none !important; opacity: 0.5 !important; }
         }
 
         ::-webkit-scrollbar { width: 4px; }
@@ -33,6 +39,7 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .swipe-front { touch-action: pan-y; }
+        button, [role="button"] { touch-action: manipulation; }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
@@ -123,9 +130,7 @@
             <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Wybierz osobę</h3>
             <input type="hidden" id="change-user-type">
             <input type="hidden" id="change-user-id">
-            
             <div id="change-user-list" class="max-h-48 overflow-y-auto mb-4 hide-scrollbar"></div>
-            
             <div class="flex gap-2">
                 <input type="text" id="change-user-custom" maxlength="50" placeholder="Inne imię..." class="flex-1 p-3.5 rounded-[20px] bg-[#1e1f20] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
                 <button onclick="window.saveChangedUser('')" class="px-5 bg-[#004a77] text-[#c2e7ff] font-medium rounded-[20px] active:scale-95 transition-transform text-sm">Zapisz</button>
@@ -317,25 +322,29 @@
         </div>
     </div>
     
-    <script src="/utils.js"></script>
-    <script src="/store.js"></script>
-    <script src="/events.js"></script>
-    <script src="/components.js"></script>
-    <script src="/user-log.js"></script>
-    <script src="/household.js"></script>
-    <script src="/router.js"></script> 
-    <script src="/auth.js"></script>
-    <script src="/dashboard.js"></script>
-    <script src="/home.js"></script>
-    <script src="/health.js"></script>
-    <script src="/todo.js"></script>
-    <script src="/settings.js"></script>
-    <script src="/search.js"></script>
-    <script src="/stats.js"></script>
+    <script src="/utils.js?v=1"></script>
+    <script src="/store.js?v=1"></script>
+    <script src="/events.js?v=1"></script>
+    <script src="/components.js?v=1"></script>
+    <script src="/user-log.js?v=1"></script>
+    <script src="/household.js?v=1"></script>
+    <script src="/router.js?v=1"></script> 
+    <script src="/auth.js?v=1"></script>
+    <script src="/dashboard.js?v=1"></script>
+    <script src="/home.js?v=1"></script>
+    <script src="/health.js?v=1"></script>
+    <script src="/todo.js?v=1"></script>
+    <script src="/settings.js?v=1"></script>
+    <script src="/search.js?v=1"></script>
+    <script src="/stats.js?v=1"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            window.checkSession();
+            if (typeof window.checkSession === 'function') {
+                window.checkSession();
+            } else {
+                console.error("Błąd: Funkcja checkSession nie istnieje!");
+            }
         });
     </script>
     <script>
