@@ -5,13 +5,13 @@
             <p class="text-xs text-neutral-400">Twoje sprawy do załatwienia</p>
         </div>
         <div class="flex gap-2">
-            <button onclick="window.refreshCurrentView()" class="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl" title="Odśwież">↻</button>
+            <button class="js-refresh-todo-view w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center active:scale-90 transition-transform text-xl cursor-pointer" title="Odśwież">↻</button>
             
             <button class="js-open-new-checklist px-3 h-10 bg-[#004a77]/20 text-[#c2e7ff] text-[10px] font-bold uppercase tracking-wider rounded-full border border-[#004a77]/50 active:scale-95 transition-transform cursor-pointer">
                 + Lista
             </button>
             
-            <button onclick="window.openNewTodoModal()" class="w-10 h-10 bg-[#e3e3e3] text-[#131314] rounded-full hover:bg-white active:scale-95 flex items-center justify-center text-xl pb-1 transition-all" title="Nowe zadanie">+</button>
+            <button class="js-open-new-todo-modal w-10 h-10 bg-[#e3e3e3] text-[#131314] rounded-full hover:bg-white active:scale-95 flex items-center justify-center text-xl pb-1 transition-all cursor-pointer" title="Nowe zadanie">+</button>
         </div>
     </header>
 
