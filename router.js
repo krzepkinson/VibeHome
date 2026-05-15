@@ -22,6 +22,7 @@ window.Router = (() => {
         'settings-profiles-screen': { file: 'settings-profiles.html', onEnter: () => window.loadAppProfiles?.() },
         'edit-profile-screen': { file: 'edit-profile.html', onEnter: null },
         'settings-screen': { file: 'task-settings.html', onEnter: null },
+        'calendar': { file: 'calendar.html', onEnter: () => window.CalendarModule.init() },
         'health-settings-screen': { file: 'health-settings.html', onEnter: null }
     };
 
