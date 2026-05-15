@@ -7,6 +7,40 @@ window.SettingsModule = (() => {
     let appProfiles = [];
     let currentEditingTaskId = null;
 
+    // NOWA FUNKCJA: Kaskadowa zmiana imienia we wszystkich logach
+    window.cascadeNameChange = async function(oldName, newName) {
+        if (!oldName || !newName || oldName === newName) return;
+        const hid = window.currentUser.household_id;
+        
+        try {
+            // Równoległa aktualizacja we wszystkich tabelach
+            await Promise.all([
+                window.supabaseClient.from('activity_logs').update({ user_name: newName }).eq('household_id', hid).eq('user_name', oldName),
+                window.supabaseClient.from('health_logs').update({ user_name: newName }).eq('household_id', hid).eq('user_name', oldName),
+                window.supabaseClient.from('todos').update({ creator_name: newName }).eq('household_id', hid).eq('creator_name', oldName),
+                window.supabaseClient.from('todos').update({ completer_name: newName }).eq('household_id', hid).eq('completer_name', oldName)
+            ]);
+            
+            // Odświeżenie lokalnego schowka (żeby stare imię od razu zniknęło z modali)
+            if (window.AppStore && typeof window.AppStore.get === 'function') {
+                const state = window.AppStore.get() || {};
+                let modified = false;
+                
+                if (state.logs) { state.logs.forEach(l => { if(l.user_name === oldName) { l.user_name = newName; modified = true; } }); }
+                if (state.hLogs) { state.hLogs.forEach(l => { if(l.user_name === oldName) { l.user_name = newName; modified = true; } }); }
+                if (state.todos) { 
+                    state.todos.forEach(t => { 
+                        if(t.creator_name === oldName) { t.creator_name = newName; modified = true; }
+                        if(t.completer_name === oldName) { t.completer_name = newName; modified = true; }
+                    }); 
+                }
+                if (modified) window.AppStore.set(state);
+            }
+        } catch (err) {
+            console.error("Błąd kaskadowej zmiany imienia:", err);
+        }
+    };
+
     window.initSettingsModule = function() {
         const hidLabel = document.getElementById('household-id-label');
         if (hidLabel && window.currentUser) hidLabel.innerText = window.currentUser.household_id; 
@@ -23,18 +57,25 @@ window.SettingsModule = (() => {
         const name = document.getElementById('settings-user-name').value.trim();
         if(!name) return;
         
-        // POPRAWKA: bezpieczniejsze przypisywanie po user_id
+        const oldName = window.currentUser.name;
+
+        // POPRAWKA: Aktualizujemy w 100% bezpiecznie po fizycznym ID profilu
         const { error } = await window.supabaseClient
             .from('profiles')
             .update({ name: name })
-            .eq('user_id', window.currentUser.user_id)
-            .eq('household_id', window.currentUser.household_id);
+            .eq('id', window.currentUser.id);
 
         if (error) {
             window.showToast("Błąd: " + error.message); 
         } else { 
+            if (oldName !== name) {
+                window.showToast("Zmieniam we wszystkich zadaniach...");
+                await window.cascadeNameChange(oldName, name);
+            }
+            
             window.currentUser.name = name; 
-            window.showToast("Imię zapisane!"); 
+            window.showToast("Imię zaktualizowane w pełni!"); 
+            
             if (typeof window.loadAppProfiles === 'function') window.loadAppProfiles();
             if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
         }
@@ -105,7 +146,7 @@ window.SettingsModule = (() => {
 
     window.openNewRoomModal = function() { 
         document.getElementById('new-room-name').value = ''; 
-        document.getElementById('new-room-icon').value = ''; // POPRAWKA: Puste pole zamiast twardego '🏠'
+        document.getElementById('new-room-icon').value = ''; 
         const modal = document.getElementById('new-room-modal');
         if (modal) modal.classList.remove('hidden'); 
     };
@@ -164,7 +205,6 @@ window.SettingsModule = (() => {
             const { error } = await window.supabaseClient.from('rooms').delete().eq('name', name).eq('household_id', window.currentUser.household_id);
             if (error) { window.showToast('Błąd: ' + error.message); return; }
             
-            // POPRAWKA: Usuwamy (zerujemy) przypisanie do usuniętego pokoju we wszystkich zadaniach
             await window.supabaseClient.from('tasks').update({ room: null }).eq('room', name).eq('household_id', window.currentUser.household_id);
 
             window.showToast('Usunięto'); 
@@ -251,6 +291,9 @@ window.SettingsModule = (() => {
         const name = document.getElementById('edit-profile-name').value.trim(); 
         if(!name) return;
         
+        const oldProfile = appProfiles.find(p => p.id == id);
+        const oldName = oldProfile ? oldProfile.name : null;
+
         const { error } = await window.supabaseClient.from('profiles').update({ 
             name: name, 
             birth_date: document.getElementById('edit-profile-birth').value || null, 
@@ -261,6 +304,17 @@ window.SettingsModule = (() => {
         if (error) { 
             window.showToast("Błąd zapisu: " + error.message); 
         } else { 
+            if (oldName && oldName !== name) {
+                window.showToast("Aktualizuję historię...");
+                await window.cascadeNameChange(oldName, name);
+            }
+
+            if (window.currentUser && window.currentUser.id == id) {
+                window.currentUser.name = name;
+                const nameInput = document.getElementById('settings-user-name');
+                if (nameInput) nameInput.value = name;
+            }
+
             window.showToast('Zapisano profil'); 
             window.closeEditProfileModal(); 
             window.loadAppProfiles(); 
@@ -311,7 +365,7 @@ window.SettingsModule = (() => {
         if (error) { window.showToast("Błąd: " + error.message); return; }
         await window.supabaseClient.from('activity_logs').update({ activity_name: n }).eq('task_id', currentEditingTaskId);
         
-        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+        window.invalidateDashboardCache(); 
         
         window.showToast("Zapisano!"); window.goBack(); setTimeout(() => window.refreshCurrentView(), 150);
     };
@@ -347,7 +401,7 @@ window.SettingsModule = (() => {
             const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', currentEditingTaskId); 
             if (error) { window.showToast("Błąd: " + error.message); return; }
             
-            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+            window.invalidateDashboardCache(); 
             
             window.showToast("Zarchiwizowano!"); window.goBack(); setTimeout(() => window.refreshCurrentView(), 150);
         });
@@ -389,7 +443,7 @@ window.SettingsModule = (() => {
         const { error } = await window.supabaseClient.from(table).update({ is_archived: false }).eq('id', id);
         if (error) window.showToast("Błąd"); else { 
             window.showToast("Przywrócono!"); 
-            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache(); 
+            window.invalidateDashboardCache(); 
             window.loadArchiveData(); 
             setTimeout(() => window.refreshCurrentView(), 150); 
         }
