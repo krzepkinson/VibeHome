@@ -60,9 +60,13 @@ window.HomeModule = (() => {
             }
         }
 
+        // ZMIANA KRYTYCZNA: Sprawdzamy czy cache nie wygasł (np. po dodaniu pokoju w ustawieniach)
+        const now = Date.now();
+        const isStale = (now - (window.dashboardCacheTime || 0) > window.CONFIG.CACHE_TTL);
+        
         let state = window.AppStore.get() || {};
-        if (!state.tasks || state.tasks.length === 0) {
-            await window.loadDashboardOverview(); 
+        if (isStale || !state.tasks || state.tasks.length === 0) {
+            await window.loadDashboardOverview(true); // Wymuszamy świeże dane
             state = window.AppStore.get() || {};
         }
         
@@ -279,7 +283,6 @@ window.HomeModule = (() => {
         modal.classList.remove('hidden');
     };
 
-    // ZMIANA: SetTimeout dla zamknięcia (Złoty standard iOS)
     window.closeHomeDayDetailsModal = function() { 
         setTimeout(() => {
             const modal = document.getElementById('day-details-modal');
@@ -462,7 +465,11 @@ window.HomeModule = (() => {
         window.EventDispatcher.onClick('.js-open-new-task-modal', () => window.openNewTaskModal());
         window.EventDispatcher.onClick('.js-change-home-month', (e, el) => window.changeHomeMonth(el.dataset.offset));
 
-        window.EventDispatcher.onClick('.js-home-back', () => window.clearRoomFilter());
+        window.EventDispatcher.onClick('.js-home-back', (e) => {
+            e.preventDefault(); e.stopPropagation(); // Blokada propagacji by nie kliknąć w nagłówek
+            window.clearRoomFilter();
+        });
+        
         window.EventDispatcher.onClick('.js-open-home-day-details', (e, el) => window.openHomeDayDetails(el.dataset.date));
         window.EventDispatcher.onClick('.js-close-home-day-details', () => window.closeHomeDayDetailsModal());
 
