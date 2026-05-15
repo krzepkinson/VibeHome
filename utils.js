@@ -92,10 +92,13 @@ window.initPullToRefresh = function() {
     const ptrIndicator = document.getElementById('ptr-indicator');
     const ptrIcon = document.getElementById('ptr-icon');
     if (!mainScreen || !ptrIndicator) return;
+    
     let startY = 0; let currentY = 0; let isPulling = false; const threshold = 70;
+    
     mainScreen.addEventListener('touchstart', (e) => {
         if (mainScreen.scrollTop === 0) { startY = e.touches[0].clientY; isPulling = true; ptrIndicator.style.transition = 'none'; }
     }, { passive: true });
+    
     mainScreen.addEventListener('touchmove', (e) => {
         if (!isPulling) return;
         currentY = e.touches[0].clientY; const diff = currentY - startY;
@@ -105,21 +108,34 @@ window.initPullToRefresh = function() {
             ptrIcon.style.transform = `rotate(${visual * 4}deg)`;
         }
     }, { passive: true });
-    mainScreen.addEventListener('touchend', async () => {
-        if (!isPulling) return; isPulling = false;
+    
+    // ZMIANA KRYTYCZNA: Asynchroniczne odłączenie ciężkiej operacji od zdarzenia dotykowego
+    mainScreen.addEventListener('touchend', () => {
+        if (!isPulling) return; 
+        isPulling = false;
         ptrIndicator.style.transition = 'transform 0.3s ease-out';
+        
         if (currentY - startY > threshold && mainScreen.scrollTop === 0) {
-            ptrIndicator.style.transform = `translateY(15px)`; ptrIcon.classList.add('animate-spin');
-            await window.refreshCurrentView();
-            ptrIndicator.style.transform = `translateY(-100%)`; ptrIcon.classList.remove('animate-spin');
-        } else { ptrIndicator.style.transform = `translateY(-100%)`; }
-    });
+            ptrIndicator.style.transform = `translateY(15px)`; 
+            ptrIcon.classList.add('animate-spin');
+            
+            // Decoupling (odcięcie wątku)
+            Promise.resolve().then(async () => {
+                await window.refreshCurrentView();
+                ptrIndicator.style.transform = `translateY(-100%)`; 
+                ptrIcon.classList.remove('animate-spin');
+            });
+        } else { 
+            ptrIndicator.style.transform = `translateY(-100%)`; 
+        }
+    }, { passive: true }); // Teraz touchend ma passive: true - Scroll nie będzie "chrupał"!
 };
 document.addEventListener('DOMContentLoaded', window.initPullToRefresh);
 
-// --- SYSTEM SWIPE-TO-DELETE (Globalny, ujednolicony!) ---
+// --- SYSTEM SWIPE-TO-DELETE ---
 window.setupGlobalSwipe = function() {
     let startX = 0; let isDragging = false; let activeItem = null; let openItem = null;
+    
     const handleStart = (e) => {
         const swipeFront = e.target.closest('.swipe-front, .js-swipe-item');
         if (openItem && openItem !== swipeFront) { openItem.style.transform = 'translateX(0px)'; openItem = null; }
@@ -127,12 +143,14 @@ window.setupGlobalSwipe = function() {
         activeItem = swipeFront; startX = e.touches ? e.touches[0].clientX : e.pageX; isDragging = true;
         activeItem.style.transition = 'none';
     };
+    
     const handleMove = (e) => {
         if (!isDragging || !activeItem) return;
         let x = e.touches ? e.touches[0].clientX : e.pageX;
         const diff = x - startX;
         if (diff < 0) activeItem.style.transform = `translateX(${Math.max(diff, -100)}px)`;
     };
+    
     const handleEnd = (e) => {
         if (!isDragging || !activeItem) return; isDragging = false;
         activeItem.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
@@ -141,9 +159,10 @@ window.setupGlobalSwipe = function() {
         else { activeItem.style.transform = 'translateX(0px)'; }
         activeItem = null;
     };
+    
     document.addEventListener('touchstart', handleStart, { passive: true });
     document.addEventListener('touchmove', handleMove, { passive: true });
-    document.addEventListener('touchend', handleEnd, { passive: true }); // ZMIANA: {passive: true} poprawia wydajność Scrolla!
+    document.addEventListener('touchend', handleEnd, { passive: true }); 
 };
 document.addEventListener('DOMContentLoaded', window.setupGlobalSwipe);
 
