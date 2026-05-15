@@ -6,13 +6,14 @@ window.CalendarModule = (() => {
     let currentTab = 'agenda'; 
     let activeFilter = 'all'; 
     let activeSubFilterTask = null; 
-    let activeSubFilterPerson = null; // NOWOŚĆ: Filtr osoby
+    let activeSubFilterPerson = null; 
     
     let allEvents = []; 
     let appProfiles = [];
     
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
+    let eventsSetupDone = false; // Zapobiega duplikowaniu listenerów
 
     const getLocalDayStr = (dObj = new Date()) => {
         const y = dObj.getFullYear();
@@ -21,44 +22,50 @@ window.CalendarModule = (() => {
         return `${y}-${m}-${d}`;
     };
 
-    window.init = async function() {
+    async function init() {
         document.getElementById('calendar-subtitle').innerText = 'Ładowanie danych...';
         await fetchAllData();
-        setupEventListeners();
+        setupEvents(); // Przez Event Dispatcher!
         renderCurrentTab();
-    };
+    }
 
     async function fetchAllData() {
         const hid = window.currentUser.household_id;
         allEvents = [];
 
         try {
-            const [profilesRes, tasksRes, tLogsRes, hTasksRes, hLogsRes, todosRes] = await Promise.all([
+            // OPTYMALIZACJA: Ograniczamy pobieranie logów do rozsądnego zakresu (rok wstecz)
+            const oneYearAgo = new Date();
+            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+            const dateLimit = oneYearAgo.toISOString();
+
+            const [profilesRes, tasksRes, tLogsRes, hTasksRes, hLogsRes] = await Promise.all([
                 window.supabaseClient.from('profiles').select('*').eq('household_id', hid).order('name'),
                 window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-                window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid),
+                window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).gte('created_at', dateLimit).limit(2000),
                 window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-                window.supabaseClient.from('health_logs').select('*').eq('household_id', hid),
-                window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false)
+                window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).gte('start_date', dateLimit).limit(2000)
             ]);
 
             appProfiles = profilesRes.data || [];
             
-            // Wypełniamy listę osób w modalu
             const personSelect = document.getElementById('cal-subfilter-person');
             if (personSelect) {
                 personSelect.innerHTML = '<option value="">-- Wszyscy --</option>' + 
                     appProfiles.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
             }
 
-            // 1. ZADANIA DOMOWE (LOGI)
+            // 1. ZADANIA DOMOWE
             if (tLogsRes.data) {
                 tLogsRes.data.forEach(l => {
                     const task = tasksRes.data?.find(t => t.id === l.task_id);
+                    // Tłumaczenie UUID na Profile BigInt
+                    const profileMatch = appProfiles.find(p => p.user_id === l.user_id);
                     allEvents.push({
                         id: l.id, type: 'Dom', title: task ? task.name : l.activity_name, icon: '🏠',
                         date: l.created_at.split('T')[0], color: 'text-blue-400', bg: 'bg-[#3b82f6]',
-                        profileId: l.user_id // Tu mamy ID osoby która odhaczyła
+                        profileId: profileMatch ? profileMatch.id : null,
+                        isDuration: false
                     });
                 });
             }
@@ -77,11 +84,20 @@ window.CalendarModule = (() => {
                         logs.forEach(l => {
                             let start = new Date(l.start_date);
                             let end = l.end_date ? new Date(l.end_date) : new Date();
+                            
+                            // Dodajemy zbiorczy event dla Agendy/Miesiąca
+                            allEvents.push({
+                                id: ht.id, type: 'Zdrowie', title: ht.name, icon: '🤒', subTaskId: ht.id,
+                                date: getLocalDayStr(start), endDate: getLocalDayStr(end), color: 'text-red-400', bg: 'bg-[#ef4444]',
+                                profileId: ht.profile_id, isDuration: true, isSummary: true 
+                            });
+
+                            // Oraz mniejsze eventy na każdy dzień dla Heatmapy
                             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                                 allEvents.push({
                                     id: ht.id, type: 'Zdrowie', title: ht.name, icon: '🤒', subTaskId: ht.id,
                                     date: getLocalDayStr(d), color: 'text-red-400', bg: 'bg-[#ef4444]',
-                                    profileId: ht.profile_id // Tu mamy ID osoby KTÓREJ dotyczy katar
+                                    profileId: ht.profile_id, isDuration: true, isSummary: false 
                                 });
                             }
                         });
@@ -89,20 +105,7 @@ window.CalendarModule = (() => {
                          allEvents.push({
                             id: ht.id, type: 'Zdrowie', title: ht.name, icon: '📅', subTaskId: ht.id,
                             date: ht.event_date.split('T')[0], color: 'text-red-400', bg: 'bg-[#ef4444]',
-                            profileId: ht.profile_id
-                        });
-                    }
-                });
-            }
-
-            // 3. TO-DO
-            if (todosRes.data) {
-                todosRes.data.forEach(todo => {
-                    if (!todo.is_completed) {
-                        allEvents.push({
-                            id: todo.id, type: 'Zadanie', title: todo.title, icon: '📝',
-                            date: todo.created_at.split('T')[0], color: 'text-amber-400', bg: 'bg-[#f59e0b]',
-                            profileId: null // Zadania to-do są zazwyczaj wspólne
+                            profileId: ht.profile_id, isDuration: false
                         });
                     }
                 });
@@ -116,44 +119,70 @@ window.CalendarModule = (() => {
         }
     }
 
-    function getFilteredEvents() {
+    function getFilteredEvents(forHeatmap = false) {
         return allEvents.filter(e => {
             if (activeFilter !== 'all' && e.type !== activeFilter) return false;
             if (activeSubFilterTask && e.subTaskId != activeSubFilterTask) return false;
-            // FILTR OSOBY:
             if (activeSubFilterPerson && e.profileId && e.profileId != activeSubFilterPerson) return false;
+            
+            // Logika dla chorób: Heatmapa chce rozbite dni, Agenda woli 1 zbiorczy wpis
+            if (e.isDuration) {
+                if (forHeatmap && e.isSummary) return false;
+                if (!forHeatmap && !e.isSummary) return false;
+            }
             return true;
         });
     }
 
-    function setupEventListeners() {
-        document.querySelectorAll('.js-cal-tab').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+    function setupEvents() {
+        if (eventsSetupDone) return;
+        eventsSetupDone = true;
+
+        if (window.EventDispatcher) {
+            window.EventDispatcher.onClick('.js-cal-tab', (e, el) => {
                 document.querySelectorAll('.js-cal-tab').forEach(b => {
                     b.classList.remove('bg-[#333537]', 'text-white', 'shadow-sm');
                     b.classList.add('text-neutral-500');
                 });
-                e.target.classList.add('bg-[#333537]', 'text-white', 'shadow-sm');
-                e.target.classList.remove('text-neutral-500');
-                currentTab = e.target.dataset.tab;
+                el.classList.add('bg-[#333537]', 'text-white', 'shadow-sm');
+                el.classList.remove('text-neutral-500');
+                currentTab = el.dataset.tab;
                 renderCurrentTab();
             });
-        });
 
-        document.querySelectorAll('.js-cal-filter').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            window.EventDispatcher.onClick('.js-cal-filter', (e, el) => {
                 document.querySelectorAll('.js-cal-filter').forEach(b => {
                     b.classList.replace('bg-[#a8c7fa]', 'bg-[#131314]');
                     b.classList.replace('text-[#004a77]', 'text-neutral-400');
                     b.classList.add('border', 'border-[#333537]');
                 });
-                e.target.classList.replace('bg-[#131314]', 'bg-[#a8c7fa]');
-                e.target.classList.replace('text-neutral-400', 'text-[#004a77]');
-                e.target.classList.remove('border', 'border-[#333537]');
-                activeFilter = e.target.dataset.filter;
+                el.classList.replace('bg-[#131314]', 'bg-[#a8c7fa]');
+                el.classList.replace('text-neutral-400', 'text-[#004a77]');
+                el.classList.remove('border', 'border-[#333537]');
+                activeFilter = el.dataset.filter;
                 renderCurrentTab();
             });
-        });
+
+            window.EventDispatcher.onClick('.js-cal-nav-month', (e, el) => {
+                const offset = parseInt(el.dataset.offset);
+                currentMonth += offset;
+                if (currentMonth < 0) { currentMonth = 11; currentYear--; } 
+                else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+                renderMonth();
+            });
+
+            window.EventDispatcher.onClick('.js-cal-nav-year', (e, el) => {
+                currentYear += parseInt(el.dataset.offset);
+                renderYearHeatmap();
+            });
+
+            window.EventDispatcher.onClick('.js-cal-day-click', (e, el) => showMonthDetails(el.dataset.date));
+
+            window.EventDispatcher.onClick('.js-cal-open-subfilter', openSubFilterModal);
+            window.EventDispatcher.onClick('.js-cal-close-subfilter', closeSubFilterModal);
+            window.EventDispatcher.onClick('.js-cal-apply-subfilter', applySubFilter);
+            window.EventDispatcher.onClick('.js-cal-clear-subfilter', clearSubFilter);
+        }
     }
 
     function renderCurrentTab() {
@@ -175,8 +204,10 @@ window.CalendarModule = (() => {
 
     function renderAgenda() {
         const container = document.getElementById('cal-view-agenda');
-        const events = getFilteredEvents();
+        const events = getFilteredEvents(false);
         const todayStr = getLocalDayStr();
+        
+        // ZMIANA UX: W Agendzie pokazujemy od dzisiaj wzwyż
         const futureEvents = events.filter(e => e.date >= todayStr).sort((a,b) => a.date.localeCompare(b.date));
 
         if (futureEvents.length === 0) {
@@ -193,11 +224,14 @@ window.CalendarModule = (() => {
                 html += `<h3 class="text-[10px] font-bold ${isToday ? 'text-[#a8c7fa]' : 'text-neutral-500'} uppercase tracking-widest mt-6 mb-2 border-b border-[#333537] pb-1 sticky top-0 bg-[#131314]/90 backdrop-blur z-10">${dateLabel}</h3>`;
                 lastDate = e.date;
             }
+            
+            const durationTxt = e.isDuration ? `<span class="text-[8px] border border-[#ffb4ab]/30 px-1 ml-2 rounded text-neutral-400">Trwa do: ${e.endDate}</span>` : '';
+            
             html += `
             <div class="bg-[#1e1f20] p-4 rounded-[16px] border border-[#333537] flex items-center gap-4 mb-2 shadow-sm">
                 <span class="text-2xl">${e.icon}</span>
                 <div>
-                    <p class="text-sm font-bold ${e.color}">${window.esc(e.title)}</p>
+                    <p class="text-sm font-bold ${e.color}">${window.esc(e.title)} ${durationTxt}</p>
                     <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}</p>
                 </div>
             </div>`;
@@ -214,30 +248,65 @@ window.CalendarModule = (() => {
         let html = `<div class="grid grid-cols-7 gap-1 text-center mb-1"><div class="text-[10px] text-neutral-600 font-bold">Pn</div><div class="text-[10px] text-neutral-600 font-bold">Wt</div><div class="text-[10px] text-neutral-600 font-bold">Śr</div><div class="text-[10px] text-neutral-600 font-bold">Cz</div><div class="text-[10px] text-neutral-600 font-bold">Pt</div><div class="text-[10px] text-neutral-600 font-bold">So</div><div class="text-[10px] text-neutral-600 font-bold">Nd</div></div><div class="grid grid-cols-7 gap-1 text-sm">`;
         const firstDay = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7;
         const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-        const events = getFilteredEvents();
+        const events = getFilteredEvents(false); // Dla miesiąca nie potrzebujemy rozbicia na 30 kafelków
+        
         for (let i = 0; i < firstDay; i++) html += `<div></div>`;
+        
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const isToday = getLocalDayStr() === dateStr;
-            const dayEvents = events.filter(e => e.date === dateStr);
+            const dayEvents = events.filter(e => e.date === dateStr || (e.isDuration && dateStr >= e.date && dateStr <= e.endDate));
+            
             let bgClass = 'bg-[#1e1f20] text-neutral-300';
             if (isToday) bgClass = 'bg-[#333537] border-2 border-[#a8c7fa] text-white font-bold';
+            
             let dotsHtml = '';
             if (dayEvents.length > 0) {
                 const colors = [...new Set(dayEvents.map(e => e.bg))].slice(0, 3);
                 dotsHtml = `<div class="absolute bottom-1 w-full flex justify-center gap-0.5">` + colors.map(c => `<div class="w-1.5 h-1.5 rounded-full ${c}"></div>`).join('') + `</div>`;
             }
-            html += `<div onclick="window.CalendarModule.showMonthDetails('${dateStr}')" class="relative p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center cursor-pointer active:scale-90 transition-transform select-none">${d}${dotsHtml}</div>`;
+            html += `<div class="js-cal-day-click relative p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center cursor-pointer active:scale-90 transition-transform select-none" data-date="${dateStr}">${d}${dotsHtml}</div>`;
         }
         html += `</div>`;
         grid.innerHTML = html;
+        document.getElementById('cal-month-details').innerHTML = `<p class="text-center text-neutral-500 text-xs mt-10">Wybierz dzień z kalendarza, aby zobaczyć szczegóły.</p>`;
+    }
+
+    function showMonthDetails(dateStr) {
+        const container = document.getElementById('cal-month-details');
+        const dayEvents = getFilteredEvents(false).filter(e => e.date === dateStr || (e.isDuration && dateStr >= e.date && dateStr <= e.endDate));
+        
+        const dateObj = new Date(dateStr);
+        const dateLabel = dateObj.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
+
+        if (dayEvents.length === 0) {
+            container.innerHTML = `<h3 class="text-[10px] font-bold text-[#a8c7fa] uppercase tracking-widest mb-4 sticky top-0">${dateLabel}</h3><p class="text-neutral-500 text-xs text-center py-4">Brak zdarzeń tego dnia.</p>`;
+            return;
+        }
+
+        let html = `<h3 class="text-[10px] font-bold text-[#a8c7fa] uppercase tracking-widest mb-4 sticky top-0">${dateLabel}</h3>`;
+        dayEvents.forEach(e => {
+            const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
+            const pTxt = pName ? ` • ${pName}` : '';
+            html += `
+            <div class="border-l-2 border-[#333537] ml-2 pl-4 py-2 relative mb-2">
+                <div class="absolute -left-[11px] top-3 w-5 h-5 bg-[#1e1f20] border border-[#333537] rounded-full text-[10px] flex items-center justify-center">${e.icon}</div>
+                <p class="text-sm font-medium ${e.color}">${window.esc(e.title)}</p>
+                <p class="text-[9px] text-neutral-500 uppercase">${e.type}${pTxt}</p>
+            </div>`;
+        });
+        container.innerHTML = html;
     }
 
     function renderYearHeatmap() {
         const grid = document.getElementById('cal-year-grid');
-        const events = getFilteredEvents();
+        const title = document.getElementById('cal-year-title');
+        title.innerText = `Heatmapa: ${currentYear}`;
+        
+        const events = getFilteredEvents(true); // Tu ładujemy pełne rozbicie
         const months = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
         let html = '';
+        
         for (let m = 0; m < 12; m++) {
             const firstDay = (new Date(currentYear, m, 1).getDay() + 6) % 7;
             const daysInMonth = new Date(currentYear, m + 1, 0).getDate();
@@ -245,10 +314,11 @@ window.CalendarModule = (() => {
             for(let i=0; i<firstDay; i++) monthHtml += `<div class="w-3.5 h-3.5 rounded-sm bg-transparent"></div>`;
             for (let d = 1; d <= daysInMonth; d++) {
                 const dateStr = `${currentYear}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                const hasEvent = events.some(e => e.date === dateStr);
+                const dayEvents = events.filter(e => e.date === dateStr);
+                
                 let cellClass = "w-3.5 h-3.5 rounded-sm bg-[#1e1f20]"; 
-                if (hasEvent) {
-                    const sampleEvent = events.find(e => e.date === dateStr);
+                if (dayEvents.length > 0) {
+                    const sampleEvent = dayEvents[0]; // Bierzemy pierwszy lepszy na dany dzień
                     cellClass = `w-3.5 h-3.5 rounded-sm ${sampleEvent.bg} shadow-sm border border-black/20`; 
                 }
                 monthHtml += `<div class="${cellClass}" title="${dateStr}"></div>`;
@@ -259,20 +329,20 @@ window.CalendarModule = (() => {
         grid.innerHTML = html;
     }
 
-    window.openSubFilterModal = function() {
+    function openSubFilterModal() {
         const modal = document.getElementById('cal-subfilter-modal');
         const panel = document.getElementById('cal-subfilter-panel');
         modal.classList.remove('hidden');
         requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
-    };
+    }
 
-    window.closeSubFilterModal = function() {
+    function closeSubFilterModal() {
         const panel = document.getElementById('cal-subfilter-panel');
         panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
         setTimeout(() => document.getElementById('cal-subfilter-modal').classList.add('hidden'), 300);
-    };
+    }
 
-    window.applySubFilter = function() {
+    function applySubFilter() {
         const taskSelect = document.getElementById('cal-subfilter-task');
         const personSelect = document.getElementById('cal-subfilter-person');
         activeSubFilterTask = taskSelect.value || null;
@@ -283,35 +353,31 @@ window.CalendarModule = (() => {
         
         if (activeSubFilterPerson) {
             const pName = personSelect.options[personSelect.selectedIndex].text;
-            badgeHtml += `<span class="px-3 py-1.5 bg-[#004a77] border border-[#a8c7fa]/30 text-[#a8c7fa] rounded-full text-[10px] font-bold">Osoba: ${pName}</span>`;
+            badgeHtml += `<span class="px-3 py-1.5 bg-[#004a77] border border-[#a8c7fa]/30 text-[#a8c7fa] rounded-full text-[10px] font-bold shadow-sm">Osoba: ${pName}</span>`;
         }
         if (activeSubFilterTask) {
             const tName = taskSelect.options[taskSelect.selectedIndex].text;
-            badgeHtml += `<span class="px-3 py-1.5 bg-[#3c1414] border border-[#ffb4ab]/30 text-[#ffb4ab] rounded-full text-[10px] font-bold">Typ: ${tName}</span>`;
+            badgeHtml += `<span class="px-3 py-1.5 bg-[#3c1414] border border-[#ffb4ab]/30 text-[#ffb4ab] rounded-full text-[10px] font-bold shadow-sm">Typ: ${tName}</span>`;
         }
 
         if (badgeHtml) {
-            badgeContainer.innerHTML = badgeHtml + `<button onclick="window.CalendarModule.clearSubFilter()" class="text-neutral-500 text-xs font-bold ml-1">CZYŚĆ ✕</button>`;
+            badgeContainer.innerHTML = badgeHtml + `<button class="js-cal-clear-subfilter text-neutral-500 text-xs font-bold ml-1 active:scale-90">CZYŚĆ ✕</button>`;
             badgeContainer.classList.remove('hidden');
         } else {
             badgeContainer.classList.add('hidden');
         }
 
         renderCurrentTab();
-        window.closeSubFilterModal();
-    };
+        closeSubFilterModal();
+    }
 
-    window.clearSubFilter = function() {
+    function clearSubFilter() {
         activeSubFilterTask = null; activeSubFilterPerson = null;
         document.getElementById('cal-subfilter-task').value = "";
         document.getElementById('cal-subfilter-person').value = "";
         document.getElementById('active-subfilter-badge').classList.add('hidden');
         renderCurrentTab();
-    };
+    }
 
-    return { 
-        init, changeMonth: (off) => { currentMonth += off; if (currentMonth < 0) { currentMonth = 11; currentYear--; } else if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderMonth(); }, 
-        showMonthDetails: (d) => { /* Funkcja z poprzedniej wersji bez zmian */ },
-        openSubFilterModal, closeSubFilterModal, applySubFilter, clearSubFilter 
-    };
+    return { init };
 })();
