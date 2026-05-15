@@ -684,7 +684,7 @@ window.DashboardModule = (() => {
     // ==========================================
     if (window.EventDispatcher) {
         
-        window.EventDispatcher.onClick('.js-open-search', () => window.openGlobalSearch());
+    
 
         window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
             const chevron = el.querySelector('.js-chevron');
