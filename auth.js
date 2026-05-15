@@ -4,6 +4,17 @@
 
 let isLoginMode = true;
 
+// Funkcja wyłączająca ekran ładowania
+window.hideSplashScreen = function() {
+    const splash = document.getElementById('splash-screen');
+    if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(() => {
+            splash.style.display = 'none';
+        }, 500); // Czas musi zgadzać się z duration-500 w klasach Tailwind
+    }
+};
+
 window.toggleAuthMode = function() {
     isLoginMode = !isLoginMode;
     document.getElementById('auth-title').innerText = isLoginMode ? 'Witaj z powrotem' : 'Dołącz do nas';
@@ -44,7 +55,6 @@ window.finalizeLogin = async function(user) {
     try {
         if (!user) throw new Error("Brak danych użytkownika.");
         
-        // 1. Szukamy profilu po UUID (user_id)
         let { data: profiles, error: pError } = await window.supabaseClient
             .from('profiles')
             .select('*')
@@ -53,7 +63,6 @@ window.finalizeLogin = async function(user) {
 
         let profile = profiles && profiles.length > 0 ? profiles[0] : null;
 
-        // 2. Obsługa Household (Domostwa) i ewentualne tworzenie profilu
         if (!profile || !profile.household_id) {
             const { data: memberData } = await window.supabaseClient
                 .from('household_members')
@@ -68,15 +77,13 @@ window.finalizeLogin = async function(user) {
             }
 
             if (!profile) {
-                // Tworzymy nowy profil, jeśli nie znaleźliśmy go w Kroku 1
                 const { data: newProfiles } = await window.supabaseClient.from('profiles').insert([{ 
                     user_id: user.id, 
                     household_id: targetHouseholdId, 
-                    name: user.email.split('@')[0] // Tymczasowe imię z maila
+                    name: user.email.split('@')[0]
                 }]).select();
                 profile = newProfiles[0];
             } else {
-                // Aktualizujemy istniejący profil o ID domostwa
                 const { data: updProfiles } = await window.supabaseClient.from('profiles').update({ 
                     household_id: targetHouseholdId 
                 }).eq('id', profile.id).select();
@@ -86,7 +93,6 @@ window.finalizeLogin = async function(user) {
 
         window.currentUser = { ...profile, user_id: user.id };
         
-        // ZMIANA: Obsługa powrotu z linku po logowaniu
         const urlParams = new URLSearchParams(window.location.search);
         const view = urlParams.get('view') || 'dashboard';
         window.switchView(view);
@@ -100,7 +106,6 @@ window.finalizeLogin = async function(user) {
 
 window.checkSession = async function() {
     try {
-        // Bezpiecznik: jeśli klient jeszcze nie istnieje, nie robimy nic
         if (!window.supabaseClient) {
             console.warn("Supabase jeszcze się ładuje...");
             return false;
@@ -112,16 +117,17 @@ window.checkSession = async function() {
 
         if (session && session.user) { 
             await window.finalizeLogin(session.user); 
+            window.hideSplashScreen(); // Zdejmujemy ekran ładowania
             return true; 
         } else {
-            // ZMIANA KRYTYCZNA: BRAK SESJI = BEZWZGLĘDNY EKRAN LOGOWANIA
             window.switchView('auth');
+            window.hideSplashScreen(); // Zdejmujemy ekran ładowania i pokazujemy login
             return false;
         }
     } catch (e) { 
         console.error("Błąd sesji:", e);
-        // ZMIANA: Nawet przy błędzie zapytania (brak internetu itp) bezpieczniej wyrzucić na login
         window.switchView('auth');
+        window.hideSplashScreen();
         return false;
     }
 };
@@ -130,7 +136,6 @@ window.logoutUser = async function() {
     await window.supabaseClient.auth.signOut();
     window.currentUser = null;
     
-    // Czyścimy cache przeglądu przy wylogowaniu
     if (typeof window.invalidateDashboardCache === 'function') {
         window.invalidateDashboardCache();
     }
