@@ -60,13 +60,12 @@ window.HomeModule = (() => {
             }
         }
 
-        // ZMIANA KRYTYCZNA: Sprawdzamy czy cache nie wygasł (np. po dodaniu pokoju w ustawieniach)
         const now = Date.now();
         const isStale = (now - (window.dashboardCacheTime || 0) > window.CONFIG.CACHE_TTL);
         
         let state = window.AppStore.get() || {};
         if (isStale || !state.tasks || state.tasks.length === 0) {
-            await window.loadDashboardOverview(true); // Wymuszamy świeże dane
+            await window.loadDashboardOverview(true); 
             state = window.AppStore.get() || {};
         }
         
@@ -382,6 +381,7 @@ window.HomeModule = (() => {
         }, 10);
     };
 
+    // ZMIANA KRYTYCZNA: System przywracania usuniętych (zarchiwizowanych) zadań, by uniknąć błędów 'Zajętej nazwy'
     window.saveNewTask = async function() {
         const n = document.getElementById('new-task-name').value.trim();
         const i = parseInt(document.getElementById('new-task-interval').value) || 0;
@@ -391,16 +391,35 @@ window.HomeModule = (() => {
 
         const initialDue = new Date().toISOString();
 
-        const { error } = await window.supabaseClient.from('tasks').insert([{ 
-            name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
-            room: r, user_id: window.currentUser.user_id,
-            household_id: window.currentUser.household_id,
-            next_due_at: initialDue
-        }]);
+        const { data: existingTasks } = await window.supabaseClient
+            .from('tasks')
+            .select('id, is_archived')
+            .eq('household_id', window.currentUser.household_id)
+            .ilike('name', n)
+            .limit(1);
 
-        if (error) { window.showToast("Błąd: " + error.message); return; }
+        if (existingTasks && existingTasks.length > 0) {
+            const existing = existingTasks[0];
+            if (existing.is_archived) {
+                // Przywracamy archiwalne zadanie do życia!
+                const { error: updErr } = await window.supabaseClient.from('tasks').update({ 
+                    is_archived: false, interval_days: i, remind_days_before: remind, room: r, next_due_at: initialDue 
+                }).eq('id', existing.id);
+                if (updErr) { window.showToast("Błąd przywracania: " + updErr.message); return; }
+            } else {
+                window.showToast("Zadanie o tej nazwie wciąż istnieje w tym domu!");
+                return;
+            }
+        } else {
+            // Wstawiamy całkiem nowe zadanie
+            const { error } = await window.supabaseClient.from('tasks').insert([{ 
+                name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
+                room: r, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, next_due_at: initialDue
+            }]);
+            if (error) { window.showToast("Błąd: " + error.message); return; }
+        }
         
-        window.invalidateDashboardCache();
+        window.invalidateDashboardCache(); // Opróżniamy cache!
         window.closeNewTaskModal(); 
         window.showToast("Dodano czynność!"); 
         window.loadDashboard();
@@ -452,7 +471,7 @@ window.HomeModule = (() => {
             const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', id);
             if (error) { window.showToast("Błąd usuwania"); return; }
             
-            window.invalidateDashboardCache();
+            window.invalidateDashboardCache(); // Dodane dla czystości
             window.showToast("Usunięto!"); 
             window.loadDashboard();
         });
@@ -466,7 +485,7 @@ window.HomeModule = (() => {
         window.EventDispatcher.onClick('.js-change-home-month', (e, el) => window.changeHomeMonth(el.dataset.offset));
 
         window.EventDispatcher.onClick('.js-home-back', (e) => {
-            e.preventDefault(); e.stopPropagation(); // Blokada propagacji by nie kliknąć w nagłówek
+            e.preventDefault(); e.stopPropagation(); 
             window.clearRoomFilter();
         });
         
