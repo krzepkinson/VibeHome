@@ -85,11 +85,16 @@ window.finalizeLogin = async function(user) {
         }
 
         window.currentUser = { ...profile, user_id: user.id };
-        window.switchView('dashboard');
+        
+        // ZMIANA: Obsługa powrotu z linku po logowaniu
+        const urlParams = new URLSearchParams(window.location.search);
+        const view = urlParams.get('view') || 'dashboard';
+        window.switchView(view);
         
     } catch (error) {
         console.error("Błąd krytyczny logowania:", error);
-        window.showToast("Błąd: " + error.message);
+        window.showToast("Błąd logowania: " + error.message);
+        window.switchView('auth');
     }
 };
 
@@ -101,15 +106,24 @@ window.checkSession = async function() {
             return false;
         }
 
-        const { data: { session } } = await window.supabaseClient.auth.getSession();
-        if (session) { 
+        const { data: { session }, error } = await window.supabaseClient.auth.getSession();
+        
+        if (error) throw error;
+
+        if (session && session.user) { 
             await window.finalizeLogin(session.user); 
             return true; 
+        } else {
+            // ZMIANA KRYTYCZNA: BRAK SESJI = BEZWZGLĘDNY EKRAN LOGOWANIA
+            window.switchView('auth');
+            return false;
         }
     } catch (e) { 
-        console.error("Błąd sesji:", e); 
+        console.error("Błąd sesji:", e);
+        // ZMIANA: Nawet przy błędzie zapytania (brak internetu itp) bezpieczniej wyrzucić na login
+        window.switchView('auth');
+        return false;
     }
-    return false;
 };
 
 window.logoutUser = async function() {
