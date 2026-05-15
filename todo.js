@@ -92,10 +92,11 @@ window.TodoModule = (() => {
                 let currentName = isDone ? (todo.completer_name || 'Ja') : (todo.creator_name || 'Ja');
                 let initial = currentName[0].toUpperCase();
                 let badgeType = isDone ? 'todos' : 'todos_creator';
-                let avatarClass = window.getAvatarColor ? window.getAvatarColor(currentName) : 'bg-[#333537] border-[#444746] text-neutral-300';
+                let avatarClass = window.getAvatarColor ? window.getAvatarColor(currentName) : 'bg-[#333537] border-[#737373] text-neutral-300';
                 if (isDone) avatarClass = 'bg-[#0f5223]/30 border-[#0f5223]/50 text-[#c4eed0]';
                 let userBadge = `<div class="js-change-user w-6 h-6 rounded-full ${avatarClass} border text-[10px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform font-bold" data-type="${badgeType}" data-id="${todo.id}" data-username="${window.esc(currentName)}">${initial}</div>`;
 
+                // POPRAWKA UX: border-[#737373] i border-2 na pustych checkboxach dla wyższego kontrastu
                 return `
                 <div class="relative overflow-hidden mb-1.5 rounded-[16px] group ${isDone ? 'opacity-50' : ''}">
                     <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
@@ -103,7 +104,7 @@ window.TodoModule = (() => {
                     </div>
                     <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] cursor-pointer w-full transition-transform">
                         <div class="js-edit-todo flex items-center gap-2 flex-1 min-w-0" data-id="${todo.id}" data-title="${window.esc(todo.title)}">
-                            <div class="js-toggle-todo w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0" data-id="${todo.id}" data-status="${isDone}">
+                            <div class="js-toggle-todo w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#737373]'} flex items-center justify-center transition-colors shrink-0" data-id="${todo.id}" data-status="${isDone}">
                                 ${isDone ? '<span class="text-[#0f5223] text-xs font-bold">✓</span>' : ''}
                             </div>
                             <span class="text-sm truncate flex-1 ${isDone ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(todo.title)}</span>
@@ -123,7 +124,6 @@ window.TodoModule = (() => {
         });
     };
     
-    // ZMIANA: Dodany fix na iOS pointer-events
     window.closeNewTodoModal = function() { 
         const modal = document.getElementById('new-todo-modal');
         if (modal) {
@@ -159,7 +159,6 @@ window.TodoModule = (() => {
         });
     };
 
-    // ZMIANA: Dodany fix na iOS pointer-events
     window.closeNewChecklistModal = function() { 
         const modal = document.getElementById('new-checklist-modal');
         if (modal) {
@@ -227,7 +226,7 @@ window.TodoModule = (() => {
                 </div>
                 <div class="swipe-front relative z-10 flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] w-full transition-transform">
                     <div class="js-toggle-checklist-item flex items-center gap-3 flex-1 cursor-pointer min-w-0" data-id="${item.id}" data-status="${item.is_completed}">
-                        <div class="w-5 h-5 rounded-full border-2 ${item.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#444746]'} flex items-center justify-center transition-colors shrink-0">
+                        <div class="w-5 h-5 rounded-full border-2 ${item.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#737373]'} flex items-center justify-center transition-colors shrink-0">
                             ${item.is_completed ? '<span class="text-[#0f5223] text-[10px] font-bold">✓</span>' : ''}
                         </div>
                         <span class="text-sm truncate ${item.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(item.content)}</span>
@@ -274,11 +273,11 @@ window.TodoModule = (() => {
             
             if (isDone) {
                 el.classList.add('bg-[#c4eed0]', 'border-[#c4eed0]');
-                el.classList.remove('border-[#444746]');
+                el.classList.remove('border-[#737373]');
                 el.innerHTML = '<span class="text-[#0f5223] text-xs font-bold">✓</span>';
             } else {
                 el.classList.remove('bg-[#c4eed0]', 'border-[#c4eed0]');
-                el.classList.add('border-[#444746]');
+                el.classList.add('border-[#737373]');
                 el.innerHTML = '';
             }
             el.dataset.status = isDone.toString();
@@ -320,7 +319,7 @@ window.TodoModule = (() => {
             if (circle) {
                 circle.classList.toggle('bg-[#c4eed0]', isDone);
                 circle.classList.toggle('border-[#c4eed0]', isDone);
-                circle.classList.toggle('border-[#444746]', !isDone);
+                circle.classList.toggle('border-[#737373]', !isDone);
                 circle.innerHTML = isDone ? '<span class="text-[#0f5223] text-[10px] font-bold">✓</span>' : '';
             }
             
@@ -364,7 +363,6 @@ window.TodoModule = (() => {
 
     // --- DELEGACJA ZDARZEŃ (VIA DISPATCHER) ---
     if (window.EventDispatcher) {
-        // ZMIANA: Dodane do Dispatchera z poziomu HTMLa
         window.EventDispatcher.onClick('.js-refresh-todo-view', () => window.refreshCurrentView());
         window.EventDispatcher.onClick('.js-open-new-todo-modal', () => window.openNewTodoModal());
 
