@@ -122,7 +122,16 @@ window.TodoModule = (() => {
             setTimeout(() => document.getElementById('new-todo-title')?.focus(), 50);
         });
     };
-    window.closeNewTodoModal = function() { document.getElementById('new-todo-modal').classList.add('hidden'); };
+    
+    // ZMIANA: Dodany fix na iOS pointer-events
+    window.closeNewTodoModal = function() { 
+        const modal = document.getElementById('new-todo-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.pointerEvents = 'none';
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+        }
+    };
 
     window.saveNewTodo = async function() {
         const title = document.getElementById('new-todo-title').value.trim(); 
@@ -150,7 +159,15 @@ window.TodoModule = (() => {
         });
     };
 
-    window.closeNewChecklistModal = function() { document.getElementById('new-checklist-modal')?.classList.add('hidden'); };
+    // ZMIANA: Dodany fix na iOS pointer-events
+    window.closeNewChecklistModal = function() { 
+        const modal = document.getElementById('new-checklist-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.pointerEvents = 'none';
+            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+        }
+    };
 
     window.toggleChecklistDates = function() {
         const type = document.getElementById('new-checklist-type').value;
@@ -347,6 +364,10 @@ window.TodoModule = (() => {
 
     // --- DELEGACJA ZDARZEŃ (VIA DISPATCHER) ---
     if (window.EventDispatcher) {
+        // ZMIANA: Dodane do Dispatchera z poziomu HTMLa
+        window.EventDispatcher.onClick('.js-refresh-todo-view', () => window.refreshCurrentView());
+        window.EventDispatcher.onClick('.js-open-new-todo-modal', () => window.openNewTodoModal());
+
         window.EventDispatcher.onClick('.js-open-new-checklist', () => window.openNewChecklistModal());
 
         window.EventDispatcher.onClick('.js-open-checklist', (e, el) => {
@@ -370,9 +391,8 @@ window.TodoModule = (() => {
             window.toggleTodo(parseInt(el.dataset.id, 10), isDone, el);
         });
 
-        // ZMIANA: Obsługa kliknięcia kółeczka z domownikiem dla zadań z Todo
         window.EventDispatcher.onClick('.js-change-user', (e, el) => {
-            e.stopPropagation(); // żeby nie kliknęło się przypadkiem samo zadanie
+            e.stopPropagation(); 
             window.openChangeUserModal(el.dataset.type, el.dataset.id, el.dataset.username);
         });
 
