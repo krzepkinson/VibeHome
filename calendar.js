@@ -263,13 +263,14 @@ window.CalendarModule = (() => {
             let dotsHtml = '';
             if (dayEvents.length > 0) {
                 const colors = [...new Set(dayEvents.map(e => e.bg))].slice(0, 3);
+                // pointer-events-none zapobiega przechwytywaniu kliknięcia przez małe kropeczki na telefonie
                 dotsHtml = `<div class="absolute bottom-1 w-full flex justify-center gap-0.5 pointer-events-none">` + colors.map(c => `<div class="w-1.5 h-1.5 rounded-full ${c}"></div>`).join('') + `</div>`;
             }
-            html += `<div onclick="window.CalendarModule.showMonthDetails('${dateStr}')" class="relative p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center cursor-pointer active:scale-90 transition-transform select-none">${d}${dotsHtml}</div>`;
+            // FIX MOBILNY: Używamy <button> zamiast <div> i dodajemy w-full
+            html += `<button onclick="window.CalendarModule.showMonthDetails('${dateStr}')" class="relative w-full p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center active:scale-90 transition-transform select-none focus:outline-none">${d}${dotsHtml}</button>`;
         }
         html += `</div>`;
         grid.innerHTML = html;
-        document.getElementById('cal-month-details').innerHTML = `<p class="text-center text-neutral-500 text-xs mt-10">Wybierz dzień z kalendarza, aby zobaczyć szczegóły.</p>`;
     }
 
     function showMonthDetails(dateStr) {
@@ -280,22 +281,26 @@ window.CalendarModule = (() => {
         const dateLabel = dateObj.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
 
         if (dayEvents.length === 0) {
-            container.innerHTML = `<h3 class="text-[10px] font-bold text-[#a8c7fa] uppercase tracking-widest mb-4 sticky top-0">${dateLabel}</h3><p class="text-neutral-500 text-xs text-center py-4">Brak zdarzeń tego dnia.</p>`;
-            return;
+            container.innerHTML = `<h3 class="text-[10px] font-bold text-[#a8c7fa] uppercase tracking-widest mb-4 sticky top-0 bg-[#131314]">${dateLabel}</h3><p class="text-neutral-500 text-xs text-center py-4">Brak zdarzeń tego dnia.</p>`;
+        } else {
+            let html = `<h3 class="text-[10px] font-bold text-[#a8c7fa] uppercase tracking-widest mb-4 sticky top-0 bg-[#131314]">${dateLabel}</h3>`;
+            dayEvents.forEach(e => {
+                const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
+                const pTxt = pName ? ` • ${pName}` : '';
+                html += `
+                <div class="border-l-2 border-[#333537] ml-2 pl-4 py-2 relative mb-2">
+                    <div class="absolute -left-[11px] top-3 w-5 h-5 bg-[#1e1f20] border border-[#333537] rounded-full text-[10px] flex items-center justify-center">${e.icon}</div>
+                    <p class="text-sm font-medium ${e.color}">${window.esc(e.title)}</p>
+                    <p class="text-[9px] text-neutral-500 uppercase">${e.type}${pTxt}</p>
+                </div>`;
+            });
+            container.innerHTML = html;
         }
 
-        let html = `<h3 class="text-[10px] font-bold text-[#a8c7fa] uppercase tracking-widest mb-4 sticky top-0">${dateLabel}</h3>`;
-        dayEvents.forEach(e => {
-            const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
-            const pTxt = pName ? ` • ${pName}` : '';
-            html += `
-            <div class="border-l-2 border-[#333537] ml-2 pl-4 py-2 relative mb-2">
-                <div class="absolute -left-[11px] top-3 w-5 h-5 bg-[#1e1f20] border border-[#333537] rounded-full text-[10px] flex items-center justify-center">${e.icon}</div>
-                <p class="text-sm font-medium ${e.color}">${window.esc(e.title)}</p>
-                <p class="text-[9px] text-neutral-500 uppercase">${e.type}${pTxt}</p>
-            </div>`;
-        });
-        container.innerHTML = html;
+        // FIX MOBILNY: Automatyczne przewinięcie ekranu do detali, by użytkownik zauważył, że coś się wczytało!
+        if (window.innerWidth < 640) {
+            container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     }
 
     function renderYearHeatmap() {
@@ -319,6 +324,7 @@ window.CalendarModule = (() => {
                 const dayEvents = events.filter(e => e.date === dateStr);
                 
                 let cellClass = "w-3.5 h-3.5 rounded-sm bg-[#1e1f20]"; 
+                let innerNum = '';
 
                 if (dayEvents.length > 0) {
                     const hasInfection = dayEvents.some(e => e.bg === 'bg-[#ef4444]');
@@ -327,9 +333,15 @@ window.CalendarModule = (() => {
                     if (hasInfection) cellClass = `w-3.5 h-3.5 rounded-sm bg-[#ef4444] shadow-sm border border-black/20`;
                     else if (hasVisit) cellClass = `w-3.5 h-3.5 rounded-sm bg-[#f59e0b] shadow-sm border border-black/20`;
                     else cellClass = `w-3.5 h-3.5 rounded-sm ${dayEvents[0].bg} shadow-sm border border-black/20`; 
+                    
+                    // NOWOŚĆ: Wyświetlanie licznika jeśli danego dnia wydarzyło się więcej niż 1 rzecz (zgodnie z filtrem)
+                    if (dayEvents.length > 1) {
+                        innerNum = `<span class="text-[7.5px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)] leading-none">${dayEvents.length}</span>`;
+                    }
                 }
 
-                monthHtml += `<div class="${cellClass} cursor-pointer active:scale-90 transition-transform" onclick="window.CalendarModule.openHeatmapModal('${dateStr}')"></div>`;
+                // FIX MOBILNY: Zmiana div na twardy tag <button>
+                monthHtml += `<button class="${cellClass} flex items-center justify-center focus:outline-none active:scale-90 transition-transform" onclick="window.CalendarModule.openHeatmapModal('${dateStr}')">${innerNum}</button>`;
             }
             monthHtml += `</div></div>`;
             html += monthHtml;
@@ -342,7 +354,7 @@ window.CalendarModule = (() => {
         const title = document.getElementById('cal-heatmap-modal-title');
         
         const dayEvents = getFilteredEvents(true).filter(e => e.date === dateStr);
-        if(dayEvents.length === 0) return; // Nie otwieramy modala dla pustych dni
+        if(dayEvents.length === 0) return; 
 
         const dateObj = new Date(dateStr);
         title.innerText = dateObj.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
