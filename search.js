@@ -12,17 +12,15 @@ window.SearchModule = (() => {
         document.getElementById('global-search-input').value = '';
         document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
         
-        // ZMIANA KRYTYCZNA: Płynne wysuwanie modala wbudowanego z index.html
         modal.classList.remove('hidden');
         
-        // Zmuszamy przeglądarkę do wyrenderowania bloku przed uruchomieniem animacji
         requestAnimationFrame(() => {
             modal.classList.remove('-translate-y-full');
             modal.classList.add('translate-y-0');
             setTimeout(() => {
                 const input = document.getElementById('global-search-input');
                 if (input) input.focus();
-            }, 300); // Fokus na input po zakończeniu zjazdu
+            }, 300);
         });
     };
 
@@ -33,7 +31,7 @@ window.SearchModule = (() => {
             modal.classList.add('-translate-y-full');
             setTimeout(() => {
                 modal.classList.add('hidden');
-            }, 300); // Chowamy całkiem po zakończeniu animacji
+            }, 300); 
         }
     };
 
@@ -118,6 +116,13 @@ window.SearchModule = (() => {
     };
 
     if (window.EventDispatcher) {
+        
+        // NOWOŚĆ: Nasłuchiwanie na przyciski z klasą .js-open-search ze wszystkich ekranów
+        window.EventDispatcher.onClick('.js-open-search', (e) => {
+            e.preventDefault();
+            window.openGlobalSearch();
+        });
+
         window.EventDispatcher.onClick('.js-search-result', (e, el) => {
             e.preventDefault();
             window.closeGlobalSearch();
@@ -149,9 +154,8 @@ window.SearchModule = (() => {
                 setTimeout(() => window.openChecklistScreen(id, title, extra), 150); 
             }
             else if (type === 'Apteczka') {
-                window.switchView('health');
-                setTimeout(() => { window.openPharmacyScreen(); }, 150);
-                setTimeout(() => window.openEditPharmacyModal(id), 300);
+                window.openPharmacyScreen(); 
+                setTimeout(() => window.openEditPharmacyModal(id), 200); 
             }
         });
     } else {
