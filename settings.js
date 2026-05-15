@@ -23,10 +23,12 @@ window.SettingsModule = (() => {
         const name = document.getElementById('settings-user-name').value.trim();
         if(!name) return;
         
+        // POPRAWKA: bezpieczniejsze przypisywanie po user_id
         const { error } = await window.supabaseClient
             .from('profiles')
             .update({ name: name })
-            .eq('id', window.currentUser.id);
+            .eq('user_id', window.currentUser.user_id)
+            .eq('household_id', window.currentUser.household_id);
 
         if (error) {
             window.showToast("Błąd: " + error.message); 
@@ -34,6 +36,7 @@ window.SettingsModule = (() => {
             window.currentUser.name = name; 
             window.showToast("Imię zapisane!"); 
             if (typeof window.loadAppProfiles === 'function') window.loadAppProfiles();
+            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
         }
     };
 
@@ -101,7 +104,8 @@ window.SettingsModule = (() => {
     };
 
     window.openNewRoomModal = function() { 
-        document.getElementById('new-room-name').value = ''; document.getElementById('new-room-icon').value = '🏠'; 
+        document.getElementById('new-room-name').value = ''; 
+        document.getElementById('new-room-icon').value = ''; // POPRAWKA: Puste pole zamiast twardego '🏠'
         const modal = document.getElementById('new-room-modal');
         if (modal) modal.classList.remove('hidden'); 
     };
@@ -159,8 +163,12 @@ window.SettingsModule = (() => {
         window.customConfirm(`Usunąć pomieszczenie "${name}"?`, async () => {
             const { error } = await window.supabaseClient.from('rooms').delete().eq('name', name).eq('household_id', window.currentUser.household_id);
             if (error) { window.showToast('Błąd: ' + error.message); return; }
+            
+            // POPRAWKA: Usuwamy (zerujemy) przypisanie do usuniętego pokoju we wszystkich zadaniach
+            await window.supabaseClient.from('tasks').update({ room: null }).eq('room', name).eq('household_id', window.currentUser.household_id);
+
             window.showToast('Usunięto'); 
-            window.invalidateDashboardCache(); 
+            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache(); 
             window.loadAppRooms(); 
             setTimeout(() => window.refreshCurrentView(), 150);
         });
@@ -303,7 +311,7 @@ window.SettingsModule = (() => {
         if (error) { window.showToast("Błąd: " + error.message); return; }
         await window.supabaseClient.from('activity_logs').update({ activity_name: n }).eq('task_id', currentEditingTaskId);
         
-        window.invalidateDashboardCache(); // KRYTYCZNE ZABEZPIECZENIE
+        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
         
         window.showToast("Zapisano!"); window.goBack(); setTimeout(() => window.refreshCurrentView(), 150);
     };
@@ -334,13 +342,12 @@ window.SettingsModule = (() => {
         });
     };
 
-    // ZMIANA KRYTYCZNA W USTAWIENIACH ARCHIWIZOWANIA
     window.deleteTaskFromSettings = function() {
         window.customConfirm("Zarchiwizować czynność? Zniknie z głównych widoków.", async () => {
             const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', currentEditingTaskId); 
             if (error) { window.showToast("Błąd: " + error.message); return; }
             
-            window.invalidateDashboardCache(); // KRYTYCZNE ZABEZPIECZENIE (Rozwiązuje problem nieświeżego widoku po powrocie)
+            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
             
             window.showToast("Zarchiwizowano!"); window.goBack(); setTimeout(() => window.refreshCurrentView(), 150);
         });
@@ -382,7 +389,7 @@ window.SettingsModule = (() => {
         const { error } = await window.supabaseClient.from(table).update({ is_archived: false }).eq('id', id);
         if (error) window.showToast("Błąd"); else { 
             window.showToast("Przywrócono!"); 
-            window.invalidateDashboardCache(); 
+            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache(); 
             window.loadArchiveData(); 
             setTimeout(() => window.refreshCurrentView(), 150); 
         }
