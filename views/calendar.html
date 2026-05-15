@@ -18,14 +18,12 @@
             <button class="js-cal-filter px-3 py-1.5 bg-[#a8c7fa] text-[#004a77] rounded-full text-[10px] font-bold shrink-0 shadow-sm transition-colors" data-filter="all">Wszystko</button>
             <button class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 hover:text-neutral-200 rounded-full text-[10px] font-bold shrink-0 transition-colors" data-filter="Dom">🏠 Dom</button>
             <button class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 hover:text-neutral-200 rounded-full text-[10px] font-bold shrink-0 transition-colors" data-filter="Zdrowie">❤️ Zdrowie</button>
-            <button class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 hover:text-neutral-200 rounded-full text-[10px] font-bold shrink-0 transition-colors" data-filter="Zadanie">📝 Zadania</button>
-            <button onclick="window.CalendarModule.openSubFilterModal()" class="px-3 py-1.5 bg-[#333537]/50 border border-[#333537] text-neutral-300 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1 active:scale-95">
+            <button class="js-cal-open-subfilter px-3 py-1.5 bg-[#333537]/50 border border-[#333537] text-neutral-300 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1 active:scale-95">
                 <span class="text-xs">+</span> Filtruj szczegóły
             </button>
         </div>
         
-        <div id="active-subfilter-badge" class="hidden mt-3 flex flex-wrap gap-2">
-            </div>
+        <div id="active-subfilter-badge" class="hidden mt-3 flex flex-wrap gap-2"></div>
     </header>
 
     <div id="cal-view-agenda" class="flex-1 p-4 sm:p-6 overflow-y-auto hidden"></div>
@@ -33,9 +31,9 @@
     <div id="cal-view-month" class="flex-1 flex flex-col hidden">
         <div class="p-4 sm:p-6 pb-2 border-b border-[#333537]">
             <div class="flex justify-between items-center mb-4">
-                <button onclick="window.CalendarModule.changeMonth(-1)" class="text-neutral-400 text-xl px-2 active:scale-90">←</button>
+                <button class="js-cal-nav-month text-neutral-400 text-xl px-2 active:scale-90" data-offset="-1">←</button>
                 <h2 id="cal-month-title" class="text-lg font-bold text-[#c2e7ff]">Maj 2026</h2>
-                <button onclick="window.CalendarModule.changeMonth(1)" class="text-neutral-400 text-xl px-2 active:scale-90">→</button>
+                <button class="js-cal-nav-month text-neutral-400 text-xl px-2 active:scale-90" data-offset="1">→</button>
             </div>
             <div id="cal-month-grid" class="mb-2"></div>
         </div>
@@ -45,25 +43,31 @@
     </div>
     
     <div id="cal-view-year" class="flex-1 p-4 sm:p-6 overflow-y-auto hidden bg-[#131314]">
-        <div class="text-center mb-6">
-            <h2 class="text-lg font-bold text-neutral-100" id="cal-year-title">Heatmapa: 2026</h2>
-            <div class="flex justify-center gap-4 mt-3 flex-wrap">
-                <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#ef4444]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Zdrowie</span></div>
-                <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#3b82f6]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Dom</span></div>
-                <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#f59e0b]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Zadania</span></div>
-                <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#1e1f20]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Nic</span></div>
+        <div class="flex justify-between items-center mb-6">
+            <button class="js-cal-nav-year text-neutral-400 text-xl px-2 active:scale-90" data-offset="-1">←</button>
+            <div class="text-center">
+                <h2 class="text-lg font-bold text-neutral-100" id="cal-year-title">Heatmapa: 2026</h2>
+                <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-1">Legenda poniżej</p>
             </div>
+            <button class="js-cal-nav-year text-neutral-400 text-xl px-2 active:scale-90" data-offset="1">→</button>
         </div>
+        
         <div id="cal-year-grid" class="space-y-6"></div>
+
+        <div class="flex justify-center gap-4 mt-6 flex-wrap border-t border-[#333537] pt-6">
+            <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#ef4444]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Zdrowie</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#3b82f6]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Dom</span></div>
+            <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#1e1f20]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Nic</span></div>
+        </div>
     </div>
 
 </div>
 
 <div id="cal-subfilter-modal" class="hidden fixed inset-0 bg-[#131314]/80 backdrop-blur-sm z-[200] flex justify-center items-end sm:items-center p-0 sm:p-4">
-    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl transition-transform transform translate-y-full sm:translate-y-0 duration-300" id="cal-subfilter-panel">
+    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-subfilter-panel">
         <div class="flex justify-between items-center mb-4 border-b border-[#333537] pb-3">
             <h3 class="text-base font-bold text-neutral-100">Zaawansowane filtry</h3>
-            <button onclick="window.CalendarModule.closeSubFilterModal()" class="text-neutral-500 text-xl">✕</button>
+            <button class="js-cal-close-subfilter text-neutral-500 text-xl">✕</button>
         </div>
         
         <div class="space-y-4">
@@ -71,7 +75,7 @@
                 <label class="block text-[10px] uppercase tracking-widest text-neutral-500 mb-2 font-bold">Filtruj osobę</label>
                 <select id="cal-subfilter-person" class="w-full p-3 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none">
                     <option value="">-- Wszyscy --</option>
-                    </select>
+                </select>
             </div>
 
             <div>
@@ -82,7 +86,7 @@
             </div>
         </div>
         
-        <button onclick="window.CalendarModule.applySubFilter()" class="w-full bg-[#a8c7fa] text-[#004a77] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform mt-6 shadow-lg shadow-[#a8c7fa]/10">Zastosuj filtry</button>
-        <button onclick="window.CalendarModule.clearSubFilter()" class="w-full text-neutral-500 py-3 text-xs font-bold uppercase tracking-widest mt-2">Wyczyść wszystko</button>
+        <button class="js-cal-apply-subfilter w-full bg-[#a8c7fa] text-[#004a77] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform mt-6 shadow-lg shadow-[#a8c7fa]/10">Zastosuj filtry</button>
+        <button class="js-cal-clear-subfilter w-full text-neutral-500 py-3 text-xs font-bold uppercase tracking-widest mt-2">Wyczyść wszystko</button>
     </div>
 </div>
