@@ -109,9 +109,7 @@ window.SettingsModule = (() => {
     window.closeNewRoomModal = function() { 
         const modal = document.getElementById('new-room-modal');
         if (modal) {
-            modal.classList.add('hidden');
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+            setTimeout(() => { modal.classList.add('hidden'); }, 10);
         }
     };
 
@@ -119,7 +117,12 @@ window.SettingsModule = (() => {
         const name = document.getElementById('new-room-name').value.trim(); const icon = document.getElementById('new-room-icon').value.trim();
         if (!name) return;
         const { error } = await window.supabaseClient.from('rooms').insert([{ name: name, icon: icon || '📦', user_id: window.currentUser.user_id, household_id: window.currentUser.household_id }]);
-        if (error) window.showToast('Błąd zapisu'); else { window.closeNewRoomModal(); window.showToast('Dodano!'); window.loadAppRooms(); }
+        if (error) window.showToast('Błąd zapisu'); else { 
+            window.closeNewRoomModal(); 
+            window.showToast('Dodano!'); 
+            window.invalidateDashboardCache(); // KRYTYCZNE: Nowe dane!
+            window.loadAppRooms(); 
+        }
     };
 
     window.openEditRoomModal = function(name, icon) {
@@ -133,9 +136,7 @@ window.SettingsModule = (() => {
     window.closeEditRoomModal = function() { 
         const modal = document.getElementById('edit-room-modal');
         if (modal) {
-            modal.classList.add('hidden');
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+            setTimeout(() => { modal.classList.add('hidden'); }, 10);
         }
     };
 
@@ -146,7 +147,11 @@ window.SettingsModule = (() => {
         if (error) window.showToast('Błąd zapisu');
         else {
             await window.supabaseClient.from('tasks').update({ room: newName }).eq('room', oldName).eq('household_id', window.currentUser.household_id);
-            window.closeEditRoomModal(); window.showToast('Zaktualizowano!'); window.loadAppRooms(); setTimeout(() => window.refreshCurrentView(), 150);
+            window.closeEditRoomModal(); 
+            window.showToast('Zaktualizowano!'); 
+            window.invalidateDashboardCache(); // KRYTYCZNE
+            window.loadAppRooms(); 
+            setTimeout(() => window.refreshCurrentView(), 150);
         }
     };
 
@@ -154,7 +159,10 @@ window.SettingsModule = (() => {
         window.customConfirm(`Usunąć pomieszczenie "${name}"?`, async () => {
             const { error } = await window.supabaseClient.from('rooms').delete().eq('name', name).eq('household_id', window.currentUser.household_id);
             if (error) { window.showToast('Błąd: ' + error.message); return; }
-            window.showToast('Usunięto'); window.loadAppRooms(); setTimeout(() => window.refreshCurrentView(), 150);
+            window.showToast('Usunięto'); 
+            window.invalidateDashboardCache(); // KRYTYCZNE
+            window.loadAppRooms(); 
+            setTimeout(() => window.refreshCurrentView(), 150);
         });
     };
 
@@ -191,9 +199,7 @@ window.SettingsModule = (() => {
     window.closeNewProfileModal = function() { 
         const modal = document.getElementById('new-profile-modal');
         if (modal) {
-            modal.classList.add('hidden');
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+            setTimeout(() => { modal.classList.add('hidden'); }, 10);
         }
     };
 
@@ -210,7 +216,6 @@ window.SettingsModule = (() => {
         }
     };
 
-    // ZMIANA: Zamiast "goForward('edit-profile-screen')", używamy zgrabnego Modala!
     window.openEditProfileScreen = function(id) {
         const profile = appProfiles.find(p => p.id === id); 
         if(!profile) return;
@@ -229,9 +234,7 @@ window.SettingsModule = (() => {
     window.closeEditProfileModal = function() {
         const modal = document.getElementById('edit-profile-modal');
         if (modal) {
-            modal.classList.add('hidden');
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
+            setTimeout(() => { modal.classList.add('hidden'); }, 10);
         }
     }
 
@@ -257,7 +260,6 @@ window.SettingsModule = (() => {
         }
     };
 
-    // ZMIANA: Zupełnie nowa funkcja bezpiecznego usuwania profili (nie mogłeś jej w ogóle przetestować!)
     window.deleteProfile = function() {
         const id = document.getElementById('edit-profile-id').value; 
         const name = document.getElementById('edit-profile-name').value.trim();
@@ -371,7 +373,12 @@ window.SettingsModule = (() => {
 
     window.restoreFromArchive = async function(table, id) {
         const { error } = await window.supabaseClient.from(table).update({ is_archived: false }).eq('id', id);
-        if (error) window.showToast("Błąd"); else { window.showToast("Przywrócono!"); window.loadArchiveData(); setTimeout(() => window.refreshCurrentView(), 150); }
+        if (error) window.showToast("Błąd"); else { 
+            window.showToast("Przywrócono!"); 
+            window.invalidateDashboardCache(); // KRYTYCZNE
+            window.loadArchiveData(); 
+            setTimeout(() => window.refreshCurrentView(), 150); 
+        }
     };
 
     window.permanentlyDelete = function(table, id) {
