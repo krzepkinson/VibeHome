@@ -6,21 +6,35 @@ window.SearchModule = (() => {
     let searchTimeout = null;
 
     window.openGlobalSearch = function() {
-        // 1. Wywołujemy modal korzystając z naszego nowego, bezpiecznego loadera
-        window.loadAndShowModal('search-modal', '/modals/search.html', () => {
-            document.getElementById('global-search-input').value = '';
-            document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
-            
+        const modal = document.getElementById('search-modal');
+        if (!modal) return;
+        
+        document.getElementById('global-search-input').value = '';
+        document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
+        
+        // ZMIANA KRYTYCZNA: Płynne wysuwanie modala wbudowanego z index.html
+        modal.classList.remove('hidden');
+        
+        // Zmuszamy przeglądarkę do wyrenderowania bloku przed uruchomieniem animacji
+        requestAnimationFrame(() => {
+            modal.classList.remove('-translate-y-full');
+            modal.classList.add('translate-y-0');
             setTimeout(() => {
                 const input = document.getElementById('global-search-input');
                 if (input) input.focus();
-            }, 50);
+            }, 300); // Fokus na input po zakończeniu zjazdu
         });
     };
 
     window.closeGlobalSearch = function() {
         const modal = document.getElementById('search-modal');
-        if (modal) modal.classList.add('hidden');
+        if (modal) {
+            modal.classList.remove('translate-y-0');
+            modal.classList.add('-translate-y-full');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300); // Chowamy całkiem po zakończeniu animacji
+        }
     };
 
     window.performGlobalSearch = function(query) {
@@ -44,13 +58,12 @@ window.SearchModule = (() => {
                     window.supabaseClient.from('tasks').select('*').eq('household_id', hid).ilike('name', `%${q}%`).eq('is_archived', false),
                     window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).ilike('name', `%${q}%`).eq('is_archived', false),
                     window.supabaseClient.from('todos').select('*').eq('household_id', hid).ilike('title', `%${q}%`).eq('is_archived', false),
-                    window.supabaseClient.from('checklists').select('*').eq('household_id', hid).ilike('title', `%${q}%`).eq('is_archived', false), // POPRAWKA: Brakujący przecinek
+                    window.supabaseClient.from('checklists').select('*').eq('household_id', hid).ilike('title', `%${q}%`).eq('is_archived', false),
                     window.supabaseClient.from('pharmacy_items').select('*').eq('household_id', hid).or(`name.ilike.%${q}%,purpose.ilike.%${q}%`)
                 ]);
 
                 let results = [];
 
-                // Zbieramy czyste dane do tablicy wyników
                 if (tasksRes.data) {
                     tasksRes.data.forEach(t => results.push({ 
                         id: t.id, title: t.name, type: 'Dom', icon: '🏠', extraData: t.room || 'Inne' 
@@ -82,7 +95,6 @@ window.SearchModule = (() => {
                     return;
                 }
 
-                // Generujemy czysty HTML z bezpiecznymi atrybutami data-*
                 listEl.innerHTML = results.map(r => `
                     <div class="js-search-result flex items-center gap-4 p-4 bg-[#1e1f20] hover:bg-[#333537] border border-[#333537] rounded-[16px] mb-2 cursor-pointer active:scale-95 transition-all shadow-sm"
                          data-id="${r.id}"
@@ -105,9 +117,6 @@ window.SearchModule = (() => {
         }, 400);
     };
 
-    // ==========================================
-    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
-    // ==========================================
     if (window.EventDispatcher) {
         window.EventDispatcher.onClick('.js-search-result', (e, el) => {
             e.preventDefault();
@@ -118,10 +127,9 @@ window.SearchModule = (() => {
             const title = el.dataset.title;
             const extra = el.dataset.extra;
 
-            // Przekierowania zależne od typu klikniętego kafelka
             if (type === 'Dom') {
                 window.switchView('home');
-                window.filterHomeByRoom(extra); // extra to nazwa pomieszczenia
+                window.filterHomeByRoom(extra);
                 setTimeout(() => window.openSettingsScreen(id), 150);
             } 
             else if (type === 'Zdrowie') {
@@ -138,11 +146,12 @@ window.SearchModule = (() => {
             } 
             else if (type === 'Lista') {
                 window.switchView('todo');
-                setTimeout(() => window.openChecklistScreen(id, title, extra), 150); // extra to typ listy
+                setTimeout(() => window.openChecklistScreen(id, title, extra), 150); 
             }
             else if (type === 'Apteczka') {
-                window.openPharmacyScreen(); // Przełącza widok
-                setTimeout(() => window.openEditPharmacyModal(id), 200); // Otwiera modal konkretnego leku
+                window.switchView('health');
+                setTimeout(() => { window.openPharmacyScreen(); }, 150);
+                setTimeout(() => window.openEditPharmacyModal(id), 300);
             }
         });
     } else {
