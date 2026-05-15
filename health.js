@@ -19,12 +19,6 @@ window.HealthModule = (() => {
         return `${y}-${m}-${d}`;
     };
 
-    const forceTouchRepaint = () => {
-        if (document.activeElement) document.activeElement.blur();
-        document.body.style.cursor = 'default';
-        setTimeout(() => { document.body.style.cursor = ''; }, 50);
-    };
-
     window.toggleHealthView = function() {
         healthViewMode = healthViewMode === 'list' ? 'calendar' : 'list';
         const toggleBtn = document.getElementById('health-view-toggle-btn');
@@ -342,14 +336,12 @@ window.HealthModule = (() => {
 
     window.openHealthFabMenu = function() { document.getElementById('health-fab-menu').classList.remove('hidden'); };
     
+    // ZMIANA: SetTimeout dla zamknięcia (Złoty standard iOS)
     window.closeHealthFabMenu = function() { 
-        const menu = document.getElementById('health-fab-menu');
-        if (menu) {
-            menu.classList.add('hidden'); 
-            menu.style.pointerEvents = 'none';
-            setTimeout(() => { menu.style.pointerEvents = ''; }, 300);
-        }
-        forceTouchRepaint();
+        setTimeout(() => {
+            const menu = document.getElementById('health-fab-menu');
+            if (menu) menu.classList.add('hidden'); 
+        }, 10);
     };
 
     window.openNewHealthTaskModal = function(defaultType = 'cyclical') { 
@@ -362,14 +354,12 @@ window.HealthModule = (() => {
     window.openNewEventModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('one_time'); };
     window.openNewRoutineModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('cyclical'); };
     
+    // ZMIANA: SetTimeout dla zamknięcia
     window.closeNewHealthTaskModal = function() { 
-        const modal = document.getElementById('new-health-task-modal');
-        if (modal) {
-            modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
-        }
-        forceTouchRepaint();
+        setTimeout(() => {
+            const modal = document.getElementById('new-health-task-modal');
+            if (modal) modal.classList.add('hidden'); 
+        }, 10);
     };
 
     window.toggleHealthInterval = function() { 
@@ -495,14 +485,12 @@ window.HealthModule = (() => {
         modal.classList.remove('hidden');
     };
 
+    // ZMIANA: SetTimeout dla zamknięcia
     window.closeDayDetailsModal = function() { 
-        const modal = document.getElementById('day-details-modal');
-        if(modal) {
-            modal.classList.add('hidden');
-            modal.style.pointerEvents = 'none'; 
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300); 
-        }
-        forceTouchRepaint();
+        setTimeout(() => {
+            const modal = document.getElementById('day-details-modal');
+            if(modal) modal.classList.add('hidden');
+        }, 10);
     };
 
     window.selectHealthProfile = async function(id) { 
@@ -541,14 +529,12 @@ window.HealthModule = (() => {
         modal.classList.remove('hidden');
     };
 
+    // ZMIANA: SetTimeout dla zamknięcia
     window.closeProfileSwitcher = function() { 
-        const modal = document.getElementById('profile-switcher-modal');
-        if (modal) {
-            modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none'; 
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300); 
-        }
-        forceTouchRepaint();
+        setTimeout(() => {
+            const modal = document.getElementById('profile-switcher-modal');
+            if (modal) modal.classList.add('hidden'); 
+        }, 10);
     };
 
     // ==========================================
@@ -557,7 +543,7 @@ window.HealthModule = (() => {
 
     window.allPharmacyItems = [];
     window.openPharmacyScreen = function() { window.goForward('pharmacy-screen'); window.loadPharmacyItems(); };
-    window.closePharmacyScreen = function() { window.goBack(); forceTouchRepaint(); };
+    window.closePharmacyScreen = function() { window.goBack(); };
     
     window.loadPharmacyItems = async function() {
         const listEl = document.getElementById('pharmacy-list');
@@ -622,14 +608,12 @@ window.HealthModule = (() => {
         });
     };
     
+    // ZMIANA: SetTimeout dla zamknięcia
     window.closeNewPharmacyItemModal = function() { 
-        const modal = document.getElementById('new-pharmacy-item-modal');
-        if (modal) {
-            modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
-        }
-        forceTouchRepaint();
+        setTimeout(() => {
+            const modal = document.getElementById('new-pharmacy-item-modal');
+            if (modal) modal.classList.add('hidden'); 
+        }, 10);
     };
 
     window.saveNewPharmacyItem = async function() {
@@ -671,14 +655,12 @@ window.HealthModule = (() => {
         });
     };
 
+    // ZMIANA: SetTimeout dla zamknięcia
     window.closeEditPharmacyModal = function() { 
-        const modal = document.getElementById('edit-pharmacy-item-modal');
-        if (modal) {
-            modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
-        }
-        forceTouchRepaint();
+        setTimeout(() => {
+            const modal = document.getElementById('edit-pharmacy-item-modal');
+            if (modal) modal.classList.add('hidden'); 
+        }, 10);
     };
 
     window.saveEditedPharmacyItem = async function() {
@@ -722,14 +704,12 @@ window.HealthModule = (() => {
     // --- KSIĄŻECZKA ZDROWIA I POMIARY ---
     window.openNewMeasurementModal = function() { window.closeHealthFabMenu(); document.getElementById('measurement-value').value = ''; document.getElementById('measurement-date').value = getLocalDayStr(); document.getElementById('measurement-notes').value = ''; document.getElementById('new-measurement-modal').classList.remove('hidden'); };
     
+    // ZMIANA: SetTimeout dla zamknięcia
     window.closeNewMeasurementModal = function() { 
-        const modal = document.getElementById('new-measurement-modal');
-        if (modal) {
-            modal.classList.add('hidden'); 
-            modal.style.pointerEvents = 'none';
-            setTimeout(() => { modal.style.pointerEvents = ''; }, 300);
-        }
-        forceTouchRepaint();
+        setTimeout(() => {
+            const modal = document.getElementById('new-measurement-modal');
+            if (modal) modal.classList.add('hidden'); 
+        }, 10);
     };
 
     window.saveNewMeasurement = async function() {
@@ -754,7 +734,7 @@ window.HealthModule = (() => {
     };
 
     window.openHealthBook = function() { window.goForward('health-book-screen'); window.loadHealthBook(); };
-    window.closeHealthBook = function() { window.goBack(); forceTouchRepaint(); };
+    window.closeHealthBook = function() { window.goBack(); };
 
     window.deleteHealthBookItem = function(id, type) {
         window.customConfirm("Czy na pewno usunąć ten wpis z historii?", async () => {
