@@ -19,10 +19,10 @@
         });
     </script>
 
-    <script src="/config.js?v=999"></script>
+    <script src="/config.js?v=3"></script>
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&display=swap');
         body { font-family: 'Outfit', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #131314; color: #e3e3e3; overscroll-behavior-y: none; }
         
         .hidden { display: none !important; pointer-events: none !important; visibility: hidden !important; }
@@ -41,11 +41,27 @@
         
         /* FIX iOS: Konflikty dotyku */
         button, [role="button"] { touch-action: manipulation; }
-        .swipe-front { touch-action: pan-y; }
-        .swipe-front button { touch-action: manipulation; } /* Jawne nadpisanie dla dzieci elementów przewijanych */
+        .swipe-front { touch-action: pan-y; transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+        .swipe-front button { touch-action: manipulation; } 
+
+        /* POPRAWKA UX DESKTOP: Hover zamiast swipe */
+        @media (hover: hover) and (pointer: fine) {
+            .group:hover .swipe-front {
+                transform: translateX(-64px); /* Odsłania ikonę pod spodem (np. w listach) */
+            }
+            .group:hover .js-swipe-item {
+                 transform: translateX(-80px) !important; /* Odsłania specyficzny układ z Home */
+            }
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
+
+    <div id="splash-screen" class="fixed inset-0 z-[9999] bg-[#131314] flex flex-col justify-center items-center transition-opacity duration-500">
+        <div class="text-7xl mb-6 animate-pulse">✨</div>
+        <h1 class="text-2xl font-bold text-neutral-100 tracking-wider">HomeVibe</h1>
+        <p class="text-xs text-neutral-500 mt-2 uppercase tracking-widest">Wczytywanie...</p>
+    </div>
 
     <div id="ptr-indicator" class="fixed top-0 left-0 w-full flex justify-center items-center z-50 pointer-events-none" style="transform: translateY(-100%); transition: transform 0.3s ease-out;">
         <div class="bg-[#1e1f20] border border-[#333537] rounded-full w-10 h-10 shadow-lg flex items-center justify-center mt-4">
@@ -325,21 +341,21 @@
         </div>
     </div>
     
-    <script src="/utils.js?v=2"></script>
-    <script src="/store.js?v=2"></script>
-    <script src="/events.js?v=2"></script>
-    <script src="/components.js?v=2"></script>
-    <script src="/user-log.js?v=2"></script>
-    <script src="/household.js?v=2"></script>
-    <script src="/router.js?v=2"></script> 
-    <script src="/auth.js?v=2"></script>
-    <script src="/dashboard.js?v=2"></script>
-    <script src="/home.js?v=2"></script>
-    <script src="/health.js?v=2"></script>
-    <script src="/todo.js?v=2"></script>
-    <script src="/settings.js?v=2"></script>
-    <script src="/search.js?v=2"></script>
-    <script src="/stats.js?v=2"></script>
+    <script src="/utils.js?v=3"></script>
+    <script src="/store.js?v=3"></script>
+    <script src="/events.js?v=3"></script>
+    <script src="/components.js?v=3"></script>
+    <script src="/user-log.js?v=3"></script>
+    <script src="/household.js?v=3"></script>
+    <script src="/router.js?v=3"></script> 
+    <script src="/auth.js?v=3"></script>
+    <script src="/dashboard.js?v=3"></script>
+    <script src="/home.js?v=3"></script>
+    <script src="/health.js?v=3"></script>
+    <script src="/todo.js?v=3"></script>
+    <script src="/settings.js?v=3"></script>
+    <script src="/search.js?v=3"></script>
+    <script src="/stats.js?v=3"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
