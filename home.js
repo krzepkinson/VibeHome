@@ -279,12 +279,12 @@ window.HomeModule = (() => {
         modal.classList.remove('hidden');
     };
 
+    // ZMIANA: SetTimeout dla zamknięcia (Złoty standard iOS)
     window.closeHomeDayDetailsModal = function() { 
-        const modal = document.getElementById('day-details-modal');
-        if(modal) {
-            modal.classList.add('hidden');
-            if (document.activeElement) document.activeElement.blur();
-        }
+        setTimeout(() => {
+            const modal = document.getElementById('day-details-modal');
+            if(modal) modal.classList.add('hidden');
+        }, 10);
     };
 
     window.getRelativeTime = function(d) {
@@ -319,7 +319,12 @@ window.HomeModule = (() => {
         });
     };
 
-    window.closeAddLogModal = function() { document.getElementById('add-log-modal').classList.add('hidden'); };
+    window.closeAddLogModal = function() { 
+        setTimeout(() => {
+            const modal = document.getElementById('add-log-modal');
+            if (modal) modal.classList.add('hidden');
+        }, 10);
+    };
 
     window.saveNewLog = async function() {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
@@ -367,7 +372,12 @@ window.HomeModule = (() => {
         });
     };
 
-    window.closeNewTaskModal = function() { document.getElementById('new-task-modal').classList.add('hidden'); };
+    window.closeNewTaskModal = function() { 
+        setTimeout(() => {
+            const modal = document.getElementById('new-task-modal');
+            if (modal) modal.classList.add('hidden');
+        }, 10);
+    };
 
     window.saveNewTask = async function() {
         const n = document.getElementById('new-task-name').value.trim();
@@ -405,7 +415,12 @@ window.HomeModule = (() => {
         });
     };
 
-    window.closeEditLogModal = function() { document.getElementById('edit-log-modal')?.classList.add('hidden'); };
+    window.closeEditLogModal = function() { 
+        setTimeout(() => {
+            const modal = document.getElementById('edit-log-modal');
+            if (modal) modal.classList.add('hidden');
+        }, 10);
+    };
 
     window.saveEditLog = async function() {
         const id = document.getElementById('edit-log-id').value;
@@ -441,7 +456,6 @@ window.HomeModule = (() => {
     };
 
     if (window.EventDispatcher) {
-        // ZMIANA: Dodano dispatchery z home.html do scentralizowanego sterowania
         window.EventDispatcher.onClick('.js-toggle-home-view', () => window.toggleHomeView());
         window.EventDispatcher.onClick('.js-open-home-stats', () => window.openStatsScreen());
         window.EventDispatcher.onClick('.js-refresh-home-view', () => window.refreshCurrentView());
