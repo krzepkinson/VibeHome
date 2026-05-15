@@ -7,25 +7,34 @@ window.SearchModule = (() => {
 
     window.openGlobalSearch = function() {
         const modal = document.getElementById('search-modal');
+        const input = document.getElementById('global-search-input');
         if (!modal) return;
         
-        document.getElementById('global-search-input').value = '';
+        input.value = '';
         document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
         
+        // 1. Zdejmujemy ukrycie (display: none), żeby input fizycznie istniał w układzie
         modal.classList.remove('hidden');
         
+        // 2. KRYTYCZNY FIX DLA iOS: Focus musi być wywołany natychmiast, synchronicznie!
+        // Wywołujemy go, gdy panel jest jeszcze u góry (-translate-y-full)
+        if (input) {
+            input.focus();
+        }
+        
+        // 3. Po ułamku sekundy odpalamy płynny zjazd panelu
         requestAnimationFrame(() => {
             modal.classList.remove('-translate-y-full');
             modal.classList.add('translate-y-0');
-            setTimeout(() => {
-                const input = document.getElementById('global-search-input');
-                if (input) input.focus();
-            }, 300);
         });
     };
 
     window.closeGlobalSearch = function() {
         const modal = document.getElementById('search-modal');
+        const input = document.getElementById('global-search-input');
+        
+        if (input) input.blur(); // Chowamy klawiaturę przy zamykaniu
+        
         if (modal) {
             modal.classList.remove('translate-y-0');
             modal.classList.add('-translate-y-full');
@@ -116,8 +125,6 @@ window.SearchModule = (() => {
     };
 
     if (window.EventDispatcher) {
-        
-        // NOWOŚĆ: Nasłuchiwanie na przyciski z klasą .js-open-search ze wszystkich ekranów
         window.EventDispatcher.onClick('.js-open-search', (e) => {
             e.preventDefault();
             window.openGlobalSearch();
