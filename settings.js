@@ -120,7 +120,7 @@ window.SettingsModule = (() => {
         if (error) window.showToast('Błąd zapisu'); else { 
             window.closeNewRoomModal(); 
             window.showToast('Dodano!'); 
-            window.invalidateDashboardCache(); // KRYTYCZNE: Nowe dane!
+            window.invalidateDashboardCache(); 
             window.loadAppRooms(); 
         }
     };
@@ -149,7 +149,7 @@ window.SettingsModule = (() => {
             await window.supabaseClient.from('tasks').update({ room: newName }).eq('room', oldName).eq('household_id', window.currentUser.household_id);
             window.closeEditRoomModal(); 
             window.showToast('Zaktualizowano!'); 
-            window.invalidateDashboardCache(); // KRYTYCZNE
+            window.invalidateDashboardCache(); 
             window.loadAppRooms(); 
             setTimeout(() => window.refreshCurrentView(), 150);
         }
@@ -160,7 +160,7 @@ window.SettingsModule = (() => {
             const { error } = await window.supabaseClient.from('rooms').delete().eq('name', name).eq('household_id', window.currentUser.household_id);
             if (error) { window.showToast('Błąd: ' + error.message); return; }
             window.showToast('Usunięto'); 
-            window.invalidateDashboardCache(); // KRYTYCZNE
+            window.invalidateDashboardCache(); 
             window.loadAppRooms(); 
             setTimeout(() => window.refreshCurrentView(), 150);
         });
@@ -302,6 +302,9 @@ window.SettingsModule = (() => {
         const { error } = await window.supabaseClient.from('tasks').update({ name: n, interval_days: i, room: r }).eq('id', currentEditingTaskId);
         if (error) { window.showToast("Błąd: " + error.message); return; }
         await window.supabaseClient.from('activity_logs').update({ activity_name: n }).eq('task_id', currentEditingTaskId);
+        
+        window.invalidateDashboardCache(); // KRYTYCZNE ZABEZPIECZENIE
+        
         window.showToast("Zapisano!"); window.goBack(); setTimeout(() => window.refreshCurrentView(), 150);
     };
 
@@ -331,10 +334,14 @@ window.SettingsModule = (() => {
         });
     };
 
+    // ZMIANA KRYTYCZNA W USTAWIENIACH ARCHIWIZOWANIA
     window.deleteTaskFromSettings = function() {
         window.customConfirm("Zarchiwizować czynność? Zniknie z głównych widoków.", async () => {
             const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', currentEditingTaskId); 
             if (error) { window.showToast("Błąd: " + error.message); return; }
+            
+            window.invalidateDashboardCache(); // KRYTYCZNE ZABEZPIECZENIE (Rozwiązuje problem nieświeżego widoku po powrocie)
+            
             window.showToast("Zarchiwizowano!"); window.goBack(); setTimeout(() => window.refreshCurrentView(), 150);
         });
     };
@@ -375,7 +382,7 @@ window.SettingsModule = (() => {
         const { error } = await window.supabaseClient.from(table).update({ is_archived: false }).eq('id', id);
         if (error) window.showToast("Błąd"); else { 
             window.showToast("Przywrócono!"); 
-            window.invalidateDashboardCache(); // KRYTYCZNE
+            window.invalidateDashboardCache(); 
             window.loadArchiveData(); 
             setTimeout(() => window.refreshCurrentView(), 150); 
         }
