@@ -37,7 +37,8 @@ window.DashboardModule = (() => {
             const hid = window.currentUser.household_id; 
             
             try {
-                const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes] = await Promise.all([
+                // ZMIANA: Dodano eventsRes (tabela calendar_events)
+                const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes] = await Promise.all([
                     window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
                     window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
                     window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
@@ -45,7 +46,8 @@ window.DashboardModule = (() => {
                     window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }).limit(100),
                     window.supabaseClient.from('profiles').select('*').eq('household_id', hid),
                     window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name'),
-                    window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false)
+                    window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false),
+                    window.supabaseClient.from('calendar_events').select('*').eq('household_id', hid).order('event_datetime', { ascending: true })
                 ]);
 
                 window.AppStore.set({
@@ -56,7 +58,8 @@ window.DashboardModule = (() => {
                     todos: todoRes.data || [],
                     profiles: profilesRes.data || [],
                     rooms: roomsRes.data || [],
-                    checklists: listsRes.data || []
+                    checklists: listsRes.data || [],
+                    calendarEvents: eventsRes.data || [] // ZMIANA: Zapis do stora
                 });
                 
                 window.dashboardCacheTime = now;
@@ -421,15 +424,16 @@ window.DashboardModule = (() => {
         const hLogs = state.hLogs || [];
         const profiles = state.profiles || [];
         const checklists = state.checklists || [];
+        const calEvents = state.calendarEvents || []; // ZMIANA: Dodano obsługę calendarEvents
 
         hTasks.forEach(ht => {
             if (ht.task_type !== 'one_time' || !ht.event_date) return;
             const isDone = hLogs.some(l => l.health_task_id === ht.id);
             if (isDone) return;
             const evDate = new Date(ht.event_date); evDate.setHours(0, 0, 0, 0);
-            if (evDate >= today) { // ZMIANA: Pokazujemy od dzisiaj wzwyż
+            if (evDate >= today) { 
                 horizonItems.push({
-                    type: 'health', date: evDate, id: ht.id, name: ht.name, profile_id: ht.profile_id
+                    type: 'health', date: evDate, exactTime: null, id: ht.id, name: ht.name, profile_id: ht.profile_id
                 });
             }
         });
@@ -437,26 +441,48 @@ window.DashboardModule = (() => {
         checklists.forEach(list => {
             if (list.list_type === 'packing' && list.start_date) {
                 const stDate = new Date(list.start_date); stDate.setHours(0, 0, 0, 0);
-                if (stDate >= today) { // ZMIANA: Pokazujemy od dzisiaj wzwyż
+                if (stDate >= today) { 
                     horizonItems.push({
-                        type: 'trip', date: stDate, endDate: list.end_date ? new Date(list.end_date) : null,
+                        type: 'trip', date: stDate, exactTime: null, endDate: list.end_date ? new Date(list.end_date) : null,
                         id: list.id, title: list.title
                     });
                 }
             }
         });
 
-        horizonItems.sort((a, b) => a.date - b.date);
+        // ZMIANA: KALENDARZ (Kino, itp.)
+        calEvents.forEach(ev => {
+            const evDateFull = new Date(ev.event_datetime);
+            const dateOnly = new Date(evDateFull); dateOnly.setHours(0,0,0,0);
+            if (dateOnly >= today) {
+                horizonItems.push({
+                    type: 'event', date: dateOnly, exactTime: evDateFull,
+                    id: ev.id, title: ev.title
+                });
+            }
+        });
+
+        // ZMIANA: Sortowanie z uwzględnieniem dokładnego czasu
+        horizonItems.sort((a, b) => {
+            const timeA = a.exactTime ? a.exactTime.getTime() : a.date.getTime();
+            const timeB = b.exactTime ? b.exactTime.getTime() : b.date.getTime();
+            return timeA - timeB;
+        });
 
         if (horizonItems.length > 0) {
             let html = `<h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Na horyzoncie</h3>`;
             html += horizonItems.map(item => {
                 const daysUntil = Math.ceil((item.date - today) / 86400000);
                 
-                // ZMIANA: Obsługa etykiety dla wydarzeń na dzisiaj
                 let urgencyLabel = `Za ${daysUntil} dni`;
                 if (daysUntil === 0) urgencyLabel = 'Dzisiaj!';
                 else if (daysUntil === 1) urgencyLabel = 'Jutro!';
+                
+                // ZMIANA: Dodano formatowanie godziny
+                let timeText = '';
+                if (item.exactTime) {
+                    timeText = ' o ' + item.exactTime.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+                }
                 
                 const colorClass = daysUntil <= 3 ? 'text-amber-400' : 'text-[#a8c7fa]';
                 
@@ -469,7 +495,7 @@ window.DashboardModule = (() => {
                             <div>
                                 <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.name)}</h4>
                                 <p class="text-[10px] text-neutral-500 mt-0.5">
-                                    <span class="font-bold ${colorClass}">${urgencyLabel}</span> • ${profile ? profile.name : 'Zdrowie'}
+                                    <span class="font-bold ${colorClass}">${urgencyLabel}${timeText}</span> • ${profile ? profile.name : 'Zdrowie'}
                                 </p>
                             </div>
                         </div>
@@ -487,7 +513,21 @@ window.DashboardModule = (() => {
                             <div>
                                 <h4 class="text-sm font-medium text-[#c2e7ff]">${window.esc(item.title)}</h4>
                                 <p class="text-[10px] text-[#a8c7fa]/70 mt-0.5">
-                                    <span class="font-bold text-[#c2e7ff]">${urgencyLabel}</span> • ${dateLabel}
+                                    <span class="font-bold text-[#c2e7ff]">${urgencyLabel}${timeText}</span> • ${dateLabel}
+                                </p>
+                            </div>
+                        </div>
+                    </div>`;
+                } else if (item.type === 'event') {
+                    // ZMIANA: Widok dla kalendarzowych wydarzeń towarzyskich
+                    return `
+                    <div class="flex items-center justify-between px-4 py-3 bg-[#3f0f4a]/20 rounded-[16px] border border-[#d946ef]/30 mb-1.5 shadow-sm js-dash-nav cursor-pointer active:scale-95 transition-transform" data-view="calendar">
+                        <div class="flex gap-4 items-center">
+                            <div class="text-2xl opacity-90">🎟️</div>
+                            <div>
+                                <h4 class="text-sm font-medium text-[#f0abfc]">${window.esc(item.title)}</h4>
+                                <p class="text-[10px] text-fuchsia-300/70 mt-0.5">
+                                    <span class="font-bold text-[#d946ef]">${urgencyLabel}${timeText}</span>
                                 </p>
                             </div>
                         </div>
