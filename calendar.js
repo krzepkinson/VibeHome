@@ -13,7 +13,7 @@ window.CalendarModule = (() => {
     
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
-    let eventsSetupDone = false; // Zapobiega duplikacji listenerów
+    let eventsSetupDone = false; 
 
     const getLocalDayStr = (dObj = new Date()) => {
         const y = dObj.getFullYear();
@@ -50,13 +50,13 @@ window.CalendarModule = (() => {
 
             appProfiles = profilesRes.data || [];
 
-            // 0. WYDARZENIA TOWARZYSKIE
+            // 0. WYDARZENIA TOWARZYSKIE (ZACHOWUJEMY SUROWE DANE DO EDYCJI)
             if (eventsRes.data) {
                 eventsRes.data.forEach(ev => {
                     const dateObj = new Date(ev.event_datetime);
                     const timeStr = dateObj.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
                     allEvents.push({
-                        id: ev.id, type: 'Wydarzenie', title: `${ev.title} • ${timeStr}`, icon: '🎟️',
+                        id: ev.id, type: 'Wydarzenie', title: `${ev.title} • ${timeStr}`, rawTitle: ev.title, rawDatetime: ev.event_datetime, icon: '🎟️',
                         date: getLocalDayStr(dateObj), color: 'text-fuchsia-400', bg: 'bg-[#d946ef]', profileId: null, isDuration: false
                     });
                 });
@@ -203,14 +203,18 @@ window.CalendarModule = (() => {
             const durationTxt = e.isDuration ? `<span class="text-[8px] border border-[#ffb4ab]/30 px-1 ml-2 rounded text-neutral-400">Trwa do: ${e.endDate}</span>` : '';
             const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
             const pTxt = pName ? ` • ${pName}` : '';
+            
+            // Ołówek do edycji tylko dla wydarzeń kalendarzowych
+            const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0" data-id="${e.id}">✏️</button>` : '';
 
             html += `
             <div class="bg-[#1e1f20] p-4 rounded-[16px] border border-[#333537] flex items-center gap-4 mb-2 shadow-sm">
                 <span class="text-2xl">${e.icon}</span>
-                <div>
-                    <p class="text-sm font-bold ${e.color}">${window.esc(e.title)} ${durationTxt}</p>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold ${e.color} truncate">${window.esc(e.title)} ${durationTxt}</p>
                     <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}${pTxt}</p>
                 </div>
+                ${editBtn}
             </div>`;
         });
         container.innerHTML = html;
@@ -242,7 +246,6 @@ window.CalendarModule = (() => {
                 const colors = [...new Set(dayEvents.map(e => e.bg))].slice(0, 3);
                 dotsHtml = `<div class="absolute bottom-1 w-full flex justify-center gap-0.5 pointer-events-none">` + colors.map(c => `<div class="w-1.5 h-1.5 rounded-full ${c}"></div>`).join('') + `</div>`;
             }
-            // Zamiana onclick na js-cal-day-details
             html += `<button class="js-cal-day-details relative w-full p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center active:scale-90 transition-transform select-none focus:outline-none" data-date="${dateStr}">${d}${dotsHtml}</button>`;
         }
         html += `</div>`;
@@ -262,11 +265,16 @@ window.CalendarModule = (() => {
             dayEvents.forEach(e => {
                 const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
                 const pTxt = pName ? ` • ${pName}` : '';
+                const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-7 h-7 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 ml-2" data-id="${e.id}">✏️</button>` : '';
+
                 html += `
-                <div class="border-l-2 border-[#333537] ml-2 pl-4 py-2 relative mb-2">
-                    <div class="absolute -left-[11px] top-3 w-5 h-5 bg-[#1e1f20] border border-[#333537] rounded-full text-[10px] flex items-center justify-center">${e.icon}</div>
-                    <p class="text-sm font-medium ${e.color}">${window.esc(e.title)}</p>
-                    <p class="text-[9px] text-neutral-500 uppercase">${e.type}${pTxt}</p>
+                <div class="border-l-2 border-[#333537] ml-2 pl-4 py-2 relative mb-2 flex items-center justify-between group">
+                    <div class="flex-1 min-w-0">
+                        <div class="absolute -left-[11px] top-3 w-5 h-5 bg-[#1e1f20] border border-[#333537] rounded-full text-[10px] flex items-center justify-center">${e.icon}</div>
+                        <p class="text-sm font-medium ${e.color} truncate">${window.esc(e.title)}</p>
+                        <p class="text-[9px] text-neutral-500 uppercase">${e.type}${pTxt}</p>
+                    </div>
+                    ${editBtn}
                 </div>`;
             });
             container.innerHTML = html;
@@ -311,7 +319,6 @@ window.CalendarModule = (() => {
                     }
                 }
 
-                // Zamiana onclick na js-cal-heatmap-day
                 monthHtml += `<button class="js-cal-heatmap-day ${cellClass} flex items-center justify-center focus:outline-none active:scale-90 transition-transform" data-date="${dateStr}">${innerNum}</button>`;
             }
             monthHtml += `</div></div>`;
@@ -334,13 +341,17 @@ window.CalendarModule = (() => {
         dayEvents.forEach(e => {
             const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
             const pTxt = pName ? ` • ${pName}` : '';
+            const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 ml-2" data-id="${e.id}">✏️</button>` : '';
             html += `
-            <div class="bg-[#131314] border border-[#333537] p-3 rounded-xl flex items-center gap-3">
-                <span class="text-2xl">${e.icon}</span>
-                <div>
-                    <p class="text-sm font-bold ${e.color}">${window.esc(e.title)}</p>
-                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}${pTxt}</p>
+            <div class="bg-[#131314] border border-[#333537] p-3 rounded-xl flex items-center justify-between group mb-2">
+                <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-2xl">${e.icon}</span>
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold ${e.color} truncate">${window.esc(e.title)}</p>
+                        <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}${pTxt}</p>
+                    </div>
                 </div>
+                ${editBtn}
             </div>`;
         });
         container.innerHTML = html;
@@ -357,6 +368,101 @@ window.CalendarModule = (() => {
         setTimeout(() => document.getElementById('cal-heatmap-modal').classList.add('hidden'), 300);
     }
 
+    // --- SYSTEM DODAWANIA / EDYCJI WYDARZEŃ ---
+    function openEventModal(id = null) {
+        const modal = document.getElementById('cal-event-modal');
+        const panel = document.getElementById('cal-event-panel');
+        const titleEl = document.getElementById('cal-event-modal-title');
+        const delBtn = document.getElementById('cal-event-delete-btn');
+
+        if (id) {
+            // TRYB EDYCJI
+            const ev = allEvents.find(e => e.id == id && e.type === 'Wydarzenie');
+            if (!ev) return;
+            document.getElementById('cal-event-id').value = id;
+            document.getElementById('cal-event-title').value = ev.rawTitle;
+            
+            // Magia dopasowania strefy czasowej dla datetime-local
+            const dt = new Date(ev.rawDatetime);
+            const tzOffset = dt.getTimezoneOffset() * 60000;
+            const localISOTime = (new Date(dt - tzOffset)).toISOString().slice(0, 16);
+            document.getElementById('cal-event-datetime').value = localISOTime;
+
+            titleEl.innerText = 'Edytuj Wydarzenie';
+            delBtn.classList.remove('hidden');
+        } else {
+            // TRYB NOWEGO DODAWANIA
+            document.getElementById('cal-event-id').value = '';
+            document.getElementById('cal-event-title').value = '';
+            document.getElementById('cal-event-datetime').value = '';
+
+            titleEl.innerText = 'Nowe Wydarzenie';
+            delBtn.classList.add('hidden');
+        }
+
+        modal.classList.remove('hidden');
+        requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
+    }
+
+    function closeEventModal() {
+        const panel = document.getElementById('cal-event-panel');
+        panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
+        setTimeout(() => document.getElementById('cal-event-modal').classList.add('hidden'), 300);
+    }
+
+    async function saveEvent() {
+        const id = document.getElementById('cal-event-id').value;
+        const title = document.getElementById('cal-event-title').value.trim();
+        const dtVal = document.getElementById('cal-event-datetime').value;
+
+        if (!title || !dtVal) { window.showToast("Wypełnij tytuł i datę z godziną!"); return; }
+
+        const evDate = new Date(dtVal);
+        const payload = {
+            title: title, 
+            event_datetime: evDate.toISOString(), 
+            household_id: window.currentUser.household_id, 
+            user_id: window.currentUser.user_id
+        };
+
+        let errorObj;
+        if (id) {
+            const { error } = await window.supabaseClient.from('calendar_events').update(payload).eq('id', id).eq('household_id', window.currentUser.household_id);
+            errorObj = error;
+        } else {
+            const { error } = await window.supabaseClient.from('calendar_events').insert([payload]);
+            errorObj = error;
+        }
+
+        if (errorObj) { window.showToast("Błąd zapisu: " + errorObj.message); return; }
+
+        window.showToast(id ? "Zaktualizowano wydarzenie!" : "Zapisano wydarzenie!");
+        closeEventModal();
+        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+        await fetchAllData();
+        renderCurrentTab();
+    }
+
+    function deleteEvent() {
+        const id = document.getElementById('cal-event-id').value;
+        if(!id) return;
+        window.customConfirm("Czy na pewno usunąć to wydarzenie?", async () => {
+            const { error } = await window.supabaseClient.from('calendar_events').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+            if (error) { window.showToast("Błąd usuwania: " + error.message); return; }
+            
+            window.showToast("Wydarzenie usunięte!");
+            closeEventModal();
+            closeHeatmapModal(); // Zamykamy też okienko jeśli było pod spodem
+            
+            // Odświeżamy interfejs
+            document.getElementById('cal-month-details').innerHTML = `<p class="text-center text-neutral-500 text-xs mt-10">Wybierz dzień z kalendarza, aby zobaczyć szczegóły.</p>`;
+            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+            await fetchAllData();
+            renderCurrentTab();
+        });
+    }
+
+    // --- FILTRY ---
     function openSubFilterModal() {
         const modal = document.getElementById('cal-subfilter-modal');
         const panel = document.getElementById('cal-subfilter-panel');
@@ -393,42 +499,6 @@ window.CalendarModule = (() => {
         activeSubFilterTask = null;
         document.getElementById('cal-subfilter-task').value = "";
         document.getElementById('active-subfilter-badge').classList.add('hidden');
-        renderCurrentTab();
-    }
-
-    function openNewEventModal() {
-        const modal = document.getElementById('cal-new-event-modal');
-        const panel = document.getElementById('cal-new-event-panel');
-        document.getElementById('cal-new-event-title').value = '';
-        document.getElementById('cal-new-event-datetime').value = '';
-        
-        modal.classList.remove('hidden');
-        requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
-    }
-
-    function closeNewEventModal() {
-        const panel = document.getElementById('cal-new-event-panel');
-        panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
-        setTimeout(() => document.getElementById('cal-new-event-modal').classList.add('hidden'), 300);
-    }
-
-    async function saveNewEvent() {
-        const title = document.getElementById('cal-new-event-title').value.trim();
-        const dtVal = document.getElementById('cal-new-event-datetime').value;
-
-        if (!title || !dtVal) { window.showToast("Wypełnij tytuł i datę z godziną!"); return; }
-
-        const evDate = new Date(dtVal);
-        const { error } = await window.supabaseClient.from('calendar_events').insert([{
-            title: title, event_datetime: evDate.toISOString(), household_id: window.currentUser.household_id, user_id: window.currentUser.user_id
-        }]);
-
-        if (error) { window.showToast("Błąd zapisu: " + error.message); return; }
-
-        window.showToast("Zapisano wydarzenie!");
-        closeNewEventModal();
-        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
-        await fetchAllData();
         renderCurrentTab();
     }
 
@@ -471,10 +541,12 @@ window.CalendarModule = (() => {
             window.EventDispatcher.onClick('.js-cal-apply-subfilter', applySubFilter);
             window.EventDispatcher.onClick('.js-cal-clear-subfilter', clearSubFilter);
 
-            // Nowe wydarzenie modal
-            window.EventDispatcher.onClick('.js-cal-open-new-event', openNewEventModal);
-            window.EventDispatcher.onClick('.js-cal-close-new-event', closeNewEventModal);
-            window.EventDispatcher.onClick('.js-cal-save-new-event', saveNewEvent);
+            // Nowe wydarzenie modal - TERAZ Z EDYCJĄ
+            window.EventDispatcher.onClick('.js-cal-open-new-event', () => openEventModal(null));
+            window.EventDispatcher.onClick('.js-cal-edit-event', (e, el) => openEventModal(el.dataset.id));
+            window.EventDispatcher.onClick('.js-cal-close-event', closeEventModal);
+            window.EventDispatcher.onClick('.js-cal-save-event', saveEvent);
+            window.EventDispatcher.onClick('.js-cal-delete-event', deleteEvent);
 
             // Reszta modali i nav
             window.EventDispatcher.onClick('.js-cal-close-heatmap', closeHeatmapModal);
@@ -482,7 +554,6 @@ window.CalendarModule = (() => {
         }
     }
 
-    // Globalny nasłuchiwacz uodporniający uruchamianie kalendarza z przypisanym filtrem (z innych modułów)
     if (window.EventDispatcher) {
         window.EventDispatcher.onClick('.js-open-calendar-filter', (e, el) => {
             const filter = el.dataset.filter || 'all';
@@ -493,6 +564,6 @@ window.CalendarModule = (() => {
 
     return { 
         init, 
-        setFilter // Eksportujemy tylko to co niezbędne z zewnątrz
+        setFilter 
     };
 })();
