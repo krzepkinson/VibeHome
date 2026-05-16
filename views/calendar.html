@@ -7,22 +7,25 @@
                 <p class="text-[10px] text-neutral-400 uppercase tracking-widest mt-0.5" id="calendar-subtitle">Wszystko przed Tobą</p>
             </div>
             
-            <div class="bg-[#131314] rounded-full p-1 flex items-center border border-[#333537]">
-                <button onclick="window.CalendarModule.setTab('agenda')" id="tab-agenda" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all bg-[#333537] text-white shadow-sm">Agenda</button>
-                <button onclick="window.CalendarModule.setTab('month')" id="tab-month" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all text-neutral-500 hover:text-neutral-300">Miesiąc</button>
-                <button onclick="window.CalendarModule.setTab('year')" id="tab-year" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all text-neutral-500 hover:text-neutral-300">Rok</button>
+            <div class="flex items-center gap-3">
+                <div class="bg-[#131314] rounded-full p-1 flex items-center border border-[#333537]">
+                    <button onclick="window.CalendarModule.setTab('agenda')" id="tab-agenda" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all bg-[#333537] text-white shadow-sm">Agenda</button>
+                    <button onclick="window.CalendarModule.setTab('month')" id="tab-month" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all text-neutral-500 hover:text-neutral-300">Miesiąc</button>
+                    <button onclick="window.CalendarModule.setTab('year')" id="tab-year" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all text-neutral-500 hover:text-neutral-300">Rok</button>
+                </div>
+                <button onclick="window.CalendarModule.openNewEventModal()" class="w-9 h-9 rounded-full bg-[#d946ef] text-[#4a044e] font-bold text-xl leading-none flex justify-center items-center active:scale-90 transition-transform shadow-lg shadow-[#d946ef]/20 pb-0.5">+</button>
             </div>
         </div>
 
         <div class="flex gap-2 overflow-x-auto hide-scrollbar items-center mb-3">
             <button onclick="window.CalendarModule.setFilter('all')" id="filter-all" class="js-cal-filter px-3 py-1.5 bg-[#a8c7fa] text-[#004a77] rounded-full text-[10px] font-bold shrink-0 shadow-sm transition-colors">Wszystko</button>
+            <button onclick="window.CalendarModule.setFilter('Wydarzenie')" id="filter-Wydarzenie" class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-full text-[10px] font-bold shrink-0 transition-colors">🎟️ Wydarzenia</button>
             <button onclick="window.CalendarModule.setFilter('Dom')" id="filter-Dom" class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-full text-[10px] font-bold shrink-0 transition-colors">🏠 Dom</button>
             <button onclick="window.CalendarModule.setFilter('Zdrowie')" id="filter-Zdrowie" class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-full text-[10px] font-bold shrink-0 transition-colors">❤️ Zdrowie</button>
             <button onclick="window.CalendarModule.setFilter('Zadanie')" id="filter-Zadanie" class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-full text-[10px] font-bold shrink-0 transition-colors">📝 Zadania</button>
         </div>
 
-        <div class="flex gap-2 overflow-x-auto hide-scrollbar items-center" id="cal-profile-filters">
-            </div>
+        <div class="flex gap-2 overflow-x-auto hide-scrollbar items-center" id="cal-profile-filters"></div>
         
         <div class="flex items-center gap-2 mt-3">
             <button onclick="window.CalendarModule.openSubFilterModal()" class="px-3 py-1.5 bg-[#333537]/50 border border-[#333537] text-neutral-300 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1 active:scale-95">
@@ -43,9 +46,7 @@
             </div>
             <div id="cal-month-grid" class="mb-2"></div>
         </div>
-        <div id="cal-month-details" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#131314] scroll-smooth">
-            <p class="text-center text-neutral-500 text-xs mt-10">Wybierz dzień z kalendarza, aby zobaczyć szczegóły.</p>
-        </div>
+        <div id="cal-month-details" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#131314] scroll-smooth"></div>
     </div>
     
     <div id="cal-view-year" class="flex-1 p-4 sm:p-6 overflow-y-auto hidden bg-[#131314]">
@@ -61,10 +62,10 @@
         <div id="cal-year-grid" class="space-y-6"></div>
 
         <div class="flex justify-center gap-4 mt-6 flex-wrap border-t border-[#333537] pt-6 pb-10">
+            <div class="flex items-center gap-1.5" title="Kino, wyjścia, imprezy"><div class="w-3 h-3 rounded-sm bg-[#d946ef]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Wydarzenie</span></div>
             <div class="flex items-center gap-1.5" title="Katar, kaszel itp."><div class="w-3 h-3 rounded-sm bg-[#ef4444]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Infekcja</span></div>
             <div class="flex items-center gap-1.5" title="Wizyty i szczepienia"><div class="w-3 h-3 rounded-sm bg-[#f59e0b]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Wizyta</span></div>
             <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#3b82f6]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Dom</span></div>
-            <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#1e1f20]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Czysto</span></div>
         </div>
     </div>
 
@@ -76,7 +77,6 @@
             <h3 class="text-base font-bold text-neutral-100">Wybierz zdarzenie</h3>
             <button onclick="window.CalendarModule.closeSubFilterModal()" class="text-neutral-500 text-xl">✕</button>
         </div>
-        
         <div class="space-y-4">
             <div>
                 <label class="block text-[10px] uppercase tracking-widest text-neutral-500 mb-2 font-bold">Na co filtrujemy?</label>
@@ -85,7 +85,6 @@
                 </select>
             </div>
         </div>
-        
         <button onclick="window.CalendarModule.applySubFilter()" class="w-full bg-[#a8c7fa] text-[#004a77] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform mt-6 shadow-lg shadow-[#a8c7fa]/10">Zastosuj</button>
     </div>
 </div>
@@ -99,8 +98,29 @@
             </div>
             <button onclick="window.CalendarModule.closeHeatmapModal()" class="text-neutral-500 text-xl active:scale-90">✕</button>
         </div>
-        
-        <div id="cal-heatmap-modal-content" class="space-y-2 mb-4 max-h-[50vh] overflow-y-auto hide-scrollbar">
+        <div id="cal-heatmap-modal-content" class="space-y-2 mb-4 max-h-[50vh] overflow-y-auto hide-scrollbar"></div>
+    </div>
+</div>
+
+<div id="cal-new-event-modal" class="hidden fixed inset-0 bg-[#131314]/80 backdrop-blur-sm z-[200] flex justify-center items-end sm:items-center p-0 sm:p-4">
+    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 pb-24 sm:pb-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-new-event-panel">
+        <div class="flex justify-between items-center mb-6 border-b border-[#333537] pb-3">
+            <div>
+                <h3 class="text-base font-bold text-neutral-100">Nowe Wydarzenie</h3>
+                <p class="text-[10px] uppercase tracking-widest text-neutral-500 mt-0.5">Z dokładną godziną</p>
             </div>
+            <button onclick="window.CalendarModule.closeNewEventModal()" class="text-neutral-500 text-xl active:scale-90">✕</button>
+        </div>
+        
+        <div class="space-y-4">
+            <input type="text" id="cal-new-event-title" maxlength="100" placeholder="Nazwa (np. Wyjście do kina)" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#d946ef]">
+            
+            <div>
+                <label class="block text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5 font-bold pl-1">Data i Godzina</label>
+                <input type="datetime-local" id="cal-new-event-datetime" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#d946ef] [color-scheme:dark]">
+            </div>
+        </div>
+        
+        <button onclick="window.CalendarModule.saveNewEvent()" class="w-full bg-[#d946ef] text-[#4a044e] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform mt-6 shadow-lg shadow-[#d946ef]/20">Zapisz wydarzenie</button>
     </div>
 </div>
