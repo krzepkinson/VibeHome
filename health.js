@@ -57,7 +57,6 @@ window.HealthModule = (() => {
         if (!currentProfileId) return;
         const hid = window.currentUser.household_id;
 
-        // ZMIANA KRYTYCZNA: Sprawdzamy czy cache nie wygasł z innego miejsca aplikacji
         const now = Date.now();
         const isStale = (now - (window.dashboardCacheTime || 0) > window.CONFIG.CACHE_TTL);
         if (isStale && typeof window.loadDashboardOverview === 'function') {
@@ -108,7 +107,7 @@ window.HealthModule = (() => {
                     ? `${color} text-white border-transparent shadow-md scale-105`
                     : 'bg-[#1e1f20] text-neutral-400 border-[#333537]';
                 return `
-                <button class="js-select-health-profile flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all active:scale-95 ${activeClass} cursor-pointer" data-id="${p.id}">
+                <button class="js-select-health-profile flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all active:scale-95 cursor-pointer ${activeClass}" data-id="${p.id}">
                     <span class="font-bold">${window.esc(p.name.charAt(0).toUpperCase())}</span>
                     <span>${window.esc(p.name)}</span>
                 </button>`;
@@ -379,7 +378,6 @@ window.HealthModule = (() => {
         document.getElementById('h-task-date-container').classList.toggle('hidden', type !== 'one_time'); 
     };
 
-    // ZMIANA KRYTYCZNA: Zmartwychwstawanie dla Modułu Zdrowia (Rozwiązuje błąd 'zajętej nazwy')
     window.saveNewHealthTask = async function() {
         const n = document.getElementById('h-task-name').value.trim(); 
         const type = document.getElementById('h-task-type').value;
@@ -411,7 +409,6 @@ window.HealthModule = (() => {
         if (existingHTasks && existingHTasks.length > 0) {
             const existing = existingHTasks[0];
             if (existing.is_archived) {
-                // Zmartwychwstanie z archiwum!
                 const { error: updErr } = await window.supabaseClient.from('health_tasks').update({
                     is_archived: false, task_type: type, interval_days: interval, remind_days_before: remind, event_date: evDate, next_due_at: initialDue
                 }).eq('id', existing.id);
@@ -421,7 +418,6 @@ window.HealthModule = (() => {
                 return;
             }
         } else {
-            // Standardowe dodanie
             const { error } = await window.supabaseClient.from('health_tasks').insert([{ 
                 profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, 
                 remind_days_before: remind, event_date: evDate, show_in_history: true, is_archived: false, 
@@ -432,22 +428,36 @@ window.HealthModule = (() => {
         }
         
         window.closeNewHealthTaskModal(); 
-        window.invalidateDashboardCache(); // Opróżniamy cache!
+        window.invalidateDashboardCache(); 
         await window.loadDashboardOverview(); 
         window.initHealthModule();
     };
 
     window.currentHealthSettingsId = null;
+    
+    // ZMIANA KRYTYCZNA - FIX WIDOCZNOŚCI DLA RUTYN
     window.openHealthSettingsScreen = async function(taskId) {
         window.currentHealthSettingsId = parseInt(taskId); 
         const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
         document.getElementById('health-settings-title-top').innerText = task.name; 
         document.getElementById('health-settings-name').value = task.name;
         
-        if (task.task_type === 'cyclical') { 
-            document.getElementById('health-settings-interval').value = task.interval_days || 0; 
-            document.getElementById('health-settings-remind-days').value = task.remind_days_before || 0; 
-        } 
+        // Zmuszamy UI do pokazania ustawień dla zadań cyklicznych
+        const intervalInput = document.getElementById('health-settings-interval');
+        if (intervalInput) {
+            // Szukamy nadrzędnego div'a (wrapper), żeby ukryć/pokazać całą sekcję z powiadomieniami
+            const wrapper = intervalInput.closest('.space-y-4 > div') || intervalInput.parentElement.parentElement;
+            if (wrapper) {
+                if (task.task_type === 'cyclical') {
+                    wrapper.classList.remove('hidden');
+                    document.getElementById('health-settings-interval').value = task.interval_days || 0; 
+                    document.getElementById('health-settings-remind-days').value = task.remind_days_before || 0; 
+                } else {
+                    wrapper.classList.add('hidden');
+                }
+            }
+        }
+        
         window.goForward('health-settings-screen');
     };
     
@@ -467,7 +477,7 @@ window.HealthModule = (() => {
         if (error) { window.showToast("Błąd: " + error.message); return; }
         window.showToast("Zapisano!"); 
         
-        window.invalidateDashboardCache(); // DODANE DLA BEZPIECZENSTWA
+        window.invalidateDashboardCache(); 
         await window.loadDashboardOverview(); 
         
         window.initHealthModule(); 
@@ -479,7 +489,7 @@ window.HealthModule = (() => {
             const { error } = await window.supabaseClient.from('health_tasks').update({ is_archived: true }).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
             if (error) { window.showToast("Błąd: " + error.message); return; }
             
-            window.invalidateDashboardCache(); // DODANE
+            window.invalidateDashboardCache();
             await window.loadDashboardOverview(); 
             
             window.closeHealthSettingsScreen(); window.initHealthModule();
