@@ -13,6 +13,7 @@ window.CalendarModule = (() => {
     
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
+    let eventsSetupDone = false; // Zapobiega duplikacji listenerów
 
     const getLocalDayStr = (dObj = new Date()) => {
         const y = dObj.getFullYear();
@@ -26,6 +27,7 @@ window.CalendarModule = (() => {
         await fetchAllData();
         renderProfilePills();
         renderCurrentTab();
+        setupEvents();
     }
 
     async function fetchAllData() {
@@ -37,22 +39,34 @@ window.CalendarModule = (() => {
             oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
             const dateLimit = oneYearAgo.toISOString();
 
-            const [profilesRes, tasksRes, tLogsRes, hTasksRes, hLogsRes] = await Promise.all([
+            const [profilesRes, tasksRes, tLogsRes, hTasksRes, hLogsRes, eventsRes] = await Promise.all([
                 window.supabaseClient.from('profiles').select('*').eq('household_id', hid).order('name'),
                 window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
                 window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).gte('created_at', dateLimit).limit(2000),
                 window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-                window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).gte('start_date', dateLimit).limit(2000)
+                window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).gte('start_date', dateLimit).limit(2000),
+                window.supabaseClient.from('calendar_events').select('*').eq('household_id', hid).gte('event_datetime', dateLimit).limit(1000)
             ]);
 
             appProfiles = profilesRes.data || [];
 
+            // 0. WYDARZENIA TOWARZYSKIE
+            if (eventsRes.data) {
+                eventsRes.data.forEach(ev => {
+                    const dateObj = new Date(ev.event_datetime);
+                    const timeStr = dateObj.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+                    allEvents.push({
+                        id: ev.id, type: 'Wydarzenie', title: `${ev.title} • ${timeStr}`, icon: '🎟️',
+                        date: getLocalDayStr(dateObj), color: 'text-fuchsia-400', bg: 'bg-[#d946ef]', profileId: null, isDuration: false
+                    });
+                });
+            }
+
+            // 1. ZADANIA DOMOWE
             if (tasksRes.data) {
                 tasksRes.data.forEach(t => {
                     let isTaskAssigned = true; 
-                    if (t.assigned_to && t.assigned_to !== window.currentUser.id && t.assigned_to !== window.currentUser.name) {
-                        isTaskAssigned = false;
-                    }
+                    if (t.assigned_to && t.assigned_to !== window.currentUser.id && t.assigned_to !== window.currentUser.name) isTaskAssigned = false;
 
                     if (isTaskAssigned) {
                         if (t.interval_days && t.interval_days > 0) {
@@ -62,23 +76,21 @@ window.CalendarModule = (() => {
                                 nextDateObj = new Date(logs[0].created_at);
                                 nextDateObj.setDate(nextDateObj.getDate() + t.interval_days);
                             }
-                            
                             allEvents.push({
                                 id: t.id, type: 'Dom', title: t.name, icon: '🏠',
-                                date: getLocalDayStr(nextDateObj), color: 'text-blue-400', bg: 'bg-[#3b82f6]',
-                                profileId: null, isDuration: false
+                                date: getLocalDayStr(nextDateObj), color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
                             });
                         } else if (t.task_type === 'one_time' && t.event_date) {
                              allEvents.push({
                                 id: t.id, type: 'Dom', title: t.name, icon: '🏠',
-                                date: t.event_date.split('T')[0], color: 'text-blue-400', bg: 'bg-[#3b82f6]',
-                                profileId: null, isDuration: false
+                                date: t.event_date.split('T')[0], color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
                             });
                         }
                     }
                 });
             }
 
+            // 2. ZDROWIE
             if (hTasksRes.data && hLogsRes.data) {
                 const taskSelect = document.getElementById('cal-subfilter-task');
                 if (taskSelect) {
@@ -90,29 +102,14 @@ window.CalendarModule = (() => {
                     if (ht.task_type === 'duration') {
                         const logs = hLogsRes.data.filter(l => l.health_task_id === ht.id);
                         logs.forEach(l => {
-                            let start = new Date(l.start_date);
-                            let end = l.end_date ? new Date(l.end_date) : new Date();
-                            
-                            allEvents.push({
-                                id: ht.id, type: 'Zdrowie', title: ht.name, icon: '🤒', subTaskId: ht.id,
-                                date: getLocalDayStr(start), endDate: getLocalDayStr(end), color: 'text-red-400', bg: 'bg-[#ef4444]',
-                                profileId: ht.profile_id, isDuration: true, isSummary: true 
-                            });
-
+                            let start = new Date(l.start_date); let end = l.end_date ? new Date(l.end_date) : new Date();
+                            allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '🤒', subTaskId: ht.id, date: getLocalDayStr(start), endDate: getLocalDayStr(end), color: 'text-red-400', bg: 'bg-[#ef4444]', profileId: ht.profile_id, isDuration: true, isSummary: true });
                             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                                allEvents.push({
-                                    id: ht.id, type: 'Zdrowie', title: ht.name, icon: '🤒', subTaskId: ht.id,
-                                    date: getLocalDayStr(d), color: 'text-red-400', bg: 'bg-[#ef4444]',
-                                    profileId: ht.profile_id, isDuration: true, isSummary: false 
-                                });
+                                allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '🤒', subTaskId: ht.id, date: getLocalDayStr(d), color: 'text-red-400', bg: 'bg-[#ef4444]', profileId: ht.profile_id, isDuration: true, isSummary: false });
                             }
                         });
                     } else if (ht.task_type === 'one_time' && ht.event_date) {
-                        allEvents.push({
-                            id: ht.id, type: 'Zdrowie', title: ht.name, icon: '📅', subTaskId: ht.id,
-                            date: ht.event_date.split('T')[0], color: 'text-amber-500', bg: 'bg-[#f59e0b]',
-                            profileId: ht.profile_id, isDuration: false
-                        });
+                        allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '📅', subTaskId: ht.id, date: ht.event_date.split('T')[0], color: 'text-amber-500', bg: 'bg-[#f59e0b]', profileId: ht.profile_id, isDuration: false });
                     }
                 });
             }
@@ -130,7 +127,6 @@ window.CalendarModule = (() => {
             if (activeFilter !== 'all' && e.type !== activeFilter) return false;
             if (activeSubFilterTask && e.subTaskId != activeSubFilterTask) return false;
             if (activeSubFilterPerson && e.profileId && e.profileId != activeSubFilterPerson) return false;
-            
             if (e.isDuration) {
                 if (forHeatmap && e.isSummary) return false;
                 if (!forHeatmap && !e.isSummary) return false;
@@ -142,39 +138,28 @@ window.CalendarModule = (() => {
     function renderProfilePills() {
         const container = document.getElementById('cal-profile-filters');
         if (!container) return;
-        
-        let html = `<button onclick="window.CalendarModule.setProfileFilter(null)" class="js-profile-pill px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 transition-colors ${!activeSubFilterPerson ? 'bg-[#a8c7fa] text-[#004a77]' : 'bg-[#131314] border border-[#333537] text-neutral-400'}">Wszyscy</button>`;
-        
+        let html = `<button class="js-cal-profile-filter px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 transition-colors ${!activeSubFilterPerson ? 'bg-[#a8c7fa] text-[#004a77]' : 'bg-[#131314] border border-[#333537] text-neutral-400'}" data-id="null">Wszyscy</button>`;
         appProfiles.forEach(p => {
             const isActive = activeSubFilterPerson == p.id;
             const bgClass = isActive ? 'bg-[#004a77] border border-[#a8c7fa]/30 text-[#a8c7fa]' : 'bg-[#131314] border border-[#333537] text-neutral-400';
-            html += `<button onclick="window.CalendarModule.setProfileFilter(${p.id})" class="js-profile-pill px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 transition-colors ${bgClass}">${p.name}</button>`;
+            html += `<button class="js-cal-profile-filter px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 transition-colors ${bgClass}" data-id="${p.id}">${p.name}</button>`;
         });
-        
         container.innerHTML = html;
     }
 
     function setTab(tabName) {
         currentTab = tabName;
-        document.querySelectorAll('.js-cal-tab').forEach(b => {
-            b.classList.remove('bg-[#333537]', 'text-white', 'shadow-sm');
-            b.classList.add('text-neutral-500');
-        });
-        document.getElementById(`tab-${tabName}`).classList.add('bg-[#333537]', 'text-white', 'shadow-sm');
-        document.getElementById(`tab-${tabName}`).classList.remove('text-neutral-500');
+        document.querySelectorAll('.js-cal-tab').forEach(b => { b.classList.remove('bg-[#333537]', 'text-white', 'shadow-sm'); b.classList.add('text-neutral-500'); });
+        const target = document.getElementById(`tab-${tabName}`);
+        if(target) { target.classList.add('bg-[#333537]', 'text-white', 'shadow-sm'); target.classList.remove('text-neutral-500'); }
         renderCurrentTab();
     }
 
     function setFilter(filterName) {
         activeFilter = filterName;
-        document.querySelectorAll('.js-cal-filter').forEach(b => {
-            b.classList.replace('bg-[#a8c7fa]', 'bg-[#131314]');
-            b.classList.replace('text-[#004a77]', 'text-neutral-400');
-            b.classList.add('border', 'border-[#333537]');
-        });
-        document.getElementById(`filter-${filterName}`).classList.replace('bg-[#131314]', 'bg-[#a8c7fa]');
-        document.getElementById(`filter-${filterName}`).classList.replace('text-neutral-400', 'text-[#004a77]');
-        document.getElementById(`filter-${filterName}`).classList.remove('border', 'border-[#333537]');
+        document.querySelectorAll('.js-cal-filter').forEach(b => { b.classList.replace('bg-[#a8c7fa]', 'bg-[#131314]'); b.classList.replace('text-[#004a77]', 'text-neutral-400'); b.classList.add('border', 'border-[#333537]'); });
+        const target = document.getElementById(`filter-${filterName}`);
+        if(target) { target.classList.replace('bg-[#131314]', 'bg-[#a8c7fa]'); target.classList.replace('text-neutral-400', 'text-[#004a77]'); target.classList.remove('border', 'border-[#333537]'); }
         renderCurrentTab();
     }
 
@@ -189,23 +174,15 @@ window.CalendarModule = (() => {
         document.getElementById('cal-view-month').classList.add('hidden');
         document.getElementById('cal-view-year').classList.add('hidden');
 
-        if (currentTab === 'agenda') {
-            document.getElementById('cal-view-agenda').classList.remove('hidden');
-            renderAgenda();
-        } else if (currentTab === 'month') {
-            document.getElementById('cal-view-month').classList.remove('hidden');
-            renderMonth();
-        } else if (currentTab === 'year') {
-            document.getElementById('cal-view-year').classList.remove('hidden');
-            renderYearHeatmap();
-        }
+        if (currentTab === 'agenda') { document.getElementById('cal-view-agenda').classList.remove('hidden'); renderAgenda(); } 
+        else if (currentTab === 'month') { document.getElementById('cal-view-month').classList.remove('hidden'); renderMonth(); } 
+        else if (currentTab === 'year') { document.getElementById('cal-view-year').classList.remove('hidden'); renderYearHeatmap(); }
     }
 
     function renderAgenda() {
         const container = document.getElementById('cal-view-agenda');
         const events = getFilteredEvents(false);
         const todayStr = getLocalDayStr();
-        
         const futureEvents = events.filter(e => e.date >= todayStr).sort((a,b) => a.date.localeCompare(b.date));
 
         if (futureEvents.length === 0) {
@@ -263,11 +240,10 @@ window.CalendarModule = (() => {
             let dotsHtml = '';
             if (dayEvents.length > 0) {
                 const colors = [...new Set(dayEvents.map(e => e.bg))].slice(0, 3);
-                // pointer-events-none zapobiega przechwytywaniu kliknięcia przez małe kropeczki na telefonie
                 dotsHtml = `<div class="absolute bottom-1 w-full flex justify-center gap-0.5 pointer-events-none">` + colors.map(c => `<div class="w-1.5 h-1.5 rounded-full ${c}"></div>`).join('') + `</div>`;
             }
-            // FIX MOBILNY: Używamy <button> zamiast <div> i dodajemy w-full
-            html += `<button onclick="window.CalendarModule.showMonthDetails('${dateStr}')" class="relative w-full p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center active:scale-90 transition-transform select-none focus:outline-none">${d}${dotsHtml}</button>`;
+            // Zamiana onclick na js-cal-day-details
+            html += `<button class="js-cal-day-details relative w-full p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center active:scale-90 transition-transform select-none focus:outline-none" data-date="${dateStr}">${d}${dotsHtml}</button>`;
         }
         html += `</div>`;
         grid.innerHTML = html;
@@ -276,7 +252,6 @@ window.CalendarModule = (() => {
     function showMonthDetails(dateStr) {
         const container = document.getElementById('cal-month-details');
         const dayEvents = getFilteredEvents(false).filter(e => e.date === dateStr || (e.isDuration && dateStr >= e.date && dateStr <= e.endDate));
-        
         const dateObj = new Date(dateStr);
         const dateLabel = dateObj.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -296,17 +271,12 @@ window.CalendarModule = (() => {
             });
             container.innerHTML = html;
         }
-
-        // FIX MOBILNY: Automatyczne przewinięcie ekranu do detali, by użytkownik zauważył, że coś się wczytało!
-        if (window.innerWidth < 640) {
-            container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+        if (window.innerWidth < 640) container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function renderYearHeatmap() {
         const grid = document.getElementById('cal-year-grid');
-        const title = document.getElementById('cal-year-title');
-        title.innerText = `Heatmapa: ${currentYear}`;
+        document.getElementById('cal-year-title').innerText = `Heatmapa: ${currentYear}`;
         
         const events = getFilteredEvents(true);
         const months = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
@@ -327,21 +297,22 @@ window.CalendarModule = (() => {
                 let innerNum = '';
 
                 if (dayEvents.length > 0) {
+                    const hasEventT = dayEvents.some(e => e.bg === 'bg-[#d946ef]');
                     const hasInfection = dayEvents.some(e => e.bg === 'bg-[#ef4444]');
                     const hasVisit = dayEvents.some(e => e.bg === 'bg-[#f59e0b]');
 
-                    if (hasInfection) cellClass = `w-3.5 h-3.5 rounded-sm bg-[#ef4444] shadow-sm border border-black/20`;
+                    if (hasEventT) cellClass = `w-3.5 h-3.5 rounded-sm bg-[#d946ef] shadow-sm border border-black/20`;
+                    else if (hasInfection) cellClass = `w-3.5 h-3.5 rounded-sm bg-[#ef4444] shadow-sm border border-black/20`;
                     else if (hasVisit) cellClass = `w-3.5 h-3.5 rounded-sm bg-[#f59e0b] shadow-sm border border-black/20`;
                     else cellClass = `w-3.5 h-3.5 rounded-sm ${dayEvents[0].bg} shadow-sm border border-black/20`; 
                     
-                    // NOWOŚĆ: Wyświetlanie licznika jeśli danego dnia wydarzyło się więcej niż 1 rzecz (zgodnie z filtrem)
                     if (dayEvents.length > 1) {
-                        innerNum = `<span class="text-[7.5px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)] leading-none">${dayEvents.length}</span>`;
+                        innerNum = `<span class="text-[7.5px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)] leading-none pointer-events-none">${dayEvents.length}</span>`;
                     }
                 }
 
-                // FIX MOBILNY: Zmiana div na twardy tag <button>
-                monthHtml += `<button class="${cellClass} flex items-center justify-center focus:outline-none active:scale-90 transition-transform" onclick="window.CalendarModule.openHeatmapModal('${dateStr}')">${innerNum}</button>`;
+                // Zamiana onclick na js-cal-heatmap-day
+                monthHtml += `<button class="js-cal-heatmap-day ${cellClass} flex items-center justify-center focus:outline-none active:scale-90 transition-transform" data-date="${dateStr}">${innerNum}</button>`;
             }
             monthHtml += `</div></div>`;
             html += monthHtml;
@@ -377,10 +348,7 @@ window.CalendarModule = (() => {
         const modal = document.getElementById('cal-heatmap-modal');
         const panel = document.getElementById('cal-heatmap-panel');
         modal.classList.remove('hidden');
-        requestAnimationFrame(() => {
-            panel.classList.remove('translate-y-full');
-            panel.classList.add('translate-y-0');
-        });
+        requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
     }
 
     function closeHeatmapModal() {
@@ -405,20 +373,18 @@ window.CalendarModule = (() => {
     function applySubFilter() {
         const taskSelect = document.getElementById('cal-subfilter-task');
         activeSubFilterTask = taskSelect.value || null;
-        
         const badgeContainer = document.getElementById('active-subfilter-badge');
         
         if (activeSubFilterTask) {
             const tName = taskSelect.options[taskSelect.selectedIndex].text;
             badgeContainer.innerHTML = `
                 <span class="px-3 py-1.5 bg-[#3c1414] border border-[#ffb4ab]/30 text-[#ffb4ab] rounded-full text-[10px] font-bold shadow-sm">Zdarzenie: ${tName}</span>
-                <button onclick="window.CalendarModule.clearSubFilter()" class="text-neutral-500 text-xs font-bold ml-1 active:scale-90">CZYŚĆ ✕</button>
+                <button class="js-cal-clear-subfilter text-neutral-500 text-xs font-bold ml-1 active:scale-90">CZYŚĆ ✕</button>
             `;
             badgeContainer.classList.remove('hidden');
         } else {
             badgeContainer.classList.add('hidden');
         }
-
         renderCurrentTab();
         closeSubFilterModal();
     }
@@ -430,19 +396,103 @@ window.CalendarModule = (() => {
         renderCurrentTab();
     }
 
+    function openNewEventModal() {
+        const modal = document.getElementById('cal-new-event-modal');
+        const panel = document.getElementById('cal-new-event-panel');
+        document.getElementById('cal-new-event-title').value = '';
+        document.getElementById('cal-new-event-datetime').value = '';
+        
+        modal.classList.remove('hidden');
+        requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
+    }
+
+    function closeNewEventModal() {
+        const panel = document.getElementById('cal-new-event-panel');
+        panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
+        setTimeout(() => document.getElementById('cal-new-event-modal').classList.add('hidden'), 300);
+    }
+
+    async function saveNewEvent() {
+        const title = document.getElementById('cal-new-event-title').value.trim();
+        const dtVal = document.getElementById('cal-new-event-datetime').value;
+
+        if (!title || !dtVal) { window.showToast("Wypełnij tytuł i datę z godziną!"); return; }
+
+        const evDate = new Date(dtVal);
+        const { error } = await window.supabaseClient.from('calendar_events').insert([{
+            title: title, event_datetime: evDate.toISOString(), household_id: window.currentUser.household_id, user_id: window.currentUser.user_id
+        }]);
+
+        if (error) { window.showToast("Błąd zapisu: " + error.message); return; }
+
+        window.showToast("Zapisano wydarzenie!");
+        closeNewEventModal();
+        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+        await fetchAllData();
+        renderCurrentTab();
+    }
+
+    // ==========================================
+    // DELEGACJA ZDARZEŃ W JEDNYM MIEJSCU
+    // ==========================================
+    function setupEvents() {
+        if (eventsSetupDone) return;
+        eventsSetupDone = true;
+
+        if (window.EventDispatcher) {
+            // Filtry i Taby
+            window.EventDispatcher.onClick('.js-cal-tab', (e, el) => setTab(el.dataset.tab));
+            window.EventDispatcher.onClick('.js-cal-filter', (e, el) => setFilter(el.dataset.filter));
+            window.EventDispatcher.onClick('.js-cal-profile-filter', (e, el) => {
+                const id = el.dataset.id === 'null' ? null : el.dataset.id;
+                setProfileFilter(id);
+            });
+
+            // Nawigacja
+            window.EventDispatcher.onClick('.js-cal-change-month', (e, el) => {
+                const offset = parseInt(el.dataset.offset);
+                currentMonth += offset;
+                if (currentMonth < 0) { currentMonth = 11; currentYear--; } 
+                else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+                renderMonth();
+            });
+            window.EventDispatcher.onClick('.js-cal-change-year', (e, el) => {
+                currentYear += parseInt(el.dataset.offset);
+                renderYearHeatmap();
+            });
+
+            // Akcje na dniach
+            window.EventDispatcher.onClick('.js-cal-day-details', (e, el) => showMonthDetails(el.dataset.date));
+            window.EventDispatcher.onClick('.js-cal-heatmap-day', (e, el) => openHeatmapModal(el.dataset.date));
+
+            // Sub-filtry modal
+            window.EventDispatcher.onClick('.js-cal-open-subfilter', openSubFilterModal);
+            window.EventDispatcher.onClick('.js-cal-close-subfilter', closeSubFilterModal);
+            window.EventDispatcher.onClick('.js-cal-apply-subfilter', applySubFilter);
+            window.EventDispatcher.onClick('.js-cal-clear-subfilter', clearSubFilter);
+
+            // Nowe wydarzenie modal
+            window.EventDispatcher.onClick('.js-cal-open-new-event', openNewEventModal);
+            window.EventDispatcher.onClick('.js-cal-close-new-event', closeNewEventModal);
+            window.EventDispatcher.onClick('.js-cal-save-new-event', saveNewEvent);
+
+            // Reszta modali i nav
+            window.EventDispatcher.onClick('.js-cal-close-heatmap', closeHeatmapModal);
+            window.EventDispatcher.onClick('.js-cal-go-back', () => { if(typeof window.goBack === 'function') window.goBack(); });
+        }
+    }
+
+    // Globalny nasłuchiwacz uodporniający uruchamianie kalendarza z przypisanym filtrem (z innych modułów)
+    if (window.EventDispatcher) {
+        window.EventDispatcher.onClick('.js-open-calendar-filter', (e, el) => {
+            const filter = el.dataset.filter || 'all';
+            window.switchView('calendar');
+            setTimeout(() => { if (typeof setFilter === 'function') setFilter(filter); }, 50);
+        });
+    }
+
     return { 
         init, 
-        setTab, 
-        setFilter, 
-        setProfileFilter, 
-        changeMonth: (off) => { currentMonth += off; if (currentMonth < 0) { currentMonth = 11; currentYear--; } else if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderMonth(); }, 
-        changeYear: (off) => { currentYear += off; renderYearHeatmap(); },
-        showMonthDetails, 
-        openHeatmapModal, 
-        closeHeatmapModal, 
-        openSubFilterModal, 
-        closeSubFilterModal, 
-        applySubFilter, 
-        clearSubFilter 
+        setFilter // Eksportujemy tylko to co niezbędne z zewnątrz
     };
 })();
