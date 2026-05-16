@@ -25,7 +25,7 @@ window.DashboardModule = (() => {
             
             const state = window.AppStore.get() || {};
             
-            // ZMIANA: Pokazujemy "Ładowanie..." TYLKO wtedy, gdy nie mamy starych danych w pamięci.
+            // Pokazujemy "Ładowanie..." TYLKO wtedy, gdy nie mamy starych danych w pamięci.
             if (!state.tasks || state.tasks.length === 0) {
                 const containers = ['widget-home-content', 'widget-health-content', 'widget-todo-content'];
                 containers.forEach(id => {
@@ -115,17 +115,15 @@ window.DashboardModule = (() => {
             return false;
         });
 
-        // POPRAWKA LOGIKI DAT DLA ZADAŃ DOMOWYCH
         const homeToday = tasks.filter(t => {
             if (!t.interval_days) return false;
             const taskLogs = logs.filter(l => l.task_id === t.id);
-            if (taskLogs.length === 0) return true; // Czeka na zrobienie (zaległe)
+            if (taskLogs.length === 0) return true; 
             
             const nextDate = new Date(taskLogs[0].created_at);
             nextDate.setDate(nextDate.getDate() + t.interval_days);
             nextDate.setHours(0,0,0,0);
             
-            // Jeśli przewidywana data wykonania jest DZISIAJ lub w przeszłości, pokazujemy w sekcji "Na dziś"
             return nextDate <= today;
         });
 
@@ -182,7 +180,7 @@ window.DashboardModule = (() => {
         } else { todayContainer.classList.add('hidden'); }
     }
 
-    // --- RENDEROWANIE: WIDGET DOMU (Zaległe + Wkrótce) ---
+    // --- RENDEROWANIE: WIDGET DOMU ---
     function _renderHomeWidget(state, today) {
         let overdueHome = [];
         let upcomingHome = [];
@@ -429,7 +427,7 @@ window.DashboardModule = (() => {
             const isDone = hLogs.some(l => l.health_task_id === ht.id);
             if (isDone) return;
             const evDate = new Date(ht.event_date); evDate.setHours(0, 0, 0, 0);
-            if (evDate > today) {
+            if (evDate >= today) { // ZMIANA: Pokazujemy od dzisiaj wzwyż
                 horizonItems.push({
                     type: 'health', date: evDate, id: ht.id, name: ht.name, profile_id: ht.profile_id
                 });
@@ -439,7 +437,7 @@ window.DashboardModule = (() => {
         checklists.forEach(list => {
             if (list.list_type === 'packing' && list.start_date) {
                 const stDate = new Date(list.start_date); stDate.setHours(0, 0, 0, 0);
-                if (stDate > today) {
+                if (stDate >= today) { // ZMIANA: Pokazujemy od dzisiaj wzwyż
                     horizonItems.push({
                         type: 'trip', date: stDate, endDate: list.end_date ? new Date(list.end_date) : null,
                         id: list.id, title: list.title
@@ -454,7 +452,12 @@ window.DashboardModule = (() => {
             let html = `<h3 class="text-[10px] font-bold text-neutral-500 uppercase tracking-[0.2em] mb-3 px-1">Na horyzoncie</h3>`;
             html += horizonItems.map(item => {
                 const daysUntil = Math.ceil((item.date - today) / 86400000);
-                const urgencyLabel = daysUntil === 1 ? 'Jutro!' : `Za ${daysUntil} dni`;
+                
+                // ZMIANA: Obsługa etykiety dla wydarzeń na dzisiaj
+                let urgencyLabel = `Za ${daysUntil} dni`;
+                if (daysUntil === 0) urgencyLabel = 'Dzisiaj!';
+                else if (daysUntil === 1) urgencyLabel = 'Jutro!';
+                
                 const colorClass = daysUntil <= 3 ? 'text-amber-400' : 'text-[#a8c7fa]';
                 
                 if (item.type === 'health') {
@@ -684,7 +687,7 @@ window.DashboardModule = (() => {
     // ==========================================
     if (window.EventDispatcher) {
         
-    
+        window.EventDispatcher.onClick('.js-open-search', () => window.openGlobalSearch());
 
         window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
             const chevron = el.querySelector('.js-chevron');
