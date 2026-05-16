@@ -105,25 +105,30 @@
     </div>
 </div>
 
-<div id="cal-new-event-modal" class="hidden fixed inset-0 bg-[#131314]/80 backdrop-blur-sm z-[200] flex justify-center items-end sm:items-center p-0 sm:p-4">
-    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 pb-24 sm:pb-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-new-event-panel">
+<div id="cal-event-modal" class="hidden fixed inset-0 bg-[#131314]/80 backdrop-blur-sm z-[200] flex justify-center items-end sm:items-center p-0 sm:p-4">
+    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 pb-24 sm:pb-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-event-panel">
         <div class="flex justify-between items-center mb-6 border-b border-[#333537] pb-3">
             <div>
-                <h3 class="text-base font-bold text-neutral-100">Nowe Wydarzenie</h3>
+                <h3 class="text-base font-bold text-neutral-100" id="cal-event-modal-title">Nowe Wydarzenie</h3>
                 <p class="text-[10px] uppercase tracking-widest text-neutral-500 mt-0.5">Z dokładną godziną</p>
             </div>
-            <button class="js-cal-close-new-event text-neutral-500 text-xl active:scale-90">✕</button>
+            <button class="js-cal-close-event text-neutral-500 text-xl active:scale-90">✕</button>
         </div>
         
         <div class="space-y-4">
-            <input type="text" id="cal-new-event-title" maxlength="100" placeholder="Nazwa (np. Wyjście do kina)" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#d946ef]">
+            <input type="hidden" id="cal-event-id" value="">
+            
+            <input type="text" id="cal-event-title" maxlength="100" placeholder="Nazwa (np. Wyjście do kina)" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#d946ef]">
             
             <div>
                 <label class="block text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5 font-bold pl-1">Data i Godzina</label>
-                <input type="datetime-local" id="cal-new-event-datetime" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#d946ef] [color-scheme:dark]">
+                <input type="datetime-local" id="cal-event-datetime" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#d946ef] [color-scheme:dark]">
             </div>
         </div>
         
-        <button class="js-cal-save-new-event w-full bg-[#d946ef] text-[#4a044e] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform mt-6 shadow-lg shadow-[#d946ef]/20">Zapisz wydarzenie</button>
+        <div class="mt-6 flex flex-col gap-3">
+            <button class="js-cal-save-event w-full bg-[#d946ef] text-[#4a044e] font-bold py-3.5 text-sm rounded-full active:scale-95 transition-transform shadow-lg shadow-[#d946ef]/20">Zapisz wydarzenie</button>
+            <button id="cal-event-delete-btn" class="js-cal-delete-event hidden w-full text-[#ffb4ab] border border-[#8c1d18]/50 bg-[#3c1414]/30 font-bold py-3.5 text-sm rounded-full active:scale-95 transition-transform">Usuń wydarzenie</button>
+        </div>
     </div>
 </div>
