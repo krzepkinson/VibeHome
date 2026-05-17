@@ -64,11 +64,31 @@
         
         <div id="cal-year-grid" class="space-y-6"></div>
 
-        <div class="flex justify-center gap-4 mt-6 flex-wrap border-t border-[#333537] pt-6 pb-10">
+        <div class="flex justify-center gap-4 mt-6 flex-wrap border-t border-[#333537] pt-6 pb-6">
             <div class="flex items-center gap-1.5" title="Kino, wyjścia, imprezy"><div class="w-3 h-3 rounded-sm bg-[#d946ef]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Wydarzenie</span></div>
             <div class="flex items-center gap-1.5" title="Katar, kaszel itp."><div class="w-3 h-3 rounded-sm bg-[#ef4444]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Infekcja</span></div>
             <div class="flex items-center gap-1.5" title="Wizyty i szczepienia"><div class="w-3 h-3 rounded-sm bg-[#f59e0b]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Wizyta</span></div>
             <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#3b82f6]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Dom</span></div>
+        </div>
+
+        <div class="mt-4 bg-[#1e1f20] border border-[#333537] p-4 sm:p-5 rounded-[24px] shadow-lg mb-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-bold text-neutral-100" id="cal-stats-title">Podsumowanie: 2026</h3>
+                <span class="text-2xl opacity-80">📊</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-[#131314] rounded-xl p-3 border border-[#333537]">
+                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest mb-1" id="cal-stats-label-1">Aktywne dni</p>
+                    <p class="text-2xl font-bold text-neutral-200" id="cal-stats-val-1">0</p>
+                </div>
+                <div class="bg-[#131314] rounded-xl p-3 border border-[#333537]">
+                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest mb-1" id="cal-stats-label-2">Zarejestrowane</p>
+                    <p class="text-2xl font-bold text-neutral-200" id="cal-stats-val-2">0</p>
+                </div>
+            </div>
+            <button class="js-cal-generate-pdf w-full mt-4 py-3 bg-[#333537] text-neutral-200 text-xs font-bold uppercase tracking-widest rounded-xl border border-[#444746] active:scale-95 transition-transform flex justify-center items-center gap-2">
+                Generuj raport PDF
+            </button>
         </div>
     </div>
 
@@ -117,9 +137,7 @@
         
         <div class="space-y-4">
             <input type="hidden" id="cal-event-id" value="">
-            
             <input type="text" id="cal-event-title" maxlength="100" placeholder="Nazwa (np. Wyjście do kina)" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#d946ef]">
-            
             <div>
                 <label class="block text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5 font-bold pl-1">Data i Godzina</label>
                 <input type="datetime-local" id="cal-event-datetime" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#d946ef] [color-scheme:dark]">
