@@ -26,8 +26,17 @@ window.HomeModule = (() => {
 
     window.filterHomeByRoom = function(room) {
         roomFilter = room;
-        if (window.activeView !== 'home') window.switchView('home'); 
-        else window.loadDashboard();
+        if (window.activeView !== 'home') {
+            window.switchView('home'); 
+        } else {
+            // FIX: Dodajemy wpis do historii przeglądarki, żeby "wstecz" wiedziało dokąd wrócić
+            window.history.pushState(
+                { view: 'home', roomFilter: room }, 
+                '', 
+                '/?view=home'
+            );
+            window.loadDashboard();
+        }
     };
 
     window.clearRoomFilter = function() {
@@ -381,7 +390,6 @@ window.HomeModule = (() => {
         }, 10);
     };
 
-    // ZMIANA KRYTYCZNA: System przywracania usuniętych (zarchiwizowanych) zadań, by uniknąć błędów 'Zajętej nazwy'
     window.saveNewTask = async function() {
         const n = document.getElementById('new-task-name').value.trim();
         const i = parseInt(document.getElementById('new-task-interval').value) || 0;
@@ -401,7 +409,6 @@ window.HomeModule = (() => {
         if (existingTasks && existingTasks.length > 0) {
             const existing = existingTasks[0];
             if (existing.is_archived) {
-                // Przywracamy archiwalne zadanie do życia!
                 const { error: updErr } = await window.supabaseClient.from('tasks').update({ 
                     is_archived: false, interval_days: i, remind_days_before: remind, room: r, next_due_at: initialDue 
                 }).eq('id', existing.id);
@@ -411,7 +418,6 @@ window.HomeModule = (() => {
                 return;
             }
         } else {
-            // Wstawiamy całkiem nowe zadanie
             const { error } = await window.supabaseClient.from('tasks').insert([{ 
                 name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
                 room: r, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, next_due_at: initialDue
@@ -419,7 +425,7 @@ window.HomeModule = (() => {
             if (error) { window.showToast("Błąd: " + error.message); return; }
         }
         
-        window.invalidateDashboardCache(); // Opróżniamy cache!
+        window.invalidateDashboardCache();
         window.closeNewTaskModal(); 
         window.showToast("Dodano czynność!"); 
         window.loadDashboard();
@@ -471,7 +477,7 @@ window.HomeModule = (() => {
             const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', id);
             if (error) { window.showToast("Błąd usuwania"); return; }
             
-            window.invalidateDashboardCache(); // Dodane dla czystości
+            window.invalidateDashboardCache(); 
             window.showToast("Usunięto!"); 
             window.loadDashboard();
         });
