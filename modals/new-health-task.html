@@ -1,0 +1,52 @@
+<div id="new-health-task-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
+    <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
+        <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Co chcesz śledzić?</h3>
+        
+        <div class="space-y-3">
+            <input type="text" id="h-task-name" maxlength="100" placeholder="Nazwa" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
+            
+            <div>
+                <label class="block text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5 font-bold pl-1">Kategoria</label>
+                <select id="h-task-category" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none cursor-pointer">
+                    <option value="Infekcja">Infekcja</option>
+                    <option value="Suplementacja">Suplementacja</option>
+                    <option value="Zabieg">Zabieg / Pielęgnacja</option>
+                    <option value="Inne">Inne</option>
+                </select>
+            </div>
+
+            <select id="h-task-type" onchange="window.toggleHealthInterval()" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none cursor-pointer">
+                <option value="cyclical">Cykliczne (np. leki)</option>
+                <option value="duration">Trwające (np. katar)</option>
+                <option value="one_time">Jednorazowe (wizyta, szczepienie)</option>
+            </select>
+            
+            <div id="h-task-interval-container" class="flex gap-2">
+                <div class="flex-1">
+                    <label class="block text-[10px] text-neutral-500 mb-1 pl-1">Co ile dni?</label>
+                    <input type="number" id="h-task-interval" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none">
+                </div>
+                <div class="flex-1">
+                    <label class="block text-[10px] text-neutral-500 mb-1 pl-1">Przypomnij dni przed</label>
+                    <input type="number" id="h-task-remind" value="0" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none">
+                </div>
+            </div>
+            
+            <div id="h-task-date-container" class="hidden flex gap-2">
+                <div class="flex-1">
+                    <label class="block text-[10px] text-neutral-500 mb-1 pl-1">Data wizyty</label>
+                    <input type="date" id="h-task-date" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]">
+                </div>
+                <div class="flex-1">
+                    <label class="block text-[10px] text-neutral-500 mb-1 pl-1">Przypomnij dni przed</label>
+                    <input type="number" id="h-task-remind-date" value="0" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none">
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex gap-3 mt-6">
+            <button onclick="window.closeNewHealthTaskModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
+            <button onclick="window.saveNewHealthTask()" class="flex-1 bg-[#8c1d18] text-[#ffdad6] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Dodaj</button>
+        </div>
+    </div>
+</div>
