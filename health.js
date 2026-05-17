@@ -355,16 +355,18 @@ window.HealthModule = (() => {
         }, 10);
     };
 
+// === ZMIANA W HEALTH.JS (Zastąp starą wersję tej funkcji) ===
     window.openNewHealthTaskModal = function(defaultType = 'cyclical') { 
-        document.getElementById('h-task-name').value = ''; 
-        document.getElementById('h-task-type').value = defaultType; 
-        
-        // ZMIANA: Resetujemy kategorię
-        const catEl = document.getElementById('h-task-category');
-        if (catEl) catEl.value = defaultType === 'duration' ? 'Infekcja' : 'Zabieg';
-        
-        window.toggleHealthInterval(); 
-        document.getElementById('new-health-task-modal').classList.remove('hidden'); 
+        // Używamy naszego globalnego wczytywacza modali (podobnie jak dla Apteczki)
+        window.loadAndShowModal('new-health-task-modal', '/modals/new-health-task.html', () => {
+            document.getElementById('h-task-name').value = ''; 
+            document.getElementById('h-task-type').value = defaultType; 
+            
+            const catEl = document.getElementById('h-task-category');
+            if (catEl) catEl.value = defaultType === 'duration' ? 'Infekcja' : 'Zabieg';
+            
+            window.toggleHealthInterval(); 
+        });
     };
 
     window.openNewDurationModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('duration'); };
