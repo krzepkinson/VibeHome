@@ -197,7 +197,7 @@ window.CalendarModule = (() => {
                 lastDate = e.date;
             }
             
-            const durationTxt = e.isDuration ? `<span class="text-[8px] border border-[#ffb4ab]/30 px-1 ml-2 rounded text-neutral-400">Trwa do: ${e.endDate}</span>` : '';
+            const durationTxt = e.isDuration ? `<span class="text-[8px] border border-[#ffb4ab]/30 px-1 ml-2 rounded text-neutral-400">Trwa od: ${e.endDate}</span>` : '';
             const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
             const pTxt = pName ? ` • ${pName}` : '';
             
