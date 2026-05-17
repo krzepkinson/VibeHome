@@ -29,7 +29,6 @@ window.Router = (() => {
     let activeView = 'auth';
     let loadedViews = new Map(); // Pamięć załadowanych widoków z plików
 
-    // Dodano drugi parametr: pushToHistory (domyślnie true)
     window.switchView = async function(viewName, pushToHistory = true) {
         if (activeView === viewName && viewName !== 'auth') return;
 
@@ -47,7 +46,6 @@ window.Router = (() => {
             const container = document.getElementById('view-container');
             if (!loadedViews.has(viewName)) {
                 try {
-                    // POPRAWKA CACHE: Dodajemy wersję do URL, aby wymusić odświeżenie plików po aktualizacji
                     const appVersion = (window.CONFIG && window.CONFIG.VERSION) ? window.CONFIG.VERSION : Date.now();
                     const response = await fetch(`/views/${config.file}?v=${appVersion}`);
                     
@@ -64,7 +62,6 @@ window.Router = (() => {
                 } catch (err) {
                     console.error(`Błąd ładowania ${config.file}:`, err);
                     window.showToast("Błąd ładowania interfejsu");
-                    // POPRAWKA BŁĘDU 404: Jeśli plik się nie załaduje, wracamy do bezpiecznego widoku, aby ekran nie był pusty!
                     window.switchView('dashboard', false); 
                     return;
                 }
@@ -111,12 +108,11 @@ window.Router = (() => {
         }
     };
 
-    // --- Wykorzystanie natywnego systemu przeglądarki ---
     window.goBack = function() { 
         if (window.history.length > 1) {
-            window.history.back(); // Zleca przeglądarce wykonanie akcji "Wstecz" (uruchomi popstate)
+            window.history.back();
         } else {
-            window.switchView('dashboard'); // Bezpiecznik, gdy brak historii
+            window.switchView('dashboard'); 
         }
     };
     
@@ -132,12 +128,17 @@ window.Router = (() => {
 
     // --- Nasłuchiwanie gestów systemowych wstecz/dalej ---
     window.addEventListener('popstate', (e) => {
-        // e.state zawiera to, co włożyliśmy przez pushState ({ view: 'home' })
+        // FIX: Jeśli wracamy do home BEZ filtra pokoju, a filtr jest aktywny -> wyczyść go
+        if (e.state?.view === 'home' && !e.state?.roomFilter && activeView === 'home') {
+            if (typeof window.clearRoomFilter === 'function') {
+                window.clearRoomFilter();
+            }
+            return; // Jesteśmy już na home, tylko resetujemy filtr widoku
+        }
+        
         if (e.state && e.state.view) {
-            // Przełączamy widok, ale dajemy flagę false, by nie tworzyć nowej historii
             window.switchView(e.state.view, false);
         } else {
-            // Bezpiecznik dla pierwszej strony wejściowej lub głębokich linków
             const urlParams = new URLSearchParams(window.location.search);
             const view = urlParams.get('view') || 'dashboard';
             
