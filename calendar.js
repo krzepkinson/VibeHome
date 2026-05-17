@@ -5,7 +5,8 @@
 window.CalendarModule = (() => {
     let currentTab = 'agenda'; 
     let activeFilter = 'all'; 
-    let activeSubFilterTask = null; 
+    let activeSubFilterTasks = []; // ZMIANA: Tablica zamiast pojedynczej wartości
+    let tempSelectedTasks = []; // Pomocnicza tablica na czas edycji modala
     let activeSubFilterPerson = null; 
     
     let allEvents = []; 
@@ -89,10 +90,27 @@ window.CalendarModule = (() => {
             }
 
             if (hTasksRes.data && hLogsRes.data) {
-                const taskSelect = document.getElementById('cal-subfilter-task');
-                if (taskSelect) {
-                    taskSelect.innerHTML = '<option value="">-- Wszystkie --</option>' + 
-                        hTasksRes.data.map(ht => `<option value="${ht.id}">${ht.name}</option>`).join('');
+                // ZMIANA KRYTYCZNA: Generowanie pigułek wielokrotnego wyboru, podzielonych po Kategoriach
+                const pillsContainer = document.getElementById('cal-subfilter-pills');
+                if (pillsContainer) {
+                    const grouped = {};
+                    hTasksRes.data.forEach(ht => {
+                        const cat = ht.category || 'Inne';
+                        if (!grouped[cat]) grouped[cat] = [];
+                        grouped[cat].push(ht);
+                    });
+
+                    let html = '';
+                    const sortedKeys = Object.keys(grouped).sort((a, b) => a === 'Infekcja' ? -1 : b === 'Infekcja' ? 1 : a.localeCompare(b));
+                    
+                    sortedKeys.forEach(cat => {
+                        html += `<div><h4 class="text-[9px] text-neutral-500 uppercase tracking-widest mb-2 font-bold pl-1">${window.esc(cat)}</h4><div class="flex flex-wrap gap-2">`;
+                        grouped[cat].forEach(t => {
+                            html += `<button class="js-cal-multi-pill px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-xl text-xs font-medium transition-colors active:scale-95" data-id="${t.id}" data-name="${window.esc(t.name)}">${window.esc(t.name)}</button>`;
+                        });
+                        html += `</div></div>`;
+                    });
+                    pillsContainer.innerHTML = html || '<p class="text-xs text-neutral-500">Brak dostępnych zdarzeń</p>';
                 }
 
                 hTasksRes.data.forEach(ht => {
@@ -122,7 +140,8 @@ window.CalendarModule = (() => {
     function getFilteredEvents(forHeatmap = false) {
         return allEvents.filter(e => {
             if (activeFilter !== 'all' && e.type !== activeFilter) return false;
-            if (activeSubFilterTask && e.subTaskId != activeSubFilterTask) return false;
+            // ZMIANA: Sprawdzanie czy id zdarzenia jest w naszej tablicy wybranych
+            if (activeSubFilterTasks.length > 0 && !activeSubFilterTasks.includes(e.subTaskId)) return false;
             if (activeSubFilterPerson && e.profileId && e.profileId != activeSubFilterPerson) return false;
             if (e.isDuration) {
                 if (forHeatmap && e.isSummary) return false;
@@ -326,9 +345,17 @@ window.CalendarModule = (() => {
         }
         grid.innerHTML = html;
 
-        // --- STATYSTYKI ---
+        // --- STATYSTYKI Z UWZGLĘDNIENIEM MULTISELEKTU ---
         const daysWithActivity = new Set(eventsHeatmap.filter(e => e.date.startsWith(currentYearStr)).map(e => e.date)).size;
-        const uniqueEvents = eventsAgenda.filter(e => e.date.startsWith(currentYearStr) || (e.isDuration && e.endDate && e.endDate.startsWith(currentYearStr))).length;
+        
+        let uniqueEventsCount = 0;
+        if (activeFilter === 'Zdrowie') {
+            // Unikalne instancje zdarzeń
+            const uniqueIds = new Set(eventsHeatmap.filter(e => e.date.startsWith(currentYearStr)).map(e => e.id));
+            uniqueEventsCount = uniqueIds.size;
+        } else {
+            uniqueEventsCount = eventsAgenda.filter(e => e.date.startsWith(currentYearStr) || (e.isDuration && e.endDate && e.endDate.startsWith(currentYearStr))).length;
+        }
 
         const val1El = document.getElementById('cal-stats-val-1');
         const val2El = document.getElementById('cal-stats-val-2');
@@ -336,11 +363,11 @@ window.CalendarModule = (() => {
         const label2El = document.getElementById('cal-stats-label-2');
 
         if (val1El) val1El.innerText = daysWithActivity;
-        if (val2El) val2El.innerText = uniqueEvents;
+        if (val2El) val2El.innerText = uniqueEventsCount;
 
         if (activeFilter === 'Zdrowie') {
-            label1El.innerText = "Dni w chorobie";
-            label2El.innerText = "Ilość zdarzeń (infekcje/wizyty)";
+            label1El.innerText = "Dni objawowych";
+            label2El.innerText = "Ilość zdarzeń";
             val1El.className = "text-2xl font-bold text-[#ffb4ab]";
         } else if (activeFilter === 'Wydarzenie') {
             label1El.innerText = "Dni z wyjściami";
@@ -487,7 +514,34 @@ window.CalendarModule = (() => {
         });
     }
 
+    // --- ZMIANA KRYTYCZNA: LOGIKA MULTISELEKCJI ---
+    function updatePillsUI() {
+        document.querySelectorAll('.js-cal-multi-pill').forEach(btn => {
+            const id = parseInt(btn.dataset.id);
+            if (tempSelectedTasks.includes(id)) {
+                btn.classList.replace('bg-[#131314]', 'bg-[#3c1414]');
+                btn.classList.replace('border-[#333537]', 'border-[#ffb4ab]/50');
+                btn.classList.replace('text-neutral-400', 'text-[#ffb4ab]');
+            } else {
+                btn.classList.replace('bg-[#3c1414]', 'bg-[#131314]');
+                btn.classList.replace('border-[#ffb4ab]/50', 'border-[#333537]');
+                btn.classList.replace('text-[#ffb4ab]', 'text-neutral-400');
+            }
+        });
+    }
+
+    function toggleSubFilterPill(id) {
+        const numId = parseInt(id);
+        const idx = tempSelectedTasks.indexOf(numId);
+        if (idx > -1) tempSelectedTasks.splice(idx, 1);
+        else tempSelectedTasks.push(numId);
+        updatePillsUI();
+    }
+
     function openSubFilterModal() {
+        tempSelectedTasks = [...activeSubFilterTasks]; // Klonujemy aktywne przy otwarciu
+        updatePillsUI();
+        
         const modal = document.getElementById('cal-subfilter-modal');
         const panel = document.getElementById('cal-subfilter-panel');
         modal.classList.remove('hidden');
@@ -501,14 +555,21 @@ window.CalendarModule = (() => {
     }
 
     function applySubFilter() {
-        const taskSelect = document.getElementById('cal-subfilter-task');
-        activeSubFilterTask = taskSelect.value || null;
+        activeSubFilterTasks = [...tempSelectedTasks];
         const badgeContainer = document.getElementById('active-subfilter-badge');
         
-        if (activeSubFilterTask) {
-            const tName = taskSelect.options[taskSelect.selectedIndex].text;
+        if (activeSubFilterTasks.length > 0) {
+            const names = [];
+            document.querySelectorAll('.js-cal-multi-pill').forEach(btn => {
+                if(activeSubFilterTasks.includes(parseInt(btn.dataset.id))) names.push(btn.dataset.name);
+            });
+            
+            const badgeTxt = names.length <= 2 ? names.join(', ') : `${names.length} wybrane`;
+            
             badgeContainer.innerHTML = `
-                <span class="px-3 py-1.5 bg-[#3c1414] border border-[#ffb4ab]/30 text-[#ffb4ab] rounded-full text-[10px] font-bold shadow-sm">Zdarzenie: ${tName}</span>
+                <span class="px-3 py-1.5 bg-[#3c1414] border border-[#ffb4ab]/30 text-[#ffb4ab] rounded-full text-[10px] font-bold shadow-sm flex items-center max-w-[150px] sm:max-w-[200px]">
+                    <span class="truncate">${badgeTxt}</span>
+                </span>
                 <button class="js-cal-clear-subfilter text-neutral-500 text-xs font-bold ml-1 active:scale-90">CZYŚĆ ✕</button>
             `;
             badgeContainer.classList.remove('hidden');
@@ -520,8 +581,8 @@ window.CalendarModule = (() => {
     }
 
     function clearSubFilter() {
-        activeSubFilterTask = null;
-        document.getElementById('cal-subfilter-task').value = "";
+        activeSubFilterTasks = [];
+        tempSelectedTasks = [];
         document.getElementById('active-subfilter-badge').classList.add('hidden');
         renderCurrentTab();
     }
@@ -553,6 +614,9 @@ window.CalendarModule = (() => {
             window.EventDispatcher.onClick('.js-cal-day-details', (e, el) => showMonthDetails(el.dataset.date));
             window.EventDispatcher.onClick('.js-cal-heatmap-day', (e, el) => openHeatmapModal(el.dataset.date));
 
+            // Multiselect pigułki
+            window.EventDispatcher.onClick('.js-cal-multi-pill', (e, el) => toggleSubFilterPill(el.dataset.id));
+
             window.EventDispatcher.onClick('.js-cal-open-subfilter', openSubFilterModal);
             window.EventDispatcher.onClick('.js-cal-close-subfilter', closeSubFilterModal);
             window.EventDispatcher.onClick('.js-cal-apply-subfilter', applySubFilter);
@@ -567,10 +631,7 @@ window.CalendarModule = (() => {
             window.EventDispatcher.onClick('.js-cal-close-heatmap', closeHeatmapModal);
             window.EventDispatcher.onClick('.js-cal-go-back', () => { if(typeof window.goBack === 'function') window.goBack(); });
             
-            // NOWOŚĆ: Generowanie PDF
-            window.EventDispatcher.onClick('.js-cal-generate-pdf', () => {
-                window.showToast("Generowanie PDF w przygotowaniu! 📄");
-            });
+            window.EventDispatcher.onClick('.js-cal-generate-pdf', () => window.showToast("Generowanie PDF w przygotowaniu! 📄"));
         }
     }
 
