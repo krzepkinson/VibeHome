@@ -50,7 +50,6 @@ window.CalendarModule = (() => {
 
             appProfiles = profilesRes.data || [];
 
-            // 0. WYDARZENIA TOWARZYSKIE (ZACHOWUJEMY SUROWE DANE DO EDYCJI)
             if (eventsRes.data) {
                 eventsRes.data.forEach(ev => {
                     const dateObj = new Date(ev.event_datetime);
@@ -62,7 +61,6 @@ window.CalendarModule = (() => {
                 });
             }
 
-            // 1. ZADANIA DOMOWE
             if (tasksRes.data) {
                 tasksRes.data.forEach(t => {
                     let isTaskAssigned = true; 
@@ -90,7 +88,6 @@ window.CalendarModule = (() => {
                 });
             }
 
-            // 2. ZDROWIE
             if (hTasksRes.data && hLogsRes.data) {
                 const taskSelect = document.getElementById('cal-subfilter-task');
                 if (taskSelect) {
@@ -204,7 +201,6 @@ window.CalendarModule = (() => {
             const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
             const pTxt = pName ? ` • ${pName}` : '';
             
-            // Ołówek do edycji tylko dla wydarzeń kalendarzowych
             const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0" data-id="${e.id}">✏️</button>` : '';
 
             html += `
@@ -285,8 +281,12 @@ window.CalendarModule = (() => {
     function renderYearHeatmap() {
         const grid = document.getElementById('cal-year-grid');
         document.getElementById('cal-year-title').innerText = `Heatmapa: ${currentYear}`;
+        document.getElementById('cal-stats-title').innerText = `Podsumowanie: ${currentYear}`;
         
-        const events = getFilteredEvents(true);
+        const eventsHeatmap = getFilteredEvents(true);
+        const eventsAgenda = getFilteredEvents(false);
+        const currentYearStr = currentYear.toString();
+
         const months = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
         let html = '';
         
@@ -299,7 +299,7 @@ window.CalendarModule = (() => {
             
             for (let d = 1; d <= daysInMonth; d++) {
                 const dateStr = `${currentYear}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                const dayEvents = events.filter(e => e.date === dateStr);
+                const dayEvents = eventsHeatmap.filter(e => e.date === dateStr);
                 
                 let cellClass = "w-3.5 h-3.5 rounded-sm bg-[#1e1f20]"; 
                 let innerNum = '';
@@ -325,6 +325,36 @@ window.CalendarModule = (() => {
             html += monthHtml;
         }
         grid.innerHTML = html;
+
+        // --- STATYSTYKI ---
+        const daysWithActivity = new Set(eventsHeatmap.filter(e => e.date.startsWith(currentYearStr)).map(e => e.date)).size;
+        const uniqueEvents = eventsAgenda.filter(e => e.date.startsWith(currentYearStr) || (e.isDuration && e.endDate && e.endDate.startsWith(currentYearStr))).length;
+
+        const val1El = document.getElementById('cal-stats-val-1');
+        const val2El = document.getElementById('cal-stats-val-2');
+        const label1El = document.getElementById('cal-stats-label-1');
+        const label2El = document.getElementById('cal-stats-label-2');
+
+        if (val1El) val1El.innerText = daysWithActivity;
+        if (val2El) val2El.innerText = uniqueEvents;
+
+        if (activeFilter === 'Zdrowie') {
+            label1El.innerText = "Dni w chorobie";
+            label2El.innerText = "Ilość zdarzeń (infekcje/wizyty)";
+            val1El.className = "text-2xl font-bold text-[#ffb4ab]";
+        } else if (activeFilter === 'Wydarzenie') {
+            label1El.innerText = "Dni z wyjściami";
+            label2El.innerText = "Ilość wydarzeń";
+            val1El.className = "text-2xl font-bold text-[#f0abfc]";
+        } else if (activeFilter === 'Dom') {
+            label1El.innerText = "Dni sprzątania";
+            label2El.innerText = "Zrealizowane zadania";
+            val1El.className = "text-2xl font-bold text-[#c2e7ff]";
+        } else {
+            label1El.innerText = "Aktywne dni";
+            label2El.innerText = "Suma akcji";
+            val1El.className = "text-2xl font-bold text-neutral-200";
+        }
     }
 
     function openHeatmapModal(dateStr) {
@@ -368,7 +398,6 @@ window.CalendarModule = (() => {
         setTimeout(() => document.getElementById('cal-heatmap-modal').classList.add('hidden'), 300);
     }
 
-    // --- SYSTEM DODAWANIA / EDYCJI WYDARZEŃ ---
     function openEventModal(id = null) {
         const modal = document.getElementById('cal-event-modal');
         const panel = document.getElementById('cal-event-panel');
@@ -376,13 +405,11 @@ window.CalendarModule = (() => {
         const delBtn = document.getElementById('cal-event-delete-btn');
 
         if (id) {
-            // TRYB EDYCJI
             const ev = allEvents.find(e => e.id == id && e.type === 'Wydarzenie');
             if (!ev) return;
             document.getElementById('cal-event-id').value = id;
             document.getElementById('cal-event-title').value = ev.rawTitle;
             
-            // Magia dopasowania strefy czasowej dla datetime-local
             const dt = new Date(ev.rawDatetime);
             const tzOffset = dt.getTimezoneOffset() * 60000;
             const localISOTime = (new Date(dt - tzOffset)).toISOString().slice(0, 16);
@@ -391,7 +418,6 @@ window.CalendarModule = (() => {
             titleEl.innerText = 'Edytuj Wydarzenie';
             delBtn.classList.remove('hidden');
         } else {
-            // TRYB NOWEGO DODAWANIA
             document.getElementById('cal-event-id').value = '';
             document.getElementById('cal-event-title').value = '';
             document.getElementById('cal-event-datetime').value = '';
@@ -452,9 +478,8 @@ window.CalendarModule = (() => {
             
             window.showToast("Wydarzenie usunięte!");
             closeEventModal();
-            closeHeatmapModal(); // Zamykamy też okienko jeśli było pod spodem
+            closeHeatmapModal(); 
             
-            // Odświeżamy interfejs
             document.getElementById('cal-month-details').innerHTML = `<p class="text-center text-neutral-500 text-xs mt-10">Wybierz dzień z kalendarza, aby zobaczyć szczegóły.</p>`;
             if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
             await fetchAllData();
@@ -462,7 +487,6 @@ window.CalendarModule = (() => {
         });
     }
 
-    // --- FILTRY ---
     function openSubFilterModal() {
         const modal = document.getElementById('cal-subfilter-modal');
         const panel = document.getElementById('cal-subfilter-panel');
@@ -502,15 +526,11 @@ window.CalendarModule = (() => {
         renderCurrentTab();
     }
 
-    // ==========================================
-    // DELEGACJA ZDARZEŃ W JEDNYM MIEJSCU
-    // ==========================================
     function setupEvents() {
         if (eventsSetupDone) return;
         eventsSetupDone = true;
 
         if (window.EventDispatcher) {
-            // Filtry i Taby
             window.EventDispatcher.onClick('.js-cal-tab', (e, el) => setTab(el.dataset.tab));
             window.EventDispatcher.onClick('.js-cal-filter', (e, el) => setFilter(el.dataset.filter));
             window.EventDispatcher.onClick('.js-cal-profile-filter', (e, el) => {
@@ -518,7 +538,6 @@ window.CalendarModule = (() => {
                 setProfileFilter(id);
             });
 
-            // Nawigacja
             window.EventDispatcher.onClick('.js-cal-change-month', (e, el) => {
                 const offset = parseInt(el.dataset.offset);
                 currentMonth += offset;
@@ -531,26 +550,27 @@ window.CalendarModule = (() => {
                 renderYearHeatmap();
             });
 
-            // Akcje na dniach
             window.EventDispatcher.onClick('.js-cal-day-details', (e, el) => showMonthDetails(el.dataset.date));
             window.EventDispatcher.onClick('.js-cal-heatmap-day', (e, el) => openHeatmapModal(el.dataset.date));
 
-            // Sub-filtry modal
             window.EventDispatcher.onClick('.js-cal-open-subfilter', openSubFilterModal);
             window.EventDispatcher.onClick('.js-cal-close-subfilter', closeSubFilterModal);
             window.EventDispatcher.onClick('.js-cal-apply-subfilter', applySubFilter);
             window.EventDispatcher.onClick('.js-cal-clear-subfilter', clearSubFilter);
 
-            // Nowe wydarzenie modal - TERAZ Z EDYCJĄ
             window.EventDispatcher.onClick('.js-cal-open-new-event', () => openEventModal(null));
             window.EventDispatcher.onClick('.js-cal-edit-event', (e, el) => openEventModal(el.dataset.id));
             window.EventDispatcher.onClick('.js-cal-close-event', closeEventModal);
             window.EventDispatcher.onClick('.js-cal-save-event', saveEvent);
             window.EventDispatcher.onClick('.js-cal-delete-event', deleteEvent);
 
-            // Reszta modali i nav
             window.EventDispatcher.onClick('.js-cal-close-heatmap', closeHeatmapModal);
             window.EventDispatcher.onClick('.js-cal-go-back', () => { if(typeof window.goBack === 'function') window.goBack(); });
+            
+            // NOWOŚĆ: Generowanie PDF
+            window.EventDispatcher.onClick('.js-cal-generate-pdf', () => {
+                window.showToast("Generowanie PDF w przygotowaniu! 📄");
+            });
         }
     }
 
