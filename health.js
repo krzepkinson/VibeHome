@@ -358,9 +358,15 @@ window.HealthModule = (() => {
     window.openNewHealthTaskModal = function(defaultType = 'cyclical') { 
         document.getElementById('h-task-name').value = ''; 
         document.getElementById('h-task-type').value = defaultType; 
+        
+        // ZMIANA: Resetujemy kategorię
+        const catEl = document.getElementById('h-task-category');
+        if (catEl) catEl.value = defaultType === 'duration' ? 'Infekcja' : 'Zabieg';
+        
         window.toggleHealthInterval(); 
         document.getElementById('new-health-task-modal').classList.remove('hidden'); 
     };
+
     window.openNewDurationModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('duration'); };
     window.openNewEventModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('one_time'); };
     window.openNewRoutineModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('cyclical'); };
@@ -381,6 +387,11 @@ window.HealthModule = (() => {
     window.saveNewHealthTask = async function() {
         const n = document.getElementById('h-task-name').value.trim(); 
         const type = document.getElementById('h-task-type').value;
+        
+        // ZMIANA: Pobieramy kategorię z formularza
+        const catEl = document.getElementById('h-task-category');
+        const catValue = catEl ? catEl.value : 'Inne';
+
         let interval = 0; let remind = 0; let evDate = null;
         let initialDue = null; 
 
@@ -410,7 +421,7 @@ window.HealthModule = (() => {
             const existing = existingHTasks[0];
             if (existing.is_archived) {
                 const { error: updErr } = await window.supabaseClient.from('health_tasks').update({
-                    is_archived: false, task_type: type, interval_days: interval, remind_days_before: remind, event_date: evDate, next_due_at: initialDue
+                    is_archived: false, task_type: type, interval_days: interval, remind_days_before: remind, event_date: evDate, next_due_at: initialDue, category: catValue
                 }).eq('id', existing.id);
                 if (updErr) { window.showToast("Błąd przywracania: " + updErr.message); return; }
             } else {
@@ -418,11 +429,12 @@ window.HealthModule = (() => {
                 return;
             }
         } else {
+            // ZMIANA: Dodajemy `category` przy insercie
             const { error } = await window.supabaseClient.from('health_tasks').insert([{ 
                 profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, 
                 remind_days_before: remind, event_date: evDate, show_in_history: true, is_archived: false, 
                 user_id: window.currentUser.user_id, household_id: window.currentUser.household_id,
-                next_due_at: initialDue
+                next_due_at: initialDue, category: catValue
             }]);
             if (error) { window.showToast("Błąd: " + error.message); return; }
         }
@@ -435,17 +447,18 @@ window.HealthModule = (() => {
 
     window.currentHealthSettingsId = null;
     
-    // ZMIANA KRYTYCZNA - FIX WIDOCZNOŚCI DLA RUTYN
     window.openHealthSettingsScreen = async function(taskId) {
         window.currentHealthSettingsId = parseInt(taskId); 
         const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
         document.getElementById('health-settings-title-top').innerText = task.name; 
         document.getElementById('health-settings-name').value = task.name;
         
-        // Zmuszamy UI do pokazania ustawień dla zadań cyklicznych
+        // ZMIANA: Wczytanie starej kategorii do selecta
+        const catEl = document.getElementById('health-settings-category');
+        if (catEl) catEl.value = task.category || 'Inne';
+
         const intervalInput = document.getElementById('health-settings-interval');
         if (intervalInput) {
-            // Szukamy nadrzędnego div'a (wrapper), żeby ukryć/pokazać całą sekcję z powiadomieniami
             const wrapper = intervalInput.closest('.space-y-4 > div') || intervalInput.parentElement.parentElement;
             if (wrapper) {
                 if (task.task_type === 'cyclical') {
@@ -466,7 +479,12 @@ window.HealthModule = (() => {
     window.saveHealthSettings = async function() {
         const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
         const n = document.getElementById('health-settings-name').value.trim(); 
+        
         let updateData = { name: n };
+        
+        // ZMIANA: Zapis nowej kategorii
+        const catEl = document.getElementById('health-settings-category');
+        if (catEl) updateData.category = catEl.value;
         
         if (task.task_type === 'cyclical') { 
             updateData.interval_days = parseInt(document.getElementById('health-settings-interval').value) || 0; 
