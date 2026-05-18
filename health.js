@@ -8,9 +8,6 @@ window.HealthModule = (() => {
     let healthLogs = [];
     let currentProfileId = null; 
     let isSwitchingProfile = false; 
-    let healthViewMode = 'list';
-    let currentMonth = new Date().getMonth(); 
-    let currentYear = new Date().getFullYear();
 
     const getLocalDayStr = (dObj = new Date()) => {
         const y = dObj.getFullYear();
@@ -23,13 +20,6 @@ window.HealthModule = (() => {
         if (document.activeElement) document.activeElement.blur();
         document.body.style.cursor = 'default';
         setTimeout(() => { document.body.style.cursor = ''; }, 50);
-    };
-
-    window.toggleHealthView = function() {
-        healthViewMode = healthViewMode === 'list' ? 'calendar' : 'list';
-        const toggleBtn = document.getElementById('health-view-toggle-btn');
-        if (toggleBtn) toggleBtn.innerText = healthViewMode === 'list' ? '📅' : '📋';
-        window.renderHealthUI();
     };
 
     window.initHealthModule = async function() {
@@ -95,7 +85,6 @@ window.HealthModule = (() => {
 
     window.renderHealthUI = function() {
         const profile = healthProfiles.find(p => p.id === currentProfileId);
-        const calWrapper = document.getElementById('health-calendar-wrapper');
         const sectionsWrapper = document.getElementById('health-sections-wrapper');
 
         const pillsContainer = document.getElementById('health-profile-pills');
@@ -122,14 +111,13 @@ window.HealthModule = (() => {
             const headerAvatar = document.getElementById('health-header-avatar');
             if (nameTitle) nameTitle.innerText = "Karta zdrowia"; 
             if (headerAvatar) headerAvatar.innerText = "?";
-            if (calWrapper) calWrapper.classList.add('hidden');
             if (sectionsWrapper) {
                 sectionsWrapper.innerHTML = `
                     <div class="flex flex-col items-center justify-center py-16 text-center animate-fade-in px-4 mt-4 bg-[#1e1f20] rounded-[28px] border border-[#333537]">
                         <div class="text-7xl mb-6 opacity-80 drop-shadow-lg">👨‍👩‍👧‍👦</div>
                         <h3 class="text-neutral-100 font-medium text-xl mb-2 tracking-wide">Brak domowników</h3>
                         <p class="text-neutral-400 text-xs mb-8 max-w-[260px] leading-relaxed">Dodaj pierwszy profil domownika, by móc śledzić jego leki, wizyty lekarskie i samopoczucie.</p>
-                        <button onclick="window.openNewProfileModal()" class="bg-[#e3e3e3] text-[#131314] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2 cursor-pointer">
+                        <button class="js-open-new-profile-from-switcher bg-[#e3e3e3] text-[#131314] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2 cursor-pointer">
                             <span class="text-xl pb-1">+</span> Dodaj osobę
                         </button>
                     </div>`;
@@ -146,15 +134,8 @@ window.HealthModule = (() => {
             headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
         }
 
-        if (healthViewMode === 'calendar') {
-            if(calWrapper) calWrapper.classList.remove('hidden');
-            if(sectionsWrapper) sectionsWrapper.classList.add('hidden');
-            window.renderCalendar();
-        } else {
-            if(calWrapper) calWrapper.classList.add('hidden');
-            if(sectionsWrapper) sectionsWrapper.classList.remove('hidden');
-            window.renderHealthSections();
-        }
+        if(sectionsWrapper) sectionsWrapper.classList.remove('hidden');
+        window.renderHealthSections();
     };
 
     window.renderHealthSections = function() {
@@ -214,61 +195,6 @@ window.HealthModule = (() => {
                 return window.UI.renderHealthRoutineTask(t, statusHtml);
             }).join('') || window.UI.renderEmptyState("Brak zaplanowanych rutyn", "");
         }
-    };
-
-    window.renderCalendar = function() {
-        const container = document.getElementById('calendar-container'); 
-        const title = document.getElementById('calendar-title');
-        if (!container || !title) return;
-        
-        if (isNaN(currentMonth) || isNaN(currentYear)) {
-            currentMonth = new Date().getMonth();
-            currentYear = new Date().getFullYear();
-        }
-
-        const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
-        title.innerText = `${monthNames[currentMonth]} ${currentYear}`;
-        
-        let html = `<div class="grid grid-cols-7 gap-1 text-center mb-2">`;
-        ['Pn','Wt','Śr','Czw','Pt','So','Nd'].forEach(d => { html += `<div class="text-[9px] text-neutral-600 font-bold uppercase">${d}</div>`; });
-        html += `</div><div class="grid grid-cols-7 gap-1">`;
-        
-        const firstDay = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7;
-        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-        for (let i = 0; i < firstDay; i++) { html += `<div></div>`; }
-        
-        const taskMap = new Map(healthTasks.map(t => [t.id, t]));
-
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            
-            const dayLogs = healthLogs.filter(l => {
-                const task = taskMap.get(l.health_task_id);
-                if (!task) return false; 
-                const start = l.start_date.split('T')[0];
-                const end = l.end_date ? l.end_date.split('T')[0] : getLocalDayStr();
-                return dateStr >= start && dateStr <= end;
-            });
-            const oneTimeEvents = healthTasks.filter(t => t.task_type === 'one_time' && t.event_date === dateStr);
-            const isToday = getLocalDayStr() === dateStr;
-            const hasEvents = dayLogs.length > 0 || oneTimeEvents.length > 0;
-            
-            let dayClass = 'hover:bg-[#333537] text-neutral-300';
-            if (isToday && hasEvents) dayClass = 'bg-[#ffb4ab] text-[#3c1414] font-bold border-2 border-rose-500';
-            else if (isToday) dayClass = 'bg-[#ffb4ab] text-[#3c1414] font-bold';
-            else if (hasEvents) dayClass = 'bg-rose-900/60 text-rose-200 border border-rose-700 font-bold';
-            
-            html += `<div class="js-open-day-details aspect-square flex items-center justify-center rounded-xl cursor-pointer transition-all active:scale-90 ${dayClass}" data-date="${dateStr}"><span class="text-xs">${d}</span></div>`;
-        }
-        html += `</div>`;
-        container.innerHTML = html;
-    };
-
-    window.changeCalendarMonth = function(offset) {
-        currentMonth += parseInt(offset);
-        if (currentMonth < 0) { currentMonth = 11; currentYear--; } 
-        else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
-        window.renderCalendar();
     };
 
     window.getHealthStatusString = function(task, activeLog, taskLogs) {
@@ -346,7 +272,7 @@ window.HealthModule = (() => {
         window.renderHealthUI(); 
     };
 
-    window.openHealthFabMenu = function() { document.getElementById('health-fab-menu').classList.remove('hidden'); };
+    window.openHealthFabMenu = function() { window.loadAndShowModal('health-fab-menu', '/modals/health-fab-menu.html'); };
     
     window.closeHealthFabMenu = function() { 
         setTimeout(() => {
@@ -355,9 +281,7 @@ window.HealthModule = (() => {
         }, 10);
     };
 
-// === ZMIANA W HEALTH.JS (Zastąp starą wersję tej funkcji) ===
     window.openNewHealthTaskModal = function(defaultType = 'cyclical') { 
-        // Używamy naszego globalnego wczytywacza modali (podobnie jak dla Apteczki)
         window.loadAndShowModal('new-health-task-modal', '/modals/new-health-task.html', () => {
             document.getElementById('h-task-name').value = ''; 
             document.getElementById('h-task-type').value = defaultType; 
@@ -390,7 +314,6 @@ window.HealthModule = (() => {
         const n = document.getElementById('h-task-name').value.trim(); 
         const type = document.getElementById('h-task-type').value;
         
-        // ZMIANA: Pobieramy kategorię z formularza
         const catEl = document.getElementById('h-task-category');
         const catValue = catEl ? catEl.value : 'Inne';
 
@@ -431,7 +354,6 @@ window.HealthModule = (() => {
                 return;
             }
         } else {
-            // ZMIANA: Dodajemy `category` przy insercie
             const { error } = await window.supabaseClient.from('health_tasks').insert([{ 
                 profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, 
                 remind_days_before: remind, event_date: evDate, show_in_history: true, is_archived: false, 
@@ -455,7 +377,6 @@ window.HealthModule = (() => {
         document.getElementById('health-settings-title-top').innerText = task.name; 
         document.getElementById('health-settings-name').value = task.name;
         
-        // ZMIANA: Wczytanie starej kategorii do selecta
         const catEl = document.getElementById('health-settings-category');
         if (catEl) catEl.value = task.category || 'Inne';
 
@@ -484,7 +405,6 @@ window.HealthModule = (() => {
         
         let updateData = { name: n };
         
-        // ZMIANA: Zapis nowej kategorii
         const catEl = document.getElementById('health-settings-category');
         if (catEl) updateData.category = catEl.value;
         
@@ -516,42 +436,6 @@ window.HealthModule = (() => {
         });
     };
 
-    window.openDayDetails = function(dateStr) {
-        const modal = document.getElementById('day-details-modal'); 
-        const list = document.getElementById('day-details-list');
-        document.getElementById('day-details-title').innerText = "Szczegóły Zdrowia";
-        document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
-        
-        const taskMap = new Map(healthTasks.map(t => [t.id, t]));
-
-        const dayLogs = healthLogs.filter(l => { 
-            const task = taskMap.get(l.health_task_id);
-            if (!task) return false;
-            const start = l.start_date.split('T')[0]; 
-            const end = l.end_date ? l.end_date.split('T')[0] : getLocalDayStr(); 
-            return dateStr >= start && dateStr <= end; 
-        });
-        const oneTimeEvents = healthTasks.filter(t => t.task_type === 'one_time' && t.event_date === dateStr);
-        if (dayLogs.length === 0 && oneTimeEvents.length === 0) { list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zdarzeń.</p>`; } 
-        else {
-            let itemsHtml = '';
-            oneTimeEvents.forEach(t => { const isDone = healthLogs.some(l => l.health_task_id === t.id); itemsHtml += window.UI.renderHealthDayEvent(t, isDone); });
-            dayLogs.forEach(l => { 
-                const task = taskMap.get(l.health_task_id); 
-                if (task) itemsHtml += window.UI.renderHealthDayLog(task, l); 
-            });
-            list.innerHTML = itemsHtml;
-        }
-        modal.classList.remove('hidden');
-    };
-
-    window.closeDayDetailsModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('day-details-modal');
-            if(modal) modal.classList.add('hidden');
-        }, 10);
-    };
-
     window.selectHealthProfile = async function(id) { 
         if (isSwitchingProfile) return; 
         isSwitchingProfile = true;
@@ -561,31 +445,22 @@ window.HealthModule = (() => {
             if (typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
             
             const sectionsWrapper = document.getElementById('health-sections-wrapper');
-            const calWrapper = document.getElementById('calendar-container');
-            
-            if (healthViewMode === 'list' && sectionsWrapper) {
-                sectionsWrapper.style.opacity = '0.3';
-            } else if (calWrapper) {
-                calWrapper.style.opacity = '0.3';
-            }
+            if (sectionsWrapper) sectionsWrapper.style.opacity = '0.3';
 
             await window.initHealthModule(); 
         } catch (error) {
             console.error(error);
         } finally {
             const sectionsWrapper = document.getElementById('health-sections-wrapper');
-            const calWrapper = document.getElementById('calendar-container');
             if (sectionsWrapper) sectionsWrapper.style.opacity = '';
-            if (calWrapper) calWrapper.style.opacity = '';
             isSwitchingProfile = false; 
         }
     };
 
     window.toggleProfileSwitcher = function() {
-        const modal = document.getElementById('profile-switcher-modal');
-        if (!modal) return;
-        document.getElementById('switcher-profiles-list').innerHTML = healthProfiles.map(p => window.UI.renderProfileSwitcherItem(p, p.id === currentProfileId)).join('');
-        modal.classList.remove('hidden');
+        window.loadAndShowModal('profile-switcher-modal', '/modals/profile-switcher.html', () => {
+            document.getElementById('switcher-profiles-list').innerHTML = healthProfiles.map(p => window.UI.renderProfileSwitcherItem(p, p.id === currentProfileId)).join('');
+        });
     };
 
     window.closeProfileSwitcher = function() { 
@@ -758,7 +633,7 @@ window.HealthModule = (() => {
     };
 
     // --- KSIĄŻECZKA ZDROWIA I POMIARY ---
-    window.openNewMeasurementModal = function() { window.closeHealthFabMenu(); document.getElementById('measurement-value').value = ''; document.getElementById('measurement-date').value = getLocalDayStr(); document.getElementById('measurement-notes').value = ''; document.getElementById('new-measurement-modal').classList.remove('hidden'); };
+    window.openNewMeasurementModal = function() { window.closeHealthFabMenu(); window.loadAndShowModal('new-measurement-modal', '/modals/new-measurement.html', () => { document.getElementById('measurement-value').value = ''; document.getElementById('measurement-date').value = getLocalDayStr(); document.getElementById('measurement-notes').value = ''; }); };
     
     window.closeNewMeasurementModal = function() { 
         setTimeout(() => {
@@ -916,21 +791,25 @@ window.HealthModule = (() => {
     // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
     // ==========================================
     if (window.EventDispatcher) {
-        window.EventDispatcher.onClick('.js-toggle-health-view', () => window.toggleHealthView());
+        // ZMIANA KRYTYCZNA: Ikonka kalendarza w widoku 'Zdrowie' przenosi do Głównego Kalendarza
+        window.EventDispatcher.onClick('.js-toggle-health-view', () => {
+            window.switchView('calendar');
+            setTimeout(() => {
+                if (typeof window.CalendarModule.setFilter === 'function') window.CalendarModule.setFilter('Zdrowie');
+                if (typeof window.CalendarModule.setProfileFilter === 'function') window.CalendarModule.setProfileFilter(currentProfileId);
+            }, 50);
+        });
+        
         window.EventDispatcher.onClick('.js-open-health-book', () => window.openHealthBook());
         window.EventDispatcher.onClick('.js-open-pharmacy', () => window.openPharmacyScreen());
         window.EventDispatcher.onClick('.js-toggle-profile-switcher', () => window.toggleProfileSwitcher());
         window.EventDispatcher.onClick('.js-open-health-fab-menu', () => window.openHealthFabMenu());
-        window.EventDispatcher.onClick('.js-change-cal-month', (e, el) => window.changeCalendarMonth(el.dataset.offset));
 
         window.EventDispatcher.onClick('.js-select-health-profile', (e, el) => window.selectHealthProfile(el.dataset.id));
         window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLog(el.dataset.id));
         window.EventDispatcher.onClick('.js-start-health-log', (e, el) => window.startHealthLog(el.dataset.id, el.dataset.type));
         window.EventDispatcher.onClick('.js-open-health-settings', (e, el) => window.openHealthSettingsScreen(el.dataset.id));
         
-        window.EventDispatcher.onClick('.js-open-day-details', (e, el) => window.openDayDetails(el.dataset.date));
-        window.EventDispatcher.onClick('.js-close-day-details', () => window.closeDayDetailsModal());
-
         window.EventDispatcher.onClick('.js-select-profile', (e, el) => window.selectHealthProfile(el.dataset.id));
         window.EventDispatcher.onClick('.js-delete-pharmacy-item', (e, el) => window.deletePharmacyItem(el.dataset.id));
         
@@ -942,6 +821,19 @@ window.HealthModule = (() => {
         window.EventDispatcher.onClick('.js-delete-health-book-item', (e, el) => {
             window.deleteHealthBookItem(el.dataset.id, el.dataset.type);
         });
+
+        // Modale HTML podpięcie
+        window.EventDispatcher.onClick('.js-close-health-fab-menu', () => window.closeHealthFabMenu());
+        window.EventDispatcher.onClick('.js-open-new-duration', () => window.openNewDurationModal());
+        window.EventDispatcher.onClick('.js-open-new-event', () => window.openNewEventModal());
+        window.EventDispatcher.onClick('.js-open-new-routine', () => window.openNewRoutineModal());
+        window.EventDispatcher.onClick('.js-open-new-measurement', () => window.openNewMeasurementModal());
+        
+        window.EventDispatcher.onClick('.js-close-new-pharmacy-item', () => window.closeNewPharmacyItemModal());
+        window.EventDispatcher.onClick('.js-save-new-pharmacy-item', () => window.saveNewPharmacyItem());
+
+        window.EventDispatcher.onClick('.js-close-new-measurement', () => window.closeNewMeasurementModal());
+        window.EventDispatcher.onClick('.js-save-new-measurement', () => window.saveNewMeasurement());
     } else {
         console.error("EventDispatcher nie został załadowany!");
     }
