@@ -109,7 +109,6 @@ window.initPullToRefresh = function() {
         }
     }, { passive: true });
     
-    // ZMIANA KRYTYCZNA: Asynchroniczne odłączenie ciężkiej operacji od zdarzenia dotykowego
     mainScreen.addEventListener('touchend', () => {
         if (!isPulling) return; 
         isPulling = false;
@@ -119,7 +118,6 @@ window.initPullToRefresh = function() {
             ptrIndicator.style.transform = `translateY(15px)`; 
             ptrIcon.classList.add('animate-spin');
             
-            // Decoupling (odcięcie wątku)
             Promise.resolve().then(async () => {
                 await window.refreshCurrentView();
                 ptrIndicator.style.transform = `translateY(-100%)`; 
@@ -128,7 +126,7 @@ window.initPullToRefresh = function() {
         } else { 
             ptrIndicator.style.transform = `translateY(-100%)`; 
         }
-    }, { passive: true }); // Teraz touchend ma passive: true - Scroll nie będzie "chrupał"!
+    }, { passive: true });
 };
 document.addEventListener('DOMContentLoaded', window.initPullToRefresh);
 
@@ -213,3 +211,11 @@ window.loadAndShowModal = async function(modalId, filePath, onLoadedCallback) {
         onLoadedCallback();
     }
 };
+
+// --- PODPIĘCIE EVENT DISPATCHERA ---
+if (window.EventDispatcher) {
+    window.EventDispatcher.onClick('.js-global-go-back', () => { if(typeof window.goBack === 'function') window.goBack(); });
+    window.EventDispatcher.onClick('.js-confirm-modal-btn', (e, el) => {
+        if(typeof window.closeConfirmModal === 'function') window.closeConfirmModal(el.dataset.result === 'true');
+    });
+}
