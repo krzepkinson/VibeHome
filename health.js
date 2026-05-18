@@ -371,26 +371,28 @@ window.HealthModule = (() => {
 
     window.currentHealthSettingsId = null;
     
+    window.currentHealthSettingsId = null;
+    
     window.openHealthSettingsScreen = async function(taskId) {
         window.currentHealthSettingsId = parseInt(taskId); 
         const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
+        if (!task) return;
+
         document.getElementById('health-settings-title-top').innerText = task.name; 
         document.getElementById('health-settings-name').value = task.name;
         
         const catEl = document.getElementById('health-settings-category');
         if (catEl) catEl.value = task.category || 'Inne';
 
-        const intervalInput = document.getElementById('health-settings-interval');
-        if (intervalInput) {
-            const wrapper = intervalInput.closest('.space-y-4 > div') || intervalInput.parentElement.parentElement;
-            if (wrapper) {
-                if (task.task_type === 'cyclical') {
-                    wrapper.classList.remove('hidden');
-                    document.getElementById('health-settings-interval').value = task.interval_days || 0; 
-                    document.getElementById('health-settings-remind-days').value = task.remind_days_before || 0; 
-                } else {
-                    wrapper.classList.add('hidden');
-                }
+        // Stabilne szukanie wrappera dla częstotliwości
+        const intervalWrapper = document.getElementById('health-settings-interval-wrapper');
+        if (intervalWrapper) {
+            if (task.task_type === 'cyclical') {
+                intervalWrapper.classList.remove('hidden');
+                document.getElementById('health-settings-interval').value = task.interval_days || 0; 
+                document.getElementById('health-settings-remind-days').value = task.remind_days_before || 0; 
+            } else {
+                intervalWrapper.classList.add('hidden');
             }
         }
         
