@@ -344,14 +344,14 @@ window.HomeModule = (() => {
     };
 
     if (window.EventDispatcher) {
-        // ZMIANA KRYTYCZNA: Ikonka kalendarza w widoku 'Dom' przenosi do Głównego Kalendarza
+        // ZMIANA: Zwiększony czas oczekiwania, żeby plik calender.html na pewno się załadował!
         window.EventDispatcher.onClick('.js-toggle-home-view', () => {
             window.switchView('calendar');
             setTimeout(() => {
                 if (typeof window.CalendarModule.setFilter === 'function') {
                     window.CalendarModule.setFilter('Dom');
                 }
-            }, 50);
+            }, 1000); 
         });
 
         window.EventDispatcher.onClick('.js-open-home-stats', () => window.openStatsScreen());
