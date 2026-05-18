@@ -371,8 +371,6 @@ window.HealthModule = (() => {
 
     window.currentHealthSettingsId = null;
     
-    window.currentHealthSettingsId = null;
-    
     window.openHealthSettingsScreen = async function(taskId) {
         window.currentHealthSettingsId = parseInt(taskId); 
         const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
@@ -384,7 +382,6 @@ window.HealthModule = (() => {
         const catEl = document.getElementById('health-settings-category');
         if (catEl) catEl.value = task.category || 'Inne';
 
-        // Stabilne szukanie wrappera dla częstotliwości
         const intervalWrapper = document.getElementById('health-settings-interval-wrapper');
         if (intervalWrapper) {
             if (task.task_type === 'cyclical') {
@@ -634,7 +631,6 @@ window.HealthModule = (() => {
         });
     };
 
-    // --- KSIĄŻECZKA ZDROWIA I POMIARY ---
     window.openNewMeasurementModal = function() { window.closeHealthFabMenu(); window.loadAndShowModal('new-measurement-modal', '/modals/new-measurement.html', () => { document.getElementById('measurement-value').value = ''; document.getElementById('measurement-date').value = getLocalDayStr(); document.getElementById('measurement-notes').value = ''; }); };
     
     window.closeNewMeasurementModal = function() { 
@@ -793,13 +789,11 @@ window.HealthModule = (() => {
     // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
     // ==========================================
     if (window.EventDispatcher) {
-        // ZMIANA KRYTYCZNA: Ikonka kalendarza w widoku 'Zdrowie' przenosi do Głównego Kalendarza
-        window.EventDispatcher.onClick('.js-toggle-health-view', () => {
-            window.switchView('calendar');
-            setTimeout(() => {
-                if (typeof window.CalendarModule.setFilter === 'function') window.CalendarModule.setFilter('Zdrowie');
-                if (typeof window.CalendarModule.setProfileFilter === 'function') window.CalendarModule.setProfileFilter(currentProfileId);
-            }, 50);
+        // ZMIANA KRYTYCZNA: Czekamy AWAIT aż router załaduje HTML kalendarza, zanim wywołamy ustawienia fitrów
+        window.EventDispatcher.onClick('.js-toggle-health-view', async () => {
+            await window.switchView('calendar');
+            if (typeof window.CalendarModule.setFilter === 'function') window.CalendarModule.setFilter('Zdrowie');
+            if (typeof window.CalendarModule.setProfileFilter === 'function') window.CalendarModule.setProfileFilter(currentProfileId);
         });
         
         window.EventDispatcher.onClick('.js-open-health-book', () => window.openHealthBook());
@@ -841,6 +835,9 @@ window.HealthModule = (() => {
         window.EventDispatcher.onClick('.js-close-health-settings', () => window.closeHealthSettingsScreen());
         window.EventDispatcher.onClick('.js-save-health-settings', () => window.saveHealthSettings());
         window.EventDispatcher.onClick('.js-delete-health-task', () => window.deleteHealthTask());
+        
+        // Brakowało też podpięcia nowej klasy zamkniecia z html edycji profilu
+        window.EventDispatcher.onClick('.js-close-edit-profile', () => window.closeEditProfileModal?.());
     } else {
         console.error("EventDispatcher nie został załadowany!");
     }
