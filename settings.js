@@ -7,13 +7,11 @@ window.SettingsModule = (() => {
     let appProfiles = [];
     let currentEditingTaskId = null;
 
-    // NOWA FUNKCJA: Kaskadowa zmiana imienia we wszystkich logach
     window.cascadeNameChange = async function(oldName, newName) {
         if (!oldName || !newName || oldName === newName) return;
         const hid = window.currentUser.household_id;
         
         try {
-            // Równoległa aktualizacja we wszystkich tabelach
             await Promise.all([
                 window.supabaseClient.from('activity_logs').update({ user_name: newName }).eq('household_id', hid).eq('user_name', oldName),
                 window.supabaseClient.from('health_logs').update({ user_name: newName }).eq('household_id', hid).eq('user_name', oldName),
@@ -21,7 +19,6 @@ window.SettingsModule = (() => {
                 window.supabaseClient.from('todos').update({ completer_name: newName }).eq('household_id', hid).eq('completer_name', oldName)
             ]);
             
-            // Odświeżenie lokalnego schowka (żeby stare imię od razu zniknęło z modali)
             if (window.AppStore && typeof window.AppStore.get === 'function') {
                 const state = window.AppStore.get() || {};
                 let modified = false;
@@ -59,7 +56,6 @@ window.SettingsModule = (() => {
         
         const oldName = window.currentUser.name;
 
-        // POPRAWKA: Aktualizujemy w 100% bezpiecznie po fizycznym ID profilu
         const { error } = await window.supabaseClient
             .from('profiles')
             .update({ name: name })
@@ -145,17 +141,16 @@ window.SettingsModule = (() => {
     };
 
     window.openNewRoomModal = function() { 
-        document.getElementById('new-room-name').value = ''; 
-        document.getElementById('new-room-icon').value = ''; 
-        const modal = document.getElementById('new-room-modal');
-        if (modal) modal.classList.remove('hidden'); 
+        // ZMIANA KRYTYCZNA: Korzystamy z nowej architektury
+        window.loadAndShowModal('new-room-modal', '/modals/new-room.html', () => {
+            document.getElementById('new-room-name').value = ''; 
+            document.getElementById('new-room-icon').value = ''; 
+        });
     };
 
     window.closeNewRoomModal = function() { 
         const modal = document.getElementById('new-room-modal');
-        if (modal) {
-            setTimeout(() => { modal.classList.add('hidden'); }, 10);
-        }
+        if (modal) { setTimeout(() => { modal.classList.add('hidden'); }, 10); }
     };
 
     window.saveNewRoom = async function() {
@@ -171,18 +166,17 @@ window.SettingsModule = (() => {
     };
 
     window.openEditRoomModal = function(name, icon) {
-        document.getElementById('edit-room-old-name').value = name; 
-        document.getElementById('edit-room-name').value = name; 
-        document.getElementById('edit-room-icon').value = icon || '📦'; 
-        const modal = document.getElementById('edit-room-modal');
-        if (modal) modal.classList.remove('hidden');
+        // ZMIANA KRYTYCZNA: Korzystamy z nowej architektury
+        window.loadAndShowModal('edit-room-modal', '/modals/edit-room.html', () => {
+            document.getElementById('edit-room-old-name').value = name; 
+            document.getElementById('edit-room-name').value = name; 
+            document.getElementById('edit-room-icon').value = icon || '📦'; 
+        });
     };
 
     window.closeEditRoomModal = function() { 
         const modal = document.getElementById('edit-room-modal');
-        if (modal) {
-            setTimeout(() => { modal.classList.add('hidden'); }, 10);
-        }
+        if (modal) { setTimeout(() => { modal.classList.add('hidden'); }, 10); }
     };
 
     window.saveEditRoom = async function() {
@@ -239,16 +233,15 @@ window.SettingsModule = (() => {
     };
 
     window.openNewProfileModal = function() { 
-        document.getElementById('new-profile-name').value = ''; 
-        const modal = document.getElementById('new-profile-modal');
-        if (modal) modal.classList.remove('hidden');
+        // ZMIANA KRYTYCZNA: Korzystamy z nowej architektury
+        window.loadAndShowModal('new-profile-modal', '/modals/new-profile.html', () => {
+            document.getElementById('new-profile-name').value = ''; 
+        });
     };
 
     window.closeNewProfileModal = function() { 
         const modal = document.getElementById('new-profile-modal');
-        if (modal) {
-            setTimeout(() => { modal.classList.add('hidden'); }, 10);
-        }
+        if (modal) { setTimeout(() => { modal.classList.add('hidden'); }, 10); }
     };
 
     window.saveNewProfile = async function() {
@@ -281,9 +274,7 @@ window.SettingsModule = (() => {
 
     window.closeEditProfileModal = function() {
         const modal = document.getElementById('edit-profile-modal');
-        if (modal) {
-            setTimeout(() => { modal.classList.add('hidden'); }, 10);
-        }
+        if (modal) { setTimeout(() => { modal.classList.add('hidden'); }, 10); }
     }
 
     window.saveProfileDetails = async function() {
@@ -477,6 +468,23 @@ window.SettingsModule = (() => {
         
         window.EventDispatcher.onClick('.js-restore-archive', (e, el) => window.restoreFromArchive(el.dataset.table, parseInt(el.dataset.id)));
         window.EventDispatcher.onClick('.js-delete-archive', (e, el) => window.permanentlyDelete(el.dataset.table, parseInt(el.dataset.id)));
+
+        // NOWE: Dynamiczne Modale z plikow
+        window.EventDispatcher.onClick('.js-close-new-room', () => window.closeNewRoomModal());
+        window.EventDispatcher.onClick('.js-save-new-room', () => window.saveNewRoom());
+        
+        window.EventDispatcher.onClick('.js-close-edit-room', () => window.closeEditRoomModal());
+        window.EventDispatcher.onClick('.js-save-edit-room', () => window.saveEditRoom());
+
+        window.EventDispatcher.onClick('.js-close-new-profile', () => window.closeNewProfileModal());
+        window.EventDispatcher.onClick('.js-save-new-profile', () => window.saveNewProfile());
+
+        window.EventDispatcher.onClick('.js-close-profile-switcher', () => window.closeProfileSwitcher?.());
+        window.EventDispatcher.onClick('.js-open-new-profile-from-switcher', () => {
+            if(typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
+            window.openNewProfileModal();
+        });
+
     } else {
         console.error("EventDispatcher nie został załadowany!");
     }
