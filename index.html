@@ -44,12 +44,8 @@
         .swipe-front button { touch-action: manipulation; } 
 
         @media (hover: hover) and (pointer: fine) {
-            .group:hover .swipe-front {
-                transform: translateX(-64px); 
-            }
-            .group:hover .js-swipe-item {
-                 transform: translateX(-80px) !important; 
-            }
+            .group:hover .swipe-front { transform: translateX(-64px); }
+            .group:hover .js-swipe-item { transform: translateX(-80px) !important; }
         }
     </style>
 </head>
@@ -68,7 +64,7 @@
     </div>
 
     <header id="global-nav-header" class="hidden px-4 py-3 flex items-center bg-[#131314] sticky top-0 z-40 border-b border-[#333537]">
-        <button onclick="window.goBack()" class="flex items-center text-neutral-300 font-medium active:scale-95 w-fit">
+        <button class="js-global-go-back flex items-center text-neutral-300 font-medium active:scale-95 w-fit">
             <span class="mr-2 text-xl">←</span> Wróć
         </button>
     </header>
@@ -92,27 +88,27 @@
                         <input type="password" id="auth-password" maxlength="100" class="w-full p-4 rounded-[20px] bg-[#1e1f20] border border-[#333537] text-neutral-200 text-sm focus:border-[#a8c7fa] focus:outline-none">
                     </div>
                 </div>
-                <button id="auth-action-btn" onclick="window.handleAuthAction()" class="w-full bg-[#a8c7fa] text-[#004a77] font-bold py-4 rounded-full text-sm mb-6 active:scale-95 transition-transform shadow-lg shadow-[#a8c7fa]/10">Zaloguj się</button>
-                <button id="auth-toggle-btn" onclick="window.toggleAuthMode()" class="w-full text-center text-sm text-neutral-400 font-medium active:scale-95 transition-transform">Nie masz konta? <span class="text-[#a8c7fa]">Zarejestruj się</span></button>
+                <button id="auth-action-btn" class="js-auth-action w-full bg-[#a8c7fa] text-[#004a77] font-bold py-4 rounded-full text-sm mb-6 active:scale-95 transition-transform shadow-lg shadow-[#a8c7fa]/10">Zaloguj się</button>
+                <button id="auth-toggle-btn" class="js-auth-toggle w-full text-center text-sm text-neutral-400 font-medium active:scale-95 transition-transform">Nie masz konta? <span class="text-[#a8c7fa]">Zarejestruj się</span></button>
             </div>
         </div>
     </main>
 
     <nav id="bottom-nav" class="fixed bottom-0 w-full bg-[#1e1f20] border-t border-[#333537] pb-safe z-30 transition-all duration-300">
         <div class="flex justify-around items-center max-w-xl mx-auto h-16">
-            <button onclick="window.switchView('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center w-full h-full text-[#c4eed0] transition-colors">
+            <button class="js-dash-nav flex flex-col items-center justify-center w-full h-full text-[#c4eed0] transition-colors" data-view="dashboard" id="nav-dashboard">
                 <span class="text-lg mb-1">✨</span><span class="text-[9px] font-medium uppercase tracking-wider">Przegląd</span>
             </button>
-            <button onclick="window.switchView('home')" id="nav-home" class="flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors">
+            <button class="js-dash-nav flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors" data-view="home" id="nav-home">
                 <span class="text-lg mb-1">🏠</span><span class="text-[9px] font-medium uppercase tracking-wider">Dom</span>
             </button>
-            <button onclick="window.switchView('todo')" id="nav-todo" class="flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors">
+            <button class="js-dash-nav flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors" data-view="todo" id="nav-todo">
                 <span class="text-lg mb-1">📝</span><span class="text-[9px] font-medium uppercase tracking-wider">Zadania</span>
             </button>
-            <button onclick="window.switchView('health')" id="nav-health" class="flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors">
+            <button class="js-dash-nav flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors" data-view="health" id="nav-health">
                 <span class="text-lg mb-1">❤️</span><span class="text-[9px] font-medium uppercase tracking-wider">Zdrowie</span>
             </button>
-            <button onclick="window.switchView('settings')" id="nav-settings" class="flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors">
+            <button class="js-dash-nav flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors" data-view="settings" id="nav-settings">
                 <span class="text-lg mb-1">⚙️</span><span class="text-[9px] font-medium uppercase tracking-wider">Ustawienia</span>
             </button>
         </div>
@@ -120,8 +116,8 @@
 
     <div id="search-modal" class="hidden fixed inset-0 bg-[#131314]/95 backdrop-blur-xl z-[150] flex flex-col transition-transform duration-300 transform -translate-y-full">
         <div class="p-4 sm:p-6 border-b border-[#333537] flex items-center gap-3 bg-[#1e1f20] pt-safe shadow-sm">
-            <button onclick="window.closeGlobalSearch()" class="text-neutral-400 text-2xl active:scale-90 transition-transform pb-1 px-2 cursor-pointer">✕</button>
-            <input type="text" id="global-search-input" maxlength="100" oninput="window.performGlobalSearch(this.value)" placeholder="Szukaj zadań, leków..." class="flex-1 bg-transparent text-neutral-200 text-lg focus:outline-none placeholder-neutral-600">
+            <button class="js-close-global-search text-neutral-400 text-2xl active:scale-90 transition-transform pb-1 px-2 cursor-pointer">✕</button>
+            <input type="text" id="global-search-input" maxlength="100" placeholder="Szukaj zadań, leków..." class="flex-1 bg-transparent text-neutral-200 text-lg focus:outline-none placeholder-neutral-600">
         </div>
         <div id="search-results-list" class="flex-1 overflow-y-auto p-4 sm:p-6 no-scrollbar pb-24">
             <div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>
@@ -134,8 +130,8 @@
         <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
             <h3 id="confirm-message" class="text-base font-medium text-neutral-100 mb-6 tracking-wide text-center leading-relaxed">Czy na pewno?</h3>
             <div class="flex gap-3">
-                <button onclick="window.closeConfirmModal(false)" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-                <button onclick="window.closeConfirmModal(true)" class="flex-1 bg-[#ffb4ab] text-[#3c1414] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform">Tak</button>
+                <button class="js-confirm-modal-btn flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors" data-result="false">Anuluj</button>
+                <button class="js-confirm-modal-btn flex-1 bg-[#ffb4ab] text-[#3c1414] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform" data-result="true">Tak</button>
             </div>
         </div>
     </div>
@@ -146,8 +142,8 @@
             <p class="text-xs text-neutral-500 mb-6">Wklej identyfikator domu partnera/partnerki.</p>
             <input type="text" id="join-hh-input" maxlength="50" placeholder="ID Domu (UUID)" class="w-full p-4 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa] mb-6">
             <div class="flex gap-3">
-                <button onclick="window.closeJoinHouseholdModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537]">Anuluj</button>
-                <button onclick="window.processJoinHousehold()" class="flex-1 bg-[#a8c7fa] text-[#004a77] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform">Dołącz</button>
+                <button class="js-close-join-household flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537]">Anuluj</button>
+                <button class="js-process-join-household flex-1 bg-[#a8c7fa] text-[#004a77] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform">Dołącz</button>
             </div>
         </div>
     </div>
@@ -160,151 +156,9 @@
             <div id="change-user-list" class="max-h-48 overflow-y-auto mb-4 hide-scrollbar"></div>
             <div class="flex gap-2">
                 <input type="text" id="change-user-custom" maxlength="50" placeholder="Inne imię..." class="flex-1 p-3.5 rounded-[20px] bg-[#1e1f20] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-                <button onclick="window.saveChangedUser('')" class="px-5 bg-[#004a77] text-[#c2e7ff] font-medium rounded-[20px] active:scale-95 transition-transform text-sm">Zapisz</button>
+                <button class="js-save-changed-user px-5 bg-[#004a77] text-[#c2e7ff] font-medium rounded-[20px] active:scale-95 transition-transform text-sm">Zapisz</button>
             </div>
-            <button onclick="window.closeChangeUserModal()" class="w-full mt-4 text-neutral-500 font-medium py-2 text-sm uppercase tracking-widest active:scale-95">Anuluj</button>
-        </div>
-    </div>
-    
-    <div id="profile-switcher-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end items-start p-4 pt-16">
-        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-[250px] p-5 shadow-2xl mr-2">
-            <h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest mb-3 pl-1">Przełącz profil</h3>
-            <div id="switcher-profiles-list" class="space-y-2 mb-4"></div>
-            <button onclick="window.openNewProfileModal()" class="w-full bg-[#131314] text-neutral-300 font-medium py-3 text-sm rounded-[20px] border border-[#333537] hover:border-[#a8c7fa] transition-colors">+ Nowa osoba</button>
-            <button onclick="window.closeProfileSwitcher()" class="w-full mt-2 text-neutral-500 text-xs py-2 uppercase tracking-widest font-bold">Zamknij</button>
-        </div>
-    </div>
-    
-    <div id="new-room-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
-        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
-            <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Nowe pomieszczenie</h3>
-            <div class="flex gap-2 mb-4">
-                <input type="text" id="new-room-icon" placeholder="🏠" maxlength="2" class="w-16 text-center p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-xl focus:outline-none focus:border-[#a8c7fa]">
-                <input type="text" id="new-room-name" maxlength="30" placeholder="Nazwa (np. Garaż)" class="flex-1 p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-            </div>
-            <div class="flex gap-3 mt-4">
-                <button onclick="window.closeNewRoomModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-                <button onclick="window.saveNewRoom()" class="flex-1 bg-[#e3e3e3] text-[#131314] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Dodaj</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="edit-room-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
-        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
-            <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Edytuj pomieszczenie</h3>
-            <input type="hidden" id="edit-room-old-name">
-            <div class="flex gap-2 mb-4">
-                <input type="text" id="edit-room-icon" maxlength="2" class="w-16 text-center p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-xl focus:outline-none focus:border-[#a8c7fa]">
-                <input type="text" id="edit-room-name" maxlength="30" class="flex-1 p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-            </div>
-            <div class="flex gap-3 mt-4">
-                <button onclick="window.closeEditRoomModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-                <button onclick="window.saveEditRoom()" class="flex-1 bg-[#a8c7fa] text-[#004a77] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="new-profile-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
-        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
-            <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Dodaj domownika</h3>
-            <input type="text" id="new-profile-name" maxlength="50" placeholder="Imię" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm mb-6 focus:outline-none focus:border-[#a8c7fa]">
-            <div class="flex gap-3">
-                <button onclick="window.closeNewProfileModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-                <button onclick="window.saveNewProfile()" class="flex-1 bg-[#444746] text-[#e3e3e3] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button>
-            </div>
-        </div>
-    </div>
-    
-    <div id="day-details-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex justify-center items-end sm:items-center p-0 sm:p-4 transition-all">
-        <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-md p-6 shadow-2xl max-h-[80vh] flex flex-col">
-            <div class="flex justify-between items-center mb-4 pb-2 border-b border-[#333537]">
-                <div>
-                    <h3 class="text-base font-medium text-neutral-100 tracking-wide" id="day-details-title">Szczegóły Dnia</h3>
-                    <p class="text-[10px] uppercase tracking-widest text-neutral-400" id="day-details-date">Data</p>
-                </div>
-                <button class="js-close-day-details js-close-home-day-details w-8 h-8 rounded-full bg-[#333537] text-neutral-200 flex items-center justify-center font-medium active:scale-90 transition-transform cursor-pointer">✕</button>
-            </div>
-            <div id="day-details-list" class="space-y-2 overflow-y-auto pb-4"></div>
-        </div>
-    </div>
-    
-    <div id="health-fab-menu" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex justify-center items-end pb-24 px-4 transition-all">
-        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-5 shadow-2xl flex flex-col gap-2.5">
-            <h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest mb-1 pl-2">Dodaj nowy wpis</h3>
-            
-            <button onclick="window.openNewDurationModal()" class="flex items-center gap-4 p-4 rounded-[20px] bg-[#3c1414]/40 border border-[#8c1d18]/50 active:scale-95 transition-all text-left">
-                <span class="text-2xl">🤒</span>
-                <div>
-                    <h4 class="text-sm font-medium text-[#ffb4ab]">Zgłoś objaw / infekcję</h4>
-                    <p class="text-[10px] text-neutral-400 mt-0.5">Rozpocznij trwające zdarzenie</p>
-                </div>
-            </button>
-            
-            <button onclick="window.openNewEventModal()" class="flex items-center gap-4 p-4 rounded-[20px] bg-amber-900/10 border border-amber-700/30 active:scale-95 transition-all text-left">
-                <span class="text-2xl">📅</span>
-                <div>
-                    <h4 class="text-sm font-medium text-amber-200">Zaplanuj wydarzenie</h4>
-                    <p class="text-[10px] text-neutral-400 mt-0.5">Szczepienie, wizyta, badanie</p>
-                </div>
-            </button>
-            
-            <button onclick="window.openNewRoutineModal()" class="flex items-center gap-4 p-4 rounded-[20px] bg-[#0f5223]/10 border border-[#0f5223]/30 active:scale-95 transition-all text-left">
-                <span class="text-2xl">🔄</span>
-                <div>
-                    <h4 class="text-sm font-medium text-[#c4eed0]">Dodaj rutynę</h4>
-                    <p class="text-[10px] text-neutral-400 mt-0.5">Leki cykliczne, witaminy</p>
-                </div>
-            </button>
-            
-            <button onclick="window.openNewMeasurementModal()" class="flex items-center gap-4 p-4 rounded-[20px] bg-[#004a77]/10 border border-[#004a77]/30 active:scale-95 transition-all text-left">
-                <span class="text-2xl">📏</span>
-                <div>
-                    <h4 class="text-sm font-medium text-[#c2e7ff]">Zanotuj pomiar</h4>
-                    <p class="text-[10px] text-neutral-400 mt-0.5">Waga, wzrost, temperatura</p>
-                </div>
-            </button>
-            
-            <button onclick="window.closeHealthFabMenu()" class="mt-2 text-neutral-500 font-bold py-2 text-xs uppercase tracking-widest active:scale-95">Anuluj</button>
-        </div>
-    </div>
-    
-    <div id="new-pharmacy-item-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
-        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
-            <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Dodaj do apteczki</h3>
-            <div class="space-y-3">
-                <input type="text" id="pharmacy-item-name" maxlength="100" placeholder="Nazwa leku (np. Ibum Forte)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-                <div>
-                    <label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Data ważności (Miesiąc / Rok)</label>
-                    <input type="month" id="pharmacy-item-exp" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]">
-                </div>
-                <input type="text" id="pharmacy-item-purpose" maxlength="150" placeholder="Na co to jest? (opcjonalnie)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-            </div>
-            <div class="flex gap-3 mt-6">
-                <button onclick="window.closeNewPharmacyItemModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-                <button onclick="window.saveNewPharmacyItem()" class="flex-1 bg-[#a8c7fa] text-[#004a77] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button>
-            </div>
-        </div>
-    </div>
-    
-    <div id="new-measurement-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex justify-center items-center p-4">
-        <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
-            <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Zanotuj pomiar</h3>
-            <div class="space-y-3">
-                <select id="measurement-type" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-                    <option value="Waga">Waga (kg)</option>
-                    <option value="Wzrost">Wzrost (cm)</option>
-                    <option value="Temperatura">Temperatura (°C)</option>
-                </select>
-                <div class="flex gap-2">
-                    <input type="text" id="measurement-value" maxlength="10" placeholder="Wartość (np. 38.5)" class="flex-1 p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-                    <input type="date" id="measurement-date" class="flex-1 p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]">
-                </div>
-                <input type="text" id="measurement-notes" maxlength="150" placeholder="Notatka (opcjonalnie)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-            </div>
-            <div class="flex gap-3 mt-6">
-                <button onclick="window.closeNewMeasurementModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-                <button onclick="window.saveNewMeasurement()" class="flex-1 bg-[#a8c7fa] text-[#004a77] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button>
-            </div>
+            <button class="js-close-change-user w-full mt-4 text-neutral-500 font-medium py-2 text-sm uppercase tracking-widest active:scale-95">Anuluj</button>
         </div>
     </div>
     
