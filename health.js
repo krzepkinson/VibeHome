@@ -272,13 +272,13 @@ window.HealthModule = (() => {
         window.renderHealthUI(); 
     };
 
-    window.openHealthFabMenu = function() { window.loadAndShowModal('health-fab-menu', '/modals/health-fab-menu.html'); };
+    window.openHealthFabMenu = function() { 
+        window.loadAndShowModal('health-fab-menu', '/modals/health-fab-menu.html'); 
+    };
     
     window.closeHealthFabMenu = function() { 
-        setTimeout(() => {
-            const menu = document.getElementById('health-fab-menu');
-            if (menu) menu.classList.add('hidden'); 
-        }, 10);
+        const menu = document.getElementById('health-fab-menu');
+        if (menu) menu.classList.add('hidden'); 
     };
 
     window.openNewHealthTaskModal = function(defaultType = 'cyclical') { 
@@ -286,10 +286,24 @@ window.HealthModule = (() => {
             document.getElementById('h-task-name').value = ''; 
             document.getElementById('h-task-type').value = defaultType; 
             
+            // Poprawione inteligentne dobieranie domyślnej kategorii
+            const defaultCat = { 
+                duration: 'Infekcja', 
+                one_time: 'Zabieg', 
+                cyclical: 'Suplementacja' 
+            }[defaultType] || 'Inne';
+            
             const catEl = document.getElementById('h-task-category');
-            if (catEl) catEl.value = defaultType === 'duration' ? 'Infekcja' : 'Zabieg';
+            if (catEl) catEl.value = defaultCat;
             
             window.toggleHealthInterval(); 
+            
+            // Rejestrujemy listenera na zmianę (zastępuje onchange z HTML)
+            const typeSelect = document.getElementById('h-task-type');
+            if (typeSelect) {
+                typeSelect.removeEventListener('change', window.toggleHealthInterval);
+                typeSelect.addEventListener('change', window.toggleHealthInterval);
+            }
         });
     };
 
@@ -298,16 +312,19 @@ window.HealthModule = (() => {
     window.openNewRoutineModal = function() { window.closeHealthFabMenu(); window.openNewHealthTaskModal('cyclical'); };
     
     window.closeNewHealthTaskModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('new-health-task-modal');
-            if (modal) modal.classList.add('hidden'); 
-        }, 10);
+        const modal = document.getElementById('new-health-task-modal');
+        if (modal) modal.classList.add('hidden'); 
     };
 
     window.toggleHealthInterval = function() { 
-        const type = document.getElementById('h-task-type').value;
-        document.getElementById('h-task-interval-container').classList.toggle('hidden', type !== 'cyclical'); 
-        document.getElementById('h-task-date-container').classList.toggle('hidden', type !== 'one_time'); 
+        const typeEl = document.getElementById('h-task-type');
+        if (!typeEl) return;
+        const type = typeEl.value;
+        const intContainer = document.getElementById('h-task-interval-container');
+        const dateContainer = document.getElementById('h-task-date-container');
+        
+        if(intContainer) intContainer.classList.toggle('hidden', type !== 'cyclical'); 
+        if(dateContainer) dateContainer.classList.toggle('hidden', type !== 'one_time'); 
     };
 
     window.saveNewHealthTask = async function() {
@@ -371,16 +388,13 @@ window.HealthModule = (() => {
 
     window.currentHealthSettingsId = null;
     
-    // ZMIANA KRYTYCZNA: Asynchroniczne ładowanie ekranu przed wstrzyknięciem danych
     window.openHealthSettingsScreen = async function(taskId) {
         window.currentHealthSettingsId = parseInt(taskId); 
         const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
         if (!task) return;
 
-        // Najpierw odpalamy router i czekamy aż kod HTML wklei się do drzewa DOM
         await window.switchView('health-settings-screen');
 
-        // Teraz elementy istnieją i możemy je zaktualizować
         const titleTop = document.getElementById('health-settings-title-top');
         if (titleTop) titleTop.innerText = task.name; 
         
@@ -410,6 +424,13 @@ window.HealthModule = (() => {
 
     window.saveHealthSettings = async function() {
         const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
+        
+        // FIX BUG #2: Null check dla bezpieczeństwa
+        if (!task) {
+            window.showToast("Błąd: Nie znaleziono zadania. Odśwież widok.");
+            return;
+        }
+
         const n = document.getElementById('health-settings-name').value.trim(); 
         
         let updateData = { name: n };
@@ -473,10 +494,8 @@ window.HealthModule = (() => {
     };
 
     window.closeProfileSwitcher = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('profile-switcher-modal');
-            if (modal) modal.classList.add('hidden'); 
-        }, 10);
+        const modal = document.getElementById('profile-switcher-modal');
+        if (modal) modal.classList.add('hidden'); 
     };
 
     // ==========================================
@@ -551,10 +570,8 @@ window.HealthModule = (() => {
     };
     
     window.closeNewPharmacyItemModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('new-pharmacy-item-modal');
-            if (modal) modal.classList.add('hidden'); 
-        }, 10);
+        const modal = document.getElementById('new-pharmacy-item-modal');
+        if (modal) modal.classList.add('hidden'); 
     };
 
     window.saveNewPharmacyItem = async function() {
@@ -597,10 +614,8 @@ window.HealthModule = (() => {
     };
 
     window.closeEditPharmacyModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('edit-pharmacy-item-modal');
-            if (modal) modal.classList.add('hidden'); 
-        }, 10);
+        const modal = document.getElementById('edit-pharmacy-item-modal');
+        if (modal) modal.classList.add('hidden'); 
     };
 
     window.saveEditedPharmacyItem = async function() {
@@ -641,13 +656,18 @@ window.HealthModule = (() => {
         });
     };
 
-    window.openNewMeasurementModal = function() { window.closeHealthFabMenu(); window.loadAndShowModal('new-measurement-modal', '/modals/new-measurement.html', () => { document.getElementById('measurement-value').value = ''; document.getElementById('measurement-date').value = getLocalDayStr(); document.getElementById('measurement-notes').value = ''; }); };
+    window.openNewMeasurementModal = function() { 
+        window.closeHealthFabMenu(); 
+        window.loadAndShowModal('new-measurement-modal', '/modals/new-measurement.html', () => { 
+            document.getElementById('measurement-value').value = ''; 
+            document.getElementById('measurement-date').value = getLocalDayStr(); 
+            document.getElementById('measurement-notes').value = ''; 
+        }); 
+    };
     
     window.closeNewMeasurementModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('new-measurement-modal');
-            if (modal) modal.classList.add('hidden'); 
-        }, 10);
+        const modal = document.getElementById('new-measurement-modal');
+        if (modal) modal.classList.add('hidden'); 
     };
 
     window.saveNewMeasurement = async function() {
@@ -795,7 +815,6 @@ window.HealthModule = (() => {
         }
     };
 
-    // ZMIANA KRYTYCZNA: Asynchroniczne ładowanie modala szczegółów dnia (Lazy Loading)
     window.openDayDetails = function(dateStr) {
         window.loadAndShowModal('day-details-modal', '/modals/day-details.html', () => {
             const list = document.getElementById('day-details-list');
@@ -826,10 +845,8 @@ window.HealthModule = (() => {
     };
 
     window.closeDayDetailsModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('day-details-modal');
-            if(modal) modal.classList.add('hidden');
-        }, 10);
+        const modal = document.getElementById('day-details-modal');
+        if(modal) modal.classList.add('hidden');
     };
 
     // ==========================================
@@ -880,7 +897,9 @@ window.HealthModule = (() => {
         window.EventDispatcher.onClick('.js-close-new-measurement', () => window.closeNewMeasurementModal());
         window.EventDispatcher.onClick('.js-save-new-measurement', () => window.saveNewMeasurement());
 
-        // Obsługa widoku ustawień pojedynczego zdarzenia
+        window.EventDispatcher.onClick('.js-close-new-health-task', () => window.closeNewHealthTaskModal());
+        window.EventDispatcher.onClick('.js-save-new-health-task', () => window.saveNewHealthTask());
+
         window.EventDispatcher.onClick('.js-close-health-settings', () => window.closeHealthSettingsScreen());
         window.EventDispatcher.onClick('.js-save-health-settings', () => window.saveHealthSettings());
         window.EventDispatcher.onClick('.js-delete-health-task', () => window.deleteHealthTask());
