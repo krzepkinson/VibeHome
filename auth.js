@@ -141,3 +141,9 @@ window.logoutUser = async function() {
     
     window.switchView('auth');
 };
+
+// --- PODPIĘCIE EVENT DISPATCHERA ---
+if (window.EventDispatcher) {
+    window.EventDispatcher.onClick('.js-auth-action', () => window.handleAuthAction());
+    window.EventDispatcher.onClick('.js-auth-toggle', () => window.toggleAuthMode());
+}
