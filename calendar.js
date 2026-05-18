@@ -514,7 +514,6 @@ window.CalendarModule = (() => {
         });
     }
 
-    // --- ZMIANA KRYTYCZNA: LOGIKA MULTISELEKCJI ---
     function updatePillsUI() {
         document.querySelectorAll('.js-cal-multi-pill').forEach(btn => {
             const id = parseInt(btn.dataset.id);
@@ -645,6 +644,7 @@ window.CalendarModule = (() => {
 
     return { 
         init, 
-        setFilter 
+        setFilter,
+        setProfileFilter // Udostępniamy tę funkcję na zewnątrz
     };
 })();
