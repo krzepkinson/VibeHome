@@ -69,23 +69,23 @@ window.UI = {
     // --- 3. KOMPONENTY: ZDROWIE ---
     renderHealthActiveTask: function(task, log) {
         return `
-        <div class="flex items-center justify-between p-4 bg-rose-900/10 rounded-[20px] border border-rose-900/40 shadow-sm">
-            <div class="flex-1">
+        <div class="flex items-center justify-between p-3.5 bg-rose-900/10 rounded-[18px] border border-rose-900/40 shadow-sm mb-1.5">
+            <div class="js-open-health-settings flex-1 cursor-pointer pr-2" data-id="${task.id}">
                 <h4 class="text-sm font-medium text-rose-200">${window.esc(task.name)}</h4>
                 <p class="text-[10px] text-rose-400/80 mt-0.5">Trwa od: ${new Date(log.start_date).toLocaleDateString('pl-PL')}</p>
             </div>
-            <button class="js-close-health-log w-10 h-10 rounded-full bg-rose-900/40 text-rose-200 flex items-center justify-center active:scale-90 border border-rose-800/60 shadow-inner" data-id="${log.id}">■</button>
+            <button class="js-close-health-log w-9 h-9 rounded-full bg-rose-900/40 text-rose-200 flex items-center justify-center active:scale-90 border border-rose-800/60 shadow-inner shrink-0" data-id="${log.id}">■</button>
         </div>`;
     },
 
     renderHealthUpcomingTask: function(task, label) {
         return `
-        <div class="flex items-center justify-between p-4 bg-amber-900/10 rounded-[20px] border border-amber-900/30">
-            <div class="flex-1">
+        <div class="flex items-center justify-between p-3.5 bg-amber-900/10 rounded-[18px] border border-amber-900/30 mb-1.5 shadow-sm">
+            <div class="js-open-health-settings flex-1 cursor-pointer pr-2" data-id="${task.id}">
                 <h4 class="text-sm font-medium text-amber-100">${window.esc(task.name)}</h4>
                 <p class="text-[10px] text-amber-500/80 mt-0.5">${new Date(task.event_date).toLocaleDateString('pl-PL')} • ${label}</p>
             </div>
-            <button class="js-start-health-log w-10 h-10 rounded-full bg-amber-900/30 text-amber-200 flex items-center justify-center active:scale-90 border border-amber-800/40 shadow-sm" data-id="${task.id}" data-type="one_time">✓</button>
+            <button class="js-start-health-log w-9 h-9 rounded-full bg-amber-900/30 text-amber-200 flex items-center justify-center active:scale-90 border border-amber-800/40 shadow-sm shrink-0" data-id="${task.id}" data-type="one_time">✓</button>
         </div>`;
     },
 
@@ -96,7 +96,7 @@ window.UI = {
                 <h4 class="text-sm font-medium text-neutral-100">${window.esc(task.name)}</h4>
                 <p class="text-[10px] text-neutral-500 mt-0.5">${statusHtml}</p>
             </div>
-            <button class="js-start-health-log w-9 h-9 rounded-full bg-[#3c1414] text-[#ffb4ab] flex items-center justify-center active:scale-90 border border-[#8c1d18]/40 shadow-sm" data-id="${task.id}" data-type="cyclical">+</button>
+            <button class="js-start-health-log w-9 h-9 rounded-full bg-[#3c1414] text-[#ffb4ab] flex items-center justify-center active:scale-90 border border-[#8c1d18]/40 shadow-sm shrink-0" data-id="${task.id}" data-type="cyclical">+</button>
         </div>`;
     },
 
@@ -150,7 +150,7 @@ window.UI = {
                 </div>
             </div>
         </div>`;
-    }, // <--- TUTAJ BYŁ BRAKUJĄCY PRZECINEK
+    },
 
     renderHealthHistoryLog: function(log) {
         return `
