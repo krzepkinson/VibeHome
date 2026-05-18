@@ -13,16 +13,12 @@ window.SearchModule = (() => {
         input.value = '';
         document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
         
-        // 1. Zdejmujemy ukrycie (display: none), żeby input fizycznie istniał w układzie
         modal.classList.remove('hidden');
         
-        // 2. KRYTYCZNY FIX DLA iOS: Focus musi być wywołany natychmiast, synchronicznie!
-        // Wywołujemy go, gdy panel jest jeszcze u góry (-translate-y-full)
         if (input) {
             input.focus();
         }
         
-        // 3. Po ułamku sekundy odpalamy płynny zjazd panelu
         requestAnimationFrame(() => {
             modal.classList.remove('-translate-y-full');
             modal.classList.add('translate-y-0');
@@ -33,7 +29,7 @@ window.SearchModule = (() => {
         const modal = document.getElementById('search-modal');
         const input = document.getElementById('global-search-input');
         
-        if (input) input.blur(); // Chowamy klawiaturę przy zamykaniu
+        if (input) input.blur(); 
         
         if (modal) {
             modal.classList.remove('translate-y-0');
@@ -124,10 +120,22 @@ window.SearchModule = (() => {
         }, 400);
     };
 
+    // ZMIANA KRYTYCZNA: Nasłuchiwanie wpisywania na klawiaturze zastępujące oninput w HTML
+    document.addEventListener('input', (e) => {
+        if (e.target && e.target.id === 'global-search-input') {
+            window.performGlobalSearch(e.target.value);
+        }
+    });
+
     if (window.EventDispatcher) {
         window.EventDispatcher.onClick('.js-open-search', (e) => {
             e.preventDefault();
             window.openGlobalSearch();
+        });
+
+        window.EventDispatcher.onClick('.js-close-global-search', (e) => {
+            e.preventDefault();
+            window.closeGlobalSearch();
         });
 
         window.EventDispatcher.onClick('.js-search-result', (e, el) => {
