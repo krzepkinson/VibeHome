@@ -272,9 +272,7 @@ window.HealthModule = (() => {
         window.renderHealthUI(); 
     };
 
-    window.openHealthFabMenu = function() { 
-        window.loadAndShowModal('health-fab-menu', '/modals/health-fab-menu.html'); 
-    };
+    window.openHealthFabMenu = function() { window.loadAndShowModal('health-fab-menu', '/modals/health-fab-menu.html'); };
     
     window.closeHealthFabMenu = function() { 
         const menu = document.getElementById('health-fab-menu');
@@ -286,7 +284,6 @@ window.HealthModule = (() => {
             document.getElementById('h-task-name').value = ''; 
             document.getElementById('h-task-type').value = defaultType; 
             
-            // Poprawione inteligentne dobieranie domyślnej kategorii
             const defaultCat = { 
                 duration: 'Infekcja', 
                 one_time: 'Zabieg', 
@@ -298,7 +295,6 @@ window.HealthModule = (() => {
             
             window.toggleHealthInterval(); 
             
-            // Rejestrujemy listenera na zmianę (zastępuje onchange z HTML)
             const typeSelect = document.getElementById('h-task-type');
             if (typeSelect) {
                 typeSelect.removeEventListener('change', window.toggleHealthInterval);
@@ -405,8 +401,14 @@ window.HealthModule = (() => {
         if (catEl) catEl.value = task.category || 'Inne';
 
         const intervalWrapper = document.getElementById('health-settings-interval-wrapper');
-        if (intervalWrapper) {
-            if (task.task_type === 'cyclical') {
+        const dateWrapper = document.getElementById('health-settings-date-wrapper');
+
+        // Reset
+        if (intervalWrapper) intervalWrapper.classList.add('hidden');
+        if (dateWrapper) dateWrapper.classList.add('hidden');
+
+        if (task.task_type === 'cyclical') {
+            if (intervalWrapper) {
                 intervalWrapper.classList.remove('hidden');
                 
                 const intervalInput = document.getElementById('health-settings-interval');
@@ -414,8 +416,16 @@ window.HealthModule = (() => {
                 
                 const remindInput = document.getElementById('health-settings-remind-days');
                 if (remindInput) remindInput.value = task.remind_days_before || 0; 
-            } else {
-                intervalWrapper.classList.add('hidden');
+            }
+        } else if (task.task_type === 'one_time') {
+            if (dateWrapper) {
+                dateWrapper.classList.remove('hidden');
+                
+                const dateInput = document.getElementById('health-settings-date');
+                if (dateInput) dateInput.value = task.event_date ? task.event_date.split('T')[0] : '';
+                
+                const remindInput = document.getElementById('health-settings-remind-date');
+                if (remindInput) remindInput.value = task.remind_days_before || 0; 
             }
         }
     };
@@ -425,9 +435,8 @@ window.HealthModule = (() => {
     window.saveHealthSettings = async function() {
         const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
         
-        // FIX BUG #2: Null check dla bezpieczeństwa
         if (!task) {
-            window.showToast("Błąd: Nie znaleziono zadania. Odśwież widok.");
+            window.showToast("Błąd: Nie znaleziono zadania.");
             return;
         }
 
@@ -441,7 +450,13 @@ window.HealthModule = (() => {
         if (task.task_type === 'cyclical') { 
             updateData.interval_days = parseInt(document.getElementById('health-settings-interval').value) || 0; 
             updateData.remind_days_before = parseInt(document.getElementById('health-settings-remind-days').value) || 0; 
-        } 
+        } else if (task.task_type === 'one_time') {
+            updateData.event_date = document.getElementById('health-settings-date').value || null;
+            updateData.remind_days_before = parseInt(document.getElementById('health-settings-remind-date').value) || 0;
+            if (updateData.event_date) {
+                updateData.next_due_at = new Date(updateData.event_date).toISOString();
+            }
+        }
         
         const { error } = await window.supabaseClient.from('health_tasks').update(updateData).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
         if (error) { window.showToast("Błąd: " + error.message); return; }
@@ -656,14 +671,7 @@ window.HealthModule = (() => {
         });
     };
 
-    window.openNewMeasurementModal = function() { 
-        window.closeHealthFabMenu(); 
-        window.loadAndShowModal('new-measurement-modal', '/modals/new-measurement.html', () => { 
-            document.getElementById('measurement-value').value = ''; 
-            document.getElementById('measurement-date').value = getLocalDayStr(); 
-            document.getElementById('measurement-notes').value = ''; 
-        }); 
-    };
+    window.openNewMeasurementModal = function() { window.closeHealthFabMenu(); window.loadAndShowModal('new-measurement-modal', '/modals/new-measurement.html', () => { document.getElementById('measurement-value').value = ''; document.getElementById('measurement-date').value = getLocalDayStr(); document.getElementById('measurement-notes').value = ''; }); };
     
     window.closeNewMeasurementModal = function() { 
         const modal = document.getElementById('new-measurement-modal');
@@ -884,7 +892,6 @@ window.HealthModule = (() => {
             window.deleteHealthBookItem(el.dataset.id, el.dataset.type);
         });
 
-        // Modale HTML podpięcie
         window.EventDispatcher.onClick('.js-close-health-fab-menu', () => window.closeHealthFabMenu());
         window.EventDispatcher.onClick('.js-open-new-duration', () => window.openNewDurationModal());
         window.EventDispatcher.onClick('.js-open-new-event', () => window.openNewEventModal());
