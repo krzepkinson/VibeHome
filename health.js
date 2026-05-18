@@ -836,6 +836,11 @@ window.HealthModule = (() => {
 
         window.EventDispatcher.onClick('.js-close-new-measurement', () => window.closeNewMeasurementModal());
         window.EventDispatcher.onClick('.js-save-new-measurement', () => window.saveNewMeasurement());
+
+        // Obsługa widoku ustawień pojedynczego zdarzenia
+        window.EventDispatcher.onClick('.js-close-health-settings', () => window.closeHealthSettingsScreen());
+        window.EventDispatcher.onClick('.js-save-health-settings', () => window.saveHealthSettings());
+        window.EventDispatcher.onClick('.js-delete-health-task', () => window.deleteHealthTask());
     } else {
         console.error("EventDispatcher nie został załadowany!");
     }
