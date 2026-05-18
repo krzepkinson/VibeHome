@@ -24,12 +24,13 @@ window.HomeModule = (() => {
         window.loadDashboard();
     };
 
+    // ZMIANA KRYTYCZNA: Przywrócony fix do historii nawigacji (pushState)
     window.filterHomeByRoom = function(room) {
         roomFilter = room;
         if (window.activeView !== 'home') {
             window.switchView('home'); 
         } else {
-            // FIX: Dodajemy wpis do historii przeglądarki, żeby "wstecz" wiedziało dokąd wrócić
+            // Dodajemy wpis do historii przeglądarki, żeby "wstecz" wiedziało dokąd wrócić
             window.history.pushState(
                 { view: 'home', roomFilter: room }, 
                 '', 
@@ -249,6 +250,8 @@ window.HomeModule = (() => {
     window.openHomeDayDetails = function(dateStr) {
         const modal = document.getElementById('day-details-modal'); 
         const list = document.getElementById('day-details-list');
+        if (!modal || !list) return;
+
         document.getElementById('day-details-title').innerText = "Wydarzenia w Domu";
         document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
         
