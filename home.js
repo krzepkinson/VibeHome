@@ -511,6 +511,16 @@ window.HomeModule = (() => {
 
         window.EventDispatcher.onClick('.js-delete-task', (e, el) => window.deleteTaskFromHome(el.dataset.id, el.dataset.name));
         window.EventDispatcher.onClick('.js-filter-room', (e, el) => window.filterHomeByRoom(el.dataset.room));
+
+        // Podpięcie modali (przyciski bez onclick w HTML)
+        window.EventDispatcher.onClick('.js-close-new-task', () => window.closeNewTaskModal());
+        window.EventDispatcher.onClick('.js-save-new-task', () => window.saveNewTask());
+        
+        window.EventDispatcher.onClick('.js-close-add-log', () => window.closeAddLogModal());
+        window.EventDispatcher.onClick('.js-save-add-log', () => window.saveNewLog());
+
+        window.EventDispatcher.onClick('.js-close-edit-log', () => window.closeEditLogModal());
+        window.EventDispatcher.onClick('.js-save-edit-log', () => window.saveEditLog());
     } else {
         console.error("EventDispatcher nie został załadowany!");
     }
