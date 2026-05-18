@@ -158,6 +158,81 @@ window.HomeModule = (() => {
         }
     };
 
+    // ZMIANA KRYTYCZNA: Asynchroniczne ładowanie modala szczegółów dnia (Lazy Loading)
+    window.openHomeDayDetails = function(dateStr) {
+        window.loadAndShowModal('day-details-modal', '/modals/day-details.html', () => {
+            const list = document.getElementById('day-details-list');
+            document.getElementById('day-details-title').innerText = "Wydarzenia w Domu";
+            document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+            
+            const dayLogs = logs.filter(l => l.created_at.startsWith(dateStr));
+            const dueTasks = tasks.filter(task => {
+                if (!task.interval_days || task.interval_days === 0) return false;
+                const taskLogs = logs.filter(l => l.task_id === task.id);
+                if (taskLogs.length === 0) return false; 
+                const lastLog = taskLogs[0];
+                const lastDate = new Date(lastLog.created_at); lastDate.setHours(0,0,0,0);
+                const nextDate = new Date(lastDate); nextDate.setDate(nextDate.getDate() + task.interval_days);
+                return window.getTodayLocalString(nextDate) === dateStr;
+            });
+
+            if (dayLogs.length === 0 && dueTasks.length === 0) {
+                list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym dniu.</p>`;
+            } else {
+                let html = '';
+                dueTasks.forEach(t => {
+                    html += `
+                    <div class="px-3 py-2 bg-[#1e1f20] rounded-xl border border-[#8c1d18]/50 mb-1.5 flex justify-between items-center">
+                        <div>
+                            <p class="text-sm font-medium text-[#ffb4ab]">📅 ${window.esc(t.name)}</p>
+                            <p class="text-[10px] text-neutral-500 mt-0.5">Zaplanowane do zrobienia</p>
+                        </div>
+                    </div>`;
+                });
+                dayLogs.forEach(l => {
+                    const task = tasks.find(t => t.id === l.task_id) || { name: l.activity_name };
+                    html += `
+                    <div class="px-3 py-2 bg-[#131314] rounded-xl border border-[#0f5223]/50 mb-1.5 flex justify-between items-center">
+                        <div>
+                            <p class="text-sm font-medium text-[#c4eed0]">✓ ${window.esc(task.name)}</p>
+                            <p class="text-[10px] text-neutral-500 mt-0.5">Wykonane (${l.user_name || '?'})</p>
+                        </div>
+                    </div>`;
+                });
+                list.innerHTML = html;
+            }
+        });
+    };
+
+    window.closeHomeDayDetailsModal = function() { 
+        setTimeout(() => {
+            const modal = document.getElementById('day-details-modal');
+            if(modal) modal.classList.add('hidden');
+        }, 10);
+    };
+
+    window.getRelativeTime = function(d) {
+        const diff = Math.floor((new Date().setHours(0,0,0,0) - new Date(d).setHours(0,0,0,0)) / 86400000);
+        return diff === 0 ? "dzisiaj" : diff === 1 ? "wczoraj" : diff < 7 ? `${diff} dni temu` : new Date(d).toLocaleDateString('pl-PL');
+    };
+
+    window.getCompactStatus = function(lastDate, interval) {
+        if (!interval || interval <= 0) {
+            if (!lastDate) return { color: 'text-[#ffb4ab]', label: 'Zadanie jednorazowe', tooltip: 'Czeka na wykonanie.' };
+            return { color: 'text-neutral-500', label: `Zrobione ${window.getRelativeTime(lastDate)}`, tooltip: 'Wykonano.' };
+        }
+
+        if (!lastDate) return { color: 'text-neutral-500', label: 'Jeszcze nie robione', tooltip: 'Brak wpisów.' };
+        const relText = `Ostatnio ${window.getRelativeTime(lastDate)}`;
+        
+        const next = new Date(lastDate); next.setDate(next.getDate() + interval);
+        const diff = Math.ceil((next.setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
+        
+        return diff < 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` } 
+               : diff === 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: 'Dzisiaj!' } 
+               : { color: 'text-[#c4eed0]', label: relText, tooltip: `Za ${diff} dni.` };
+    };
+
     window.openAddLogModal = function(id, name) {
         window.loadAndShowModal('add-log-modal', '/modals/add-log.html', () => {
             document.getElementById('add-log-subtitle').innerText = name;
@@ -322,7 +397,6 @@ window.HomeModule = (() => {
     };
 
     if (window.EventDispatcher) {
-        // ZMIANA KRYTYCZNA: Czekamy AWAIT aż router załaduje HTML kalendarza, zanim wywołamy ustawienia fitrów
         window.EventDispatcher.onClick('.js-toggle-home-view', async () => {
             await window.switchView('calendar');
             if (typeof window.CalendarModule.setFilter === 'function') {
@@ -338,6 +412,9 @@ window.HomeModule = (() => {
             e.preventDefault(); e.stopPropagation(); 
             window.clearRoomFilter();
         });
+
+        window.EventDispatcher.onClick('.js-open-home-day-details', (e, el) => window.openHomeDayDetails(el.dataset.date));
+        window.EventDispatcher.onClick('.js-close-day-details-modal', () => window.closeHomeDayDetailsModal());
 
         window.EventDispatcher.onClick('.js-add-log', (e, el) => {
             e.preventDefault(); e.stopPropagation();
