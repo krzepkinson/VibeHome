@@ -1,0 +1,21 @@
+<div id="new-measurement-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex justify-center items-center p-4">
+    <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
+        <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Zanotuj pomiar</h3>
+        <div class="space-y-3">
+            <select id="measurement-type" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
+                <option value="Waga">Waga (kg)</option>
+                <option value="Wzrost">Wzrost (cm)</option>
+                <option value="Temperatura">Temperatura (°C)</option>
+            </select>
+            <div class="flex gap-2">
+                <input type="text" id="measurement-value" maxlength="10" placeholder="Wartość (np. 38.5)" class="flex-1 p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
+                <input type="date" id="measurement-date" class="flex-1 p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]">
+            </div>
+            <input type="text" id="measurement-notes" maxlength="150" placeholder="Notatka (opcjonalnie)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
+        </div>
+        <div class="flex gap-3 mt-6">
+            <button class="js-close-new-measurement flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
+            <button class="js-save-new-measurement flex-1 bg-[#a8c7fa] text-[#004a77] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button>
+        </div>
+    </div>
+</div>
