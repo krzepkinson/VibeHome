@@ -70,7 +70,6 @@ window.processJoinHousehold = async function() {
         return; 
     }
 
-    // POPRAWKA UUID: Używamy window.currentUser.user_id
     const { error: joinError } = await window.supabaseClient
         .from('household_members')
         .insert([{ household_id: hh.id, user_id: window.currentUser.user_id }]);
@@ -78,7 +77,6 @@ window.processJoinHousehold = async function() {
     if (joinError) {
         window.showToast("Wystąpił błąd podczas dołączania.");
     } else {
-        // POPRAWKA UUID: Używamy window.currentUser.user_id
         await window.supabaseClient
             .from('household_members')
             .delete()
@@ -100,3 +98,9 @@ window.processJoinHousehold = async function() {
         }, 500);
     }
 };
+
+// --- PODPIĘCIE EVENT DISPATCHERA ---
+if (window.EventDispatcher) {
+    window.EventDispatcher.onClick('.js-close-join-household', () => window.closeJoinHouseholdModal());
+    window.EventDispatcher.onClick('.js-process-join-household', () => window.processJoinHousehold());
+}
