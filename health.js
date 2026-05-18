@@ -371,13 +371,21 @@ window.HealthModule = (() => {
 
     window.currentHealthSettingsId = null;
     
+    // ZMIANA KRYTYCZNA: Asynchroniczne ładowanie ekranu przed wstrzyknięciem danych
     window.openHealthSettingsScreen = async function(taskId) {
         window.currentHealthSettingsId = parseInt(taskId); 
         const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
         if (!task) return;
 
-        document.getElementById('health-settings-title-top').innerText = task.name; 
-        document.getElementById('health-settings-name').value = task.name;
+        // Najpierw odpalamy router i czekamy aż kod HTML wklei się do drzewa DOM
+        await window.switchView('health-settings-screen');
+
+        // Teraz elementy istnieją i możemy je zaktualizować
+        const titleTop = document.getElementById('health-settings-title-top');
+        if (titleTop) titleTop.innerText = task.name; 
+        
+        const nameInput = document.getElementById('health-settings-name');
+        if (nameInput) nameInput.value = task.name;
         
         const catEl = document.getElementById('health-settings-category');
         if (catEl) catEl.value = task.category || 'Inne';
@@ -386,14 +394,16 @@ window.HealthModule = (() => {
         if (intervalWrapper) {
             if (task.task_type === 'cyclical') {
                 intervalWrapper.classList.remove('hidden');
-                document.getElementById('health-settings-interval').value = task.interval_days || 0; 
-                document.getElementById('health-settings-remind-days').value = task.remind_days_before || 0; 
+                
+                const intervalInput = document.getElementById('health-settings-interval');
+                if (intervalInput) intervalInput.value = task.interval_days || 0; 
+                
+                const remindInput = document.getElementById('health-settings-remind-days');
+                if (remindInput) remindInput.value = task.remind_days_before || 0; 
             } else {
                 intervalWrapper.classList.add('hidden');
             }
         }
-        
-        window.goForward('health-settings-screen');
     };
     
     window.closeHealthSettingsScreen = function() { window.goBack(); };
@@ -785,11 +795,47 @@ window.HealthModule = (() => {
         }
     };
 
+    // ZMIANA KRYTYCZNA: Asynchroniczne ładowanie modala szczegółów dnia (Lazy Loading)
+    window.openDayDetails = function(dateStr) {
+        window.loadAndShowModal('day-details-modal', '/modals/day-details.html', () => {
+            const list = document.getElementById('day-details-list');
+            document.getElementById('day-details-title').innerText = "Szczegóły Zdrowia";
+            document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+            
+            const taskMap = new Map(healthTasks.map(t => [t.id, t]));
+
+            const dayLogs = healthLogs.filter(l => { 
+                const task = taskMap.get(l.health_task_id);
+                if (!task) return false;
+                const start = l.start_date.split('T')[0]; 
+                const end = l.end_date ? l.end_date.split('T')[0] : getLocalDayStr(); 
+                return dateStr >= start && dateStr <= end; 
+            });
+            const oneTimeEvents = healthTasks.filter(t => t.task_type === 'one_time' && t.event_date === dateStr);
+            if (dayLogs.length === 0 && oneTimeEvents.length === 0) { list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zdarzeń.</p>`; } 
+            else {
+                let itemsHtml = '';
+                oneTimeEvents.forEach(t => { const isDone = healthLogs.some(l => l.health_task_id === t.id); itemsHtml += window.UI.renderHealthDayEvent(t, isDone); });
+                dayLogs.forEach(l => { 
+                    const task = taskMap.get(l.health_task_id); 
+                    if (task) itemsHtml += window.UI.renderHealthDayLog(task, l); 
+                });
+                list.innerHTML = itemsHtml;
+            }
+        });
+    };
+
+    window.closeDayDetailsModal = function() { 
+        setTimeout(() => {
+            const modal = document.getElementById('day-details-modal');
+            if(modal) modal.classList.add('hidden');
+        }, 10);
+    };
+
     // ==========================================
     // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
     // ==========================================
     if (window.EventDispatcher) {
-        // ZMIANA KRYTYCZNA: Czekamy AWAIT aż router załaduje HTML kalendarza, zanim wywołamy ustawienia fitrów
         window.EventDispatcher.onClick('.js-toggle-health-view', async () => {
             await window.switchView('calendar');
             if (typeof window.CalendarModule.setFilter === 'function') window.CalendarModule.setFilter('Zdrowie');
@@ -806,6 +852,9 @@ window.HealthModule = (() => {
         window.EventDispatcher.onClick('.js-start-health-log', (e, el) => window.startHealthLog(el.dataset.id, el.dataset.type));
         window.EventDispatcher.onClick('.js-open-health-settings', (e, el) => window.openHealthSettingsScreen(el.dataset.id));
         
+        window.EventDispatcher.onClick('.js-open-day-details', (e, el) => window.openDayDetails(el.dataset.date));
+        window.EventDispatcher.onClick('.js-close-day-details-modal', () => window.closeDayDetailsModal());
+
         window.EventDispatcher.onClick('.js-select-profile', (e, el) => window.selectHealthProfile(el.dataset.id));
         window.EventDispatcher.onClick('.js-delete-pharmacy-item', (e, el) => window.deletePharmacyItem(el.dataset.id));
         
@@ -836,7 +885,6 @@ window.HealthModule = (() => {
         window.EventDispatcher.onClick('.js-save-health-settings', () => window.saveHealthSettings());
         window.EventDispatcher.onClick('.js-delete-health-task', () => window.deleteHealthTask());
         
-        // Brakowało też podpięcia nowej klasy zamkniecia z html edycji profilu
         window.EventDispatcher.onClick('.js-close-edit-profile', () => window.closeEditProfileModal?.());
     } else {
         console.error("EventDispatcher nie został załadowany!");
