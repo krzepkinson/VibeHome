@@ -10,7 +10,6 @@ window.UserLogModule = (() => {
         
         const listEl = document.getElementById('change-user-list');
         
-        // 1. Pokazujemy modal od razu z animacją ładowania
         listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-6 animate-pulse">Szukam domowników...</p>`;
         document.getElementById('change-user-custom').value = '';
         
@@ -20,12 +19,10 @@ window.UserLogModule = (() => {
 
         let names = new Set();
         
-        // 2. Zawsze dodajemy Ciebie (Zalogowanego Użytkownika)
         if (window.currentUser && window.currentUser.name) {
             names.add(window.currentUser.name);
         }
         
-        // 3. Pobieramy profile z Bazy Danych
         try {
             const { data, error } = await window.supabaseClient
                 .from('profiles')
@@ -43,19 +40,16 @@ window.UserLogModule = (() => {
             console.error("Błąd pobierania domowników:", e);
         }
         
-        // 4. Ewentualnie dodajemy imię, które już tam było wpisane
         if (currentName && currentName !== 'Ja' && currentName !== '?') {
             names.add(currentName);
         }
         
-        // 5. Renderujemy gotową listę za pomocą BEZPIECZNEGO HTML (Delegacja)
         listEl.innerHTML = Array.from(names).map(name => `
             <button class="js-save-changed-user w-full text-left px-4 py-3 bg-[#1e1f20] border border-[#333537] rounded-[16px] mb-2 text-neutral-200 active:scale-95 transition-colors" data-name="${window.esc(name)}">
                 <span class="font-medium">${window.esc(name)}</span>
             </button>
         `).join('');
         
-        // 6. Ustawiamy kursor na polu
         setTimeout(() => {
             const input = document.getElementById('change-user-custom');
             if (input) input.focus();
@@ -125,7 +119,11 @@ window.UserLogModule = (() => {
     // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
     // ==========================================
     if (window.EventDispatcher) {
-        window.EventDispatcher.onClick('.js-save-changed-user', (e, el) => window.saveChangedUser(el.dataset.name));
+        window.EventDispatcher.onClick('.js-save-changed-user', (e, el) => {
+            const name = el.dataset.name || '';
+            window.saveChangedUser(name);
+        });
+        window.EventDispatcher.onClick('.js-close-change-user', () => window.closeChangeUserModal());
     } else {
         console.error("EventDispatcher nie został załadowany!");
     }
