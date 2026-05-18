@@ -6,31 +6,12 @@ window.HomeModule = (() => {
     let logs = []; 
     let tasks = []; 
     let roomFilter = null; 
-    let viewMode = 'list'; 
-    let currentMonth = new Date().getMonth();
-    let currentYear = new Date().getFullYear();
 
-    window.toggleHomeView = function() {
-        viewMode = viewMode === 'list' ? 'calendar' : 'list';
-        const toggleBtn = document.getElementById('home-view-toggle-btn');
-        if (toggleBtn) toggleBtn.innerText = viewMode === 'list' ? '📅' : '📋';
-        window.loadDashboard();
-    };
-
-    window.changeHomeMonth = function(offset) {
-        currentMonth += parseInt(offset);
-        if (currentMonth < 0) { currentMonth = 11; currentYear--; } 
-        else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
-        window.loadDashboard();
-    };
-
-    // ZMIANA KRYTYCZNA: Przywrócony fix do historii nawigacji (pushState)
     window.filterHomeByRoom = function(room) {
         roomFilter = room;
         if (window.activeView !== 'home') {
             window.switchView('home'); 
         } else {
-            // Dodajemy wpis do historii przeglądarki, żeby "wstecz" wiedziało dokąd wrócić
             window.history.pushState(
                 { view: 'home', roomFilter: room }, 
                 '', 
@@ -47,27 +28,18 @@ window.HomeModule = (() => {
 
     window.loadDashboard = async function() {
         const list = document.getElementById('dashboard-list') || document.getElementById('home-task-list');
-        const calWrapper = document.getElementById('home-calendar-wrapper');
         const backBtn = document.getElementById('home-back-btn');
         
         if (roomFilter) {
             if (backBtn) backBtn.classList.remove('hidden'); 
             const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
             if (h1) h1.innerText = roomFilter; if (p) p.innerText = 'Lista zadań';
-            if (calWrapper) calWrapper.classList.add('hidden');
             if (list) list.classList.remove('hidden');
         } else {
             if (backBtn) backBtn.classList.add('hidden');
             const h1 = document.querySelector('#view-home h1'); const p = document.querySelector('#view-home p');
             if (h1) h1.innerText = 'Dom'; if (p) p.innerText = 'Zarządzanie przestrzenią';
-            
-            if (viewMode === 'calendar') {
-                if (list) list.classList.add('hidden');
-                if (calWrapper) calWrapper.classList.remove('hidden');
-            } else {
-                if (calWrapper) calWrapper.classList.add('hidden');
-                if (list) list.classList.remove('hidden');
-            }
+            if (list) list.classList.remove('hidden');
         }
 
         const now = Date.now();
@@ -85,8 +57,6 @@ window.HomeModule = (() => {
 
         if (tasks.length === 0 && !roomFilter) {
             if (list) {
-                list.classList.remove('hidden');
-                if (calWrapper) calWrapper.classList.add('hidden');
                 list.innerHTML = window.UI.renderEmptyState("Twój dom jest pusty", "Dodaj pierwszą czynność, by zacząć dbać o przestrzeń.") + `
                 <div class="flex justify-center -mt-10">
                     <button class="js-open-new-task-modal bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
@@ -101,11 +71,6 @@ window.HomeModule = (() => {
         today.setHours(0, 0, 0, 0);
 
         if (!roomFilter) {
-            if (viewMode === 'calendar') {
-                window.renderHomeCalendar();
-                return;
-            }
-
             let roomStats = {};
             dbRooms.forEach(r => roomStats[r.name] = { icon: r.icon, total: 0, overdue: 0 });
             if (!roomStats['Inne']) roomStats['Inne'] = { icon: '📦', total: 0, overdue: 0 };
@@ -191,114 +156,6 @@ window.HomeModule = (() => {
                 ? scored.map(item => window.UI.renderHomeTaskCard(item)).join('') 
                 : window.UI.renderEmptyState("Brak zadań", "To pomieszczenie jest czyste.");
         }
-    };
-
-    window.renderHomeCalendar = function() {
-        const container = document.getElementById('home-calendar-container');
-        const title = document.getElementById('home-calendar-title');
-        if (!container || !title) return;
-
-        const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
-        title.innerText = `${monthNames[currentMonth]} ${currentYear}`;
-
-        let html = `<div class="grid grid-cols-7 gap-1 text-center mb-2">`;
-        ['Pn','Wt','Śr','Czw','Pt','So','Nd'].forEach(d => { html += `<div class="text-[9px] text-neutral-600 font-bold uppercase">${d}</div>`; });
-        html += `</div><div class="grid grid-cols-7 gap-1">`;
-
-        const firstDay = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7;
-        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-
-        for (let i = 0; i < firstDay; i++) { html += `<div></div>`; }
-
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const isToday = window.getTodayLocalString() === dateStr;
-
-            const dayLogs = logs.filter(l => l.created_at.startsWith(dateStr));
-            const dueTasks = tasks.filter(task => {
-                if (!task.interval_days || task.interval_days === 0) return false;
-                const taskLogs = logs.filter(l => l.task_id === task.id);
-                if (taskLogs.length === 0) return false; 
-                const lastLog = taskLogs[0];
-                const lastDate = new Date(lastLog.created_at); lastDate.setHours(0,0,0,0);
-                const nextDate = new Date(lastDate); nextDate.setDate(nextDate.getDate() + task.interval_days);
-                return window.getTodayLocalString(nextDate) === dateStr;
-            });
-
-            let dayClass = 'hover:bg-[#333537] text-neutral-300';
-            let indicator = '';
-
-            if (dayLogs.length > 0 && dueTasks.length > 0) {
-                dayClass = 'bg-[#004a77]/30 border border-[#004a77]/50 font-bold text-[#c2e7ff]';
-                indicator = `<div class="absolute bottom-1 flex gap-0.5"><div class="w-1 h-1 rounded-full bg-[#c4eed0]"></div><div class="w-1 h-1 rounded-full bg-[#ffb4ab]"></div></div>`;
-            } else if (dayLogs.length > 0) {
-                dayClass = 'bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] font-bold';
-                indicator = `<div class="absolute bottom-1 w-1 h-1 rounded-full bg-[#c4eed0]"></div>`;
-            } else if (dueTasks.length > 0) {
-                dayClass = 'bg-[#3c1414]/40 border border-[#8c1d18]/50 text-[#ffb4ab] font-bold';
-                indicator = `<div class="absolute bottom-1 w-1 h-1 rounded-full bg-[#ffb4ab]"></div>`;
-            }
-
-            if (isToday) dayClass += ' ring-2 ring-[#a8c7fa] ring-offset-2 ring-offset-[#1e1f20]';
-
-            html += `<div class="js-open-home-day-details relative aspect-square flex items-center justify-center rounded-xl cursor-pointer transition-all active:scale-90 ${dayClass}" data-date="${dateStr}"><span class="text-xs">${d}</span>${indicator}</div>`;
-        }
-        html += `</div>`;
-        container.innerHTML = html;
-    };
-
-    window.openHomeDayDetails = function(dateStr) {
-        const modal = document.getElementById('day-details-modal'); 
-        const list = document.getElementById('day-details-list');
-        if (!modal || !list) return;
-
-        document.getElementById('day-details-title').innerText = "Wydarzenia w Domu";
-        document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
-        
-        const dayLogs = logs.filter(l => l.created_at.startsWith(dateStr));
-        const dueTasks = tasks.filter(task => {
-            if (!task.interval_days || task.interval_days === 0) return false;
-            const taskLogs = logs.filter(l => l.task_id === task.id);
-            if (taskLogs.length === 0) return false; 
-            const lastLog = taskLogs[0];
-            const lastDate = new Date(lastLog.created_at); lastDate.setHours(0,0,0,0);
-            const nextDate = new Date(lastDate); nextDate.setDate(nextDate.getDate() + task.interval_days);
-            return window.getTodayLocalString(nextDate) === dateStr;
-        });
-
-        if (dayLogs.length === 0 && dueTasks.length === 0) {
-            list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym dniu.</p>`;
-        } else {
-            let html = '';
-            dueTasks.forEach(t => {
-                html += `
-                <div class="px-3 py-2 bg-[#1e1f20] rounded-xl border border-[#8c1d18]/50 mb-1.5 flex justify-between items-center">
-                    <div>
-                        <p class="text-sm font-medium text-[#ffb4ab]">📅 ${window.esc(t.name)}</p>
-                        <p class="text-[10px] text-neutral-500 mt-0.5">Zaplanowane do zrobienia</p>
-                    </div>
-                </div>`;
-            });
-            dayLogs.forEach(l => {
-                const task = tasks.find(t => t.id === l.task_id) || { name: l.activity_name };
-                html += `
-                <div class="px-3 py-2 bg-[#131314] rounded-xl border border-[#0f5223]/50 mb-1.5 flex justify-between items-center">
-                    <div>
-                        <p class="text-sm font-medium text-[#c4eed0]">✓ ${window.esc(task.name)}</p>
-                        <p class="text-[10px] text-neutral-500 mt-0.5">Wykonane (${l.user_name || '?'})</p>
-                    </div>
-                </div>`;
-            });
-            list.innerHTML = html;
-        }
-        modal.classList.remove('hidden');
-    };
-
-    window.closeHomeDayDetailsModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('day-details-modal');
-            if(modal) modal.classList.add('hidden');
-        }, 10);
     };
 
     window.getRelativeTime = function(d) {
@@ -487,19 +344,24 @@ window.HomeModule = (() => {
     };
 
     if (window.EventDispatcher) {
-        window.EventDispatcher.onClick('.js-toggle-home-view', () => window.toggleHomeView());
+        // ZMIANA KRYTYCZNA: Ikonka kalendarza w widoku 'Dom' przenosi do Głównego Kalendarza
+        window.EventDispatcher.onClick('.js-toggle-home-view', () => {
+            window.switchView('calendar');
+            setTimeout(() => {
+                if (typeof window.CalendarModule.setFilter === 'function') {
+                    window.CalendarModule.setFilter('Dom');
+                }
+            }, 50);
+        });
+
         window.EventDispatcher.onClick('.js-open-home-stats', () => window.openStatsScreen());
         window.EventDispatcher.onClick('.js-refresh-home-view', () => window.refreshCurrentView());
         window.EventDispatcher.onClick('.js-open-new-task-modal', () => window.openNewTaskModal());
-        window.EventDispatcher.onClick('.js-change-home-month', (e, el) => window.changeHomeMonth(el.dataset.offset));
 
         window.EventDispatcher.onClick('.js-home-back', (e) => {
             e.preventDefault(); e.stopPropagation(); 
             window.clearRoomFilter();
         });
-        
-        window.EventDispatcher.onClick('.js-open-home-day-details', (e, el) => window.openHomeDayDetails(el.dataset.date));
-        window.EventDispatcher.onClick('.js-close-home-day-details', () => window.closeHomeDayDetailsModal());
 
         window.EventDispatcher.onClick('.js-add-log', (e, el) => {
             e.preventDefault(); e.stopPropagation();
@@ -515,7 +377,6 @@ window.HomeModule = (() => {
         window.EventDispatcher.onClick('.js-delete-task', (e, el) => window.deleteTaskFromHome(el.dataset.id, el.dataset.name));
         window.EventDispatcher.onClick('.js-filter-room', (e, el) => window.filterHomeByRoom(el.dataset.room));
 
-        // Podpięcie modali (przyciski bez onclick w HTML)
         window.EventDispatcher.onClick('.js-close-new-task', () => window.closeNewTaskModal());
         window.EventDispatcher.onClick('.js-save-new-task', () => window.saveNewTask());
         
