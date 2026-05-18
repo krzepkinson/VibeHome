@@ -158,28 +158,6 @@ window.HomeModule = (() => {
         }
     };
 
-    window.getRelativeTime = function(d) {
-        const diff = Math.floor((new Date().setHours(0,0,0,0) - new Date(d).setHours(0,0,0,0)) / 86400000);
-        return diff === 0 ? "dzisiaj" : diff === 1 ? "wczoraj" : diff < 7 ? `${diff} dni temu` : new Date(d).toLocaleDateString('pl-PL');
-    };
-
-    window.getCompactStatus = function(lastDate, interval) {
-        if (!interval || interval <= 0) {
-            if (!lastDate) return { color: 'text-[#ffb4ab]', label: 'Zadanie jednorazowe', tooltip: 'Czeka na wykonanie.' };
-            return { color: 'text-neutral-500', label: `Zrobione ${window.getRelativeTime(lastDate)}`, tooltip: 'Wykonano.' };
-        }
-
-        if (!lastDate) return { color: 'text-neutral-500', label: 'Jeszcze nie robione', tooltip: 'Brak wpisów.' };
-        const relText = `Ostatnio ${window.getRelativeTime(lastDate)}`;
-        
-        const next = new Date(lastDate); next.setDate(next.getDate() + interval);
-        const diff = Math.ceil((next.setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
-        
-        return diff < 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: `Przeterminowane o ${Math.abs(diff)} dni.` } 
-               : diff === 0 ? { color: 'text-[#ffb4ab]', label: relText, tooltip: 'Dzisiaj!' } 
-               : { color: 'text-[#c4eed0]', label: relText, tooltip: `Za ${diff} dni.` };
-    };
-
     window.openAddLogModal = function(id, name) {
         window.loadAndShowModal('add-log-modal', '/modals/add-log.html', () => {
             document.getElementById('add-log-subtitle').innerText = name;
@@ -344,14 +322,12 @@ window.HomeModule = (() => {
     };
 
     if (window.EventDispatcher) {
-        // ZMIANA: Zwiększony czas oczekiwania, żeby plik calender.html na pewno się załadował!
-        window.EventDispatcher.onClick('.js-toggle-home-view', () => {
-            window.switchView('calendar');
-            setTimeout(() => {
-                if (typeof window.CalendarModule.setFilter === 'function') {
-                    window.CalendarModule.setFilter('Dom');
-                }
-            }, 1000); 
+        // ZMIANA KRYTYCZNA: Czekamy AWAIT aż router załaduje HTML kalendarza, zanim wywołamy ustawienia fitrów
+        window.EventDispatcher.onClick('.js-toggle-home-view', async () => {
+            await window.switchView('calendar');
+            if (typeof window.CalendarModule.setFilter === 'function') {
+                window.CalendarModule.setFilter('Dom');
+            }
         });
 
         window.EventDispatcher.onClick('.js-open-home-stats', () => window.openStatsScreen());
