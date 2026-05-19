@@ -14,6 +14,14 @@ window.HomeModule = (() => {
         return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     };
 
+    const parseLocalDatetime = (dtStr) => {
+        if (!dtStr) return null;
+        if (dtStr.length === 16) dtStr += ':00'; // Fix dla Safari
+        const d = new Date(dtStr);
+        if (isNaN(d.getTime())) return new Date(dtStr.replace('T', ' ').replace(/-/g, '/'));
+        return d;
+    };
+
     window.filterHomeByRoom = function(room) {
         roomFilter = room;
         if (window.activeView !== 'home') {
@@ -206,13 +214,15 @@ window.HomeModule = (() => {
 
     window.saveNewLog = async function() {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+        if (document.activeElement) document.activeElement.blur();
+
         const taskId = document.getElementById('add-log-name').value;
         const dStr = document.getElementById('add-log-date').value; 
         const nt = document.getElementById('add-log-notes').value;
         const taskObj = tasks.find(t => t.id == taskId);
         
         if (!dStr) { window.showToast("Wprowadź datę i godzinę!"); return; }
-        const finalDate = new Date(dStr).toISOString();
+        const finalDate = parseLocalDatetime(dStr).toISOString();
         
         const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
             task_id: taskId, activity_name: taskObj ? taskObj.name : 'Zadanie', 
@@ -258,6 +268,8 @@ window.HomeModule = (() => {
     };
 
     window.saveNewTask = async function() {
+        if (document.activeElement) document.activeElement.blur();
+
         const n = document.getElementById('new-task-name').value.trim();
         const i = parseInt(document.getElementById('new-task-interval').value) || 0;
         const remind = parseInt(document.getElementById('new-task-remind').value) || 0;
@@ -298,7 +310,6 @@ window.HomeModule = (() => {
         window.loadDashboard();
     };
 
-    // ZMIANA KRYTYCZNA: Asynchroniczne sprawdzanie i uzupełnianie brakujących danych
     window.openEditLogModal = function(logId) {
         let log = logs.find(l => l.id === logId);
         if (!log && window.AppStore) {
@@ -324,12 +335,14 @@ window.HomeModule = (() => {
     };
 
     window.saveEditLog = async function() {
+        if (document.activeElement) document.activeElement.blur();
+
         const id = document.getElementById('edit-log-id').value;
         const dateStr = document.getElementById('edit-log-date').value;
         const notes = document.getElementById('edit-log-notes').value.trim();
 
         if (!id || !dateStr) { window.showToast("Wprowadź datę i godzinę!"); return; }
-        const finalDate = new Date(dateStr).toISOString();
+        const finalDate = parseLocalDatetime(dateStr).toISOString();
 
         const { error } = await window.supabaseClient.from('activity_logs')
             .update({ created_at: finalDate, notes: notes })
@@ -340,8 +353,9 @@ window.HomeModule = (() => {
         
         window.invalidateDashboardCache();
         window.closeEditLogModal();
+        
+        if (typeof window.loadDashboardOverview === 'function') await window.loadDashboardOverview(true);
         window.loadDashboard();
-        if (typeof window.refreshCurrentView === 'function') await window.refreshCurrentView();
     };
 
     window.deleteTaskFromHome = function(id, name) {
