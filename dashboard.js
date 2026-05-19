@@ -6,7 +6,6 @@ window.DashboardModule = (() => {
 
     window.dashboardCacheTime = 0;
 
-    // KULOODPORNA FUNKCJA DATY (Zapobiega crashom)
     const getLocalDayStr = (dObj = new Date()) => {
         if (!dObj || isNaN(dObj.getTime())) return '';
         const y = dObj.getFullYear();
@@ -25,7 +24,6 @@ window.DashboardModule = (() => {
             
             const state = window.AppStore.get() || {};
             
-            // Pokazujemy "Ładowanie..." TYLKO wtedy, gdy nie mamy starych danych w pamięci.
             if (!state.tasks || state.tasks.length === 0) {
                 const containers = ['widget-home-content', 'widget-health-content', 'widget-todo-content'];
                 containers.forEach(id => {
@@ -37,8 +35,8 @@ window.DashboardModule = (() => {
             const hid = window.currentUser.household_id; 
             
             try {
-                // ZMIANA: Dodano eventsRes (tabela calendar_events)
-                const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes] = await Promise.all([
+                // ZMIANA KRYTYCZNA: Dodano pobieranie health_measurements!
+                const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes, measRes] = await Promise.all([
                     window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
                     window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
                     window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
@@ -47,7 +45,8 @@ window.DashboardModule = (() => {
                     window.supabaseClient.from('profiles').select('*').eq('household_id', hid),
                     window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name'),
                     window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false),
-                    window.supabaseClient.from('calendar_events').select('*').eq('household_id', hid).order('event_datetime', { ascending: true })
+                    window.supabaseClient.from('calendar_events').select('*').eq('household_id', hid).order('event_datetime', { ascending: true }),
+                    window.supabaseClient.from('health_measurements').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100)
                 ]);
 
                 window.AppStore.set({
@@ -59,7 +58,8 @@ window.DashboardModule = (() => {
                     profiles: profilesRes.data || [],
                     rooms: roomsRes.data || [],
                     checklists: listsRes.data || [],
-                    calendarEvents: eventsRes.data || [] // ZMIANA: Zapis do stora
+                    calendarEvents: eventsRes.data || [],
+                    hMeasurements: measRes.data || [] // Zapis pomiarów w AppStore
                 });
                 
                 window.dashboardCacheTime = now;
@@ -424,7 +424,7 @@ window.DashboardModule = (() => {
         const hLogs = state.hLogs || [];
         const profiles = state.profiles || [];
         const checklists = state.checklists || [];
-        const calEvents = state.calendarEvents || []; // ZMIANA: Dodano obsługę calendarEvents
+        const calEvents = state.calendarEvents || []; 
 
         hTasks.forEach(ht => {
             if (ht.task_type !== 'one_time' || !ht.event_date) return;
@@ -450,7 +450,6 @@ window.DashboardModule = (() => {
             }
         });
 
-        // ZMIANA: KALENDARZ (Kino, itp.)
         calEvents.forEach(ev => {
             const evDateFull = new Date(ev.event_datetime);
             const dateOnly = new Date(evDateFull); dateOnly.setHours(0,0,0,0);
@@ -462,7 +461,6 @@ window.DashboardModule = (() => {
             }
         });
 
-        // ZMIANA: Sortowanie z uwzględnieniem dokładnego czasu
         horizonItems.sort((a, b) => {
             const timeA = a.exactTime ? a.exactTime.getTime() : a.date.getTime();
             const timeB = b.exactTime ? b.exactTime.getTime() : b.date.getTime();
@@ -478,7 +476,6 @@ window.DashboardModule = (() => {
                 if (daysUntil === 0) urgencyLabel = 'Dzisiaj!';
                 else if (daysUntil === 1) urgencyLabel = 'Jutro!';
                 
-                // ZMIANA: Dodano formatowanie godziny
                 let timeText = '';
                 if (item.exactTime) {
                     timeText = ' o ' + item.exactTime.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
@@ -519,7 +516,6 @@ window.DashboardModule = (() => {
                         </div>
                     </div>`;
                 } else if (item.type === 'event') {
-                    // ZMIANA: Widok dla kalendarzowych wydarzeń towarzyskich
                     return `
                     <div class="flex items-center justify-between px-4 py-3 bg-[#3f0f4a]/20 rounded-[16px] border border-[#d946ef]/30 mb-1.5 shadow-sm js-dash-nav cursor-pointer active:scale-95 transition-transform" data-view="calendar">
                         <div class="flex gap-4 items-center">
@@ -541,7 +537,7 @@ window.DashboardModule = (() => {
         }
     }
 
-    // --- RENDEROWANIE: HISTORIA OVERLAY ---
+    // --- ZMIANA KRYTYCZNA: HISTORIA OVERLAY (Dopasowana do modułu Zdrowia) ---
     function _renderHistoryOverlay(state) {
         const listEl = document.getElementById('dashboard-history-list');
         if (!listEl) return;
@@ -551,13 +547,57 @@ window.DashboardModule = (() => {
         const tasks = state.tasks || [];
         const hLogs = state.hLogs || [];
         const hTasks = state.hTasks || [];
+        const hMeas = state.hMeasurements || []; // NOWE: Pomiary
         const profiles = state.profiles || [];
         const todos = state.todos || [];
 
-        logs.forEach(l => { const t = tasks.find(x => x.id === l.task_id); if (!t || t.show_in_history !== false) historyItems.push({ table: 'activity_logs', id: l.id, title: l.activity_name, date: new Date(l.created_at), icon: '🏠', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' }); });
-        hLogs.forEach(l => { const ht = hTasks.find(x => x.id === l.health_task_id); if (!ht || ht.show_in_history !== false) { const profile = profiles.find(p => p.id === ht?.profile_id); const title = (ht ? ht.name : 'Zdarzenie') + (profile ? ` (${profile.name})` : ''); historyItems.push({ table: 'health_logs', id: l.id, title, date: l.end_date ? new Date(l.end_date) : new Date(l.start_date), icon: '❤️', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' }); } });
-        todos.filter(t => t.is_completed).forEach(t => { historyItems.push({ table: 'todos', id: t.id, title: t.title, date: t.completed_at ? new Date(t.completed_at) : new Date(t.created_at), icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' }); });
+        // Dodawanie Zadań Domowych
+        logs.forEach(l => { 
+            const t = tasks.find(x => x.id === l.task_id); 
+            if (!t || t.show_in_history !== false) {
+                historyItems.push({ 
+                    table: 'activity_logs', id: l.id, title: l.activity_name, 
+                    date: new Date(l.created_at), // Data z logu
+                    icon: '🏠', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' 
+                }); 
+            }
+        });
         
+        // Dodawanie Zdarzeń Zdrowotnych (Zawsze start_date jak w Książeczce Zdrowia)
+        hLogs.forEach(l => { 
+            const ht = hTasks.find(x => x.id === l.health_task_id); 
+            if (!ht || ht.show_in_history !== false) { 
+                const profile = profiles.find(p => p.id === ht?.profile_id); 
+                const title = (ht ? ht.name : 'Zdarzenie') + (profile ? ` (${profile.name})` : ''); 
+                historyItems.push({ 
+                    table: 'health_logs', id: l.id, title, 
+                    date: new Date(l.start_date), // ZMIANA KRYTYCZNA: Ujednolicona data
+                    icon: '❤️', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' 
+                }); 
+            } 
+        });
+
+        // Dodawanie Pomiarów
+        hMeas.forEach(m => {
+            const profile = profiles.find(p => p.id === m.profile_id);
+            const title = `Pomiar: ${m.measurement_type}` + (profile ? ` (${profile.name})` : '');
+            historyItems.push({
+                table: 'health_measurements', id: m.id, title,
+                date: new Date(m.created_at),
+                icon: '📏', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: null // Pomiary nie mają zmiany wykonawcy na razie
+            });
+        });
+
+        // Dodawanie Zadań
+        todos.filter(t => t.is_completed).forEach(t => { 
+            historyItems.push({ 
+                table: 'todos', id: t.id, title: t.title, 
+                date: new Date(t.completed_at), 
+                icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' 
+            }); 
+        });
+        
+        // Sortowanie po nowemu
         historyItems.sort((a, b) => b.date - a.date);
         
         if (historyItems.length === 0) {
@@ -566,7 +606,13 @@ window.DashboardModule = (() => {
         }
 
         listEl.innerHTML = `<div class="relative border-l-2 border-[#333537] ml-3 mt-2 mb-6 space-y-4">` + historyItems.slice(0, 50).map(item => {
-            const initial = (item.user || '?')[0].toUpperCase();
+            const userBtn = item.user ? `<div class="js-dash-change-user w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold cursor-pointer active:scale-90 transition-transform" data-table="${item.table}" data-id="${item.id}" data-username="${window.esc(item.user)}">${item.user[0].toUpperCase()}</div>` : '';
+            
+            let editBtn = '';
+            if (['activity_logs', 'health_logs', 'health_measurements'].includes(item.table)) {
+                editBtn = `<button class="js-dash-edit-log cursor-pointer text-neutral-500 hover:text-[#a8c7fa] p-1.5 active:scale-90 transition-transform text-xs" data-table="${item.table}" data-id="${item.id}" title="Edytuj">✏️</button>`;
+            }
+
             return `
             <div class="relative pl-5 animate-fade-in">
                 <div class="absolute -left-[13px] top-1.5 w-6 h-6 rounded-full ${item.bg} ${item.border} border flex items-center justify-center text-xs shadow-md">${item.icon}</div>
@@ -576,8 +622,9 @@ window.DashboardModule = (() => {
                         <p class="text-[10px] text-neutral-500 mt-0.5">${item.date.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
-                        <div class="js-dash-change-user w-6 h-6 rounded-full bg-[#333537] border border-[#444746] text-neutral-300 text-[10px] flex items-center justify-center font-bold cursor-pointer active:scale-90 transition-transform" data-table="${item.table}" data-id="${item.id}" data-username="${window.esc(item.user)}">${initial}</div>
-                        <button class="js-dash-undo-log cursor-pointer text-neutral-500 hover:text-[#ffb4ab] p-1.5 active:scale-90 transition-transform text-xs" data-table="${item.table}" data-id="${item.id}" title="Cofnij">🗑️</button>
+                        ${userBtn}
+                        ${editBtn}
+                        <button class="js-dash-undo-log cursor-pointer text-neutral-500 hover:text-[#ffb4ab] p-1.5 active:scale-90 transition-transform text-xs" data-table="${item.table}" data-id="${item.id}" title="Cofnij/Usuń">🗑️</button>
                     </div>
                 </div>
             </div>`;
@@ -698,7 +745,7 @@ window.DashboardModule = (() => {
     };
 
     window.undoActionDashboard = function(table, id) {
-        window.customConfirm("Cofnąć to wykonanie?", async () => {
+        window.customConfirm("Cofnąć / usunąć to wydarzenie?", async () => {
             let errorObj = null;
             if (table === 'todos') {
                 const { error } = await window.supabaseClient.from('todos').update({ is_completed: false, completed_at: null, completer_name: null }).eq('id', id);
@@ -711,7 +758,7 @@ window.DashboardModule = (() => {
             if (errorObj) { 
                 window.showToast("Błąd: " + errorObj.message); 
             } else {
-                window.showToast("Cofnięto!");
+                window.showToast("Usunięto pomyślnie!");
                 window.invalidateDashboardCache();
                 window.loadDashboardOverview(true);
                 const ov = document.getElementById('dashboard-history-overlay');
@@ -755,6 +802,19 @@ window.DashboardModule = (() => {
         window.EventDispatcher.onClick('.js-dashboard-refresh', () => {
             window.invalidateDashboardCache();
             window.loadDashboardOverview(true);
+        });
+
+        // Obsługa kliknięcia przycisku Edycji w Globalnej Historii
+        window.EventDispatcher.onClick('.js-dash-edit-log', (e, el) => {
+            const table = el.dataset.table;
+            const id = parseInt(el.dataset.id);
+            if (table === 'activity_logs') {
+                if (typeof window.openEditLogModal === 'function') window.openEditLogModal(id);
+            } else if (table === 'health_logs') {
+                if (typeof window.openEditHealthBookItem === 'function') window.openEditHealthBookItem(id, 'log');
+            } else if (table === 'health_measurements') {
+                if (typeof window.openEditHealthBookItem === 'function') window.openEditHealthBookItem(id, 'measurement');
+            }
         });
 
         window.EventDispatcher.onClick('.js-dash-nav', (e, el) => window.switchView(el.dataset.view));
