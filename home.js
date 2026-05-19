@@ -7,6 +7,14 @@ window.HomeModule = (() => {
     let tasks = []; 
     let roomFilter = null; 
 
+    // Pomocnik do obsługi precyzyjnego czasu i stref czasowych
+    const formatLocalDatetime = (isoStr) => {
+        if (!isoStr) return '';
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return '';
+        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    };
+
     window.filterHomeByRoom = function(room) {
         roomFilter = room;
         if (window.activeView !== 'home') {
@@ -158,59 +166,6 @@ window.HomeModule = (() => {
         }
     };
 
-    // ZMIANA KRYTYCZNA: Asynchroniczne ładowanie modala szczegółów dnia (Lazy Loading)
-    window.openHomeDayDetails = function(dateStr) {
-        window.loadAndShowModal('day-details-modal', '/modals/day-details.html', () => {
-            const list = document.getElementById('day-details-list');
-            document.getElementById('day-details-title').innerText = "Wydarzenia w Domu";
-            document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
-            
-            const dayLogs = logs.filter(l => l.created_at.startsWith(dateStr));
-            const dueTasks = tasks.filter(task => {
-                if (!task.interval_days || task.interval_days === 0) return false;
-                const taskLogs = logs.filter(l => l.task_id === task.id);
-                if (taskLogs.length === 0) return false; 
-                const lastLog = taskLogs[0];
-                const lastDate = new Date(lastLog.created_at); lastDate.setHours(0,0,0,0);
-                const nextDate = new Date(lastDate); nextDate.setDate(nextDate.getDate() + task.interval_days);
-                return window.getTodayLocalString(nextDate) === dateStr;
-            });
-
-            if (dayLogs.length === 0 && dueTasks.length === 0) {
-                list.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Brak zadań w tym dniu.</p>`;
-            } else {
-                let html = '';
-                dueTasks.forEach(t => {
-                    html += `
-                    <div class="px-3 py-2 bg-[#1e1f20] rounded-xl border border-[#8c1d18]/50 mb-1.5 flex justify-between items-center">
-                        <div>
-                            <p class="text-sm font-medium text-[#ffb4ab]">📅 ${window.esc(t.name)}</p>
-                            <p class="text-[10px] text-neutral-500 mt-0.5">Zaplanowane do zrobienia</p>
-                        </div>
-                    </div>`;
-                });
-                dayLogs.forEach(l => {
-                    const task = tasks.find(t => t.id === l.task_id) || { name: l.activity_name };
-                    html += `
-                    <div class="px-3 py-2 bg-[#131314] rounded-xl border border-[#0f5223]/50 mb-1.5 flex justify-between items-center">
-                        <div>
-                            <p class="text-sm font-medium text-[#c4eed0]">✓ ${window.esc(task.name)}</p>
-                            <p class="text-[10px] text-neutral-500 mt-0.5">Wykonane (${l.user_name || '?'})</p>
-                        </div>
-                    </div>`;
-                });
-                list.innerHTML = html;
-            }
-        });
-    };
-
-    window.closeHomeDayDetailsModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('day-details-modal');
-            if(modal) modal.classList.add('hidden');
-        }, 10);
-    };
-
     window.getRelativeTime = function(d) {
         const diff = Math.floor((new Date().setHours(0,0,0,0) - new Date(d).setHours(0,0,0,0)) / 86400000);
         return diff === 0 ? "dzisiaj" : diff === 1 ? "wczoraj" : diff < 7 ? `${diff} dni temu` : new Date(d).toLocaleDateString('pl-PL');
@@ -237,7 +192,7 @@ window.HomeModule = (() => {
         window.loadAndShowModal('add-log-modal', '/modals/add-log.html', () => {
             document.getElementById('add-log-subtitle').innerText = name;
             document.getElementById('add-log-name').value = id; 
-            document.getElementById('add-log-date').value = window.getTodayLocalString();
+            document.getElementById('add-log-date').value = formatLocalDatetime(new Date().toISOString());
             document.getElementById('add-log-notes').value = '';
             setTimeout(() => { const input = document.getElementById('add-log-notes'); if (input) input.focus(); }, 50);
         });
@@ -253,12 +208,12 @@ window.HomeModule = (() => {
     window.saveNewLog = async function() {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
         const taskId = document.getElementById('add-log-name').value;
-        const d = document.getElementById('add-log-date').value; 
+        const dStr = document.getElementById('add-log-date').value; 
         const nt = document.getElementById('add-log-notes').value;
         const taskObj = tasks.find(t => t.id == taskId);
         
-        const todayStr = window.getTodayLocalString();
-        const finalDate = (d === todayStr) ? new Date().toISOString() : `${d}T12:00:00.000Z`;
+        if (!dStr) { window.showToast("Wprowadź datę i godzinę!"); return; }
+        const finalDate = new Date(dStr).toISOString();
         
         const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
             task_id: taskId, activity_name: taskObj ? taskObj.name : 'Zadanie', 
@@ -350,7 +305,7 @@ window.HomeModule = (() => {
 
         window.loadAndShowModal('edit-log-modal', '/modals/edit-log.html', () => {
             document.getElementById('edit-log-id').value = log.id;
-            document.getElementById('edit-log-date').value = log.created_at.split('T')[0];
+            document.getElementById('edit-log-date').value = formatLocalDatetime(log.created_at);
             document.getElementById('edit-log-notes').value = log.notes || '';
             setTimeout(() => { const input = document.getElementById('edit-log-notes'); if (input) input.focus(); }, 50);
         });
@@ -365,12 +320,11 @@ window.HomeModule = (() => {
 
     window.saveEditLog = async function() {
         const id = document.getElementById('edit-log-id').value;
-        const date = document.getElementById('edit-log-date').value;
+        const dateStr = document.getElementById('edit-log-date').value;
         const notes = document.getElementById('edit-log-notes').value.trim();
 
-        if (!id || !date) return;
-        const todayStr = window.getTodayLocalString();
-        const finalDate = (date === todayStr) ? new Date().toISOString() : `${date}T12:00:00.000Z`;
+        if (!id || !dateStr) { window.showToast("Wprowadź datę i godzinę!"); return; }
+        const finalDate = new Date(dateStr).toISOString();
 
         const { error } = await window.supabaseClient.from('activity_logs')
             .update({ created_at: finalDate, notes: notes })
@@ -412,9 +366,6 @@ window.HomeModule = (() => {
             e.preventDefault(); e.stopPropagation(); 
             window.clearRoomFilter();
         });
-
-        window.EventDispatcher.onClick('.js-open-home-day-details', (e, el) => window.openHomeDayDetails(el.dataset.date));
-        window.EventDispatcher.onClick('.js-close-day-details-modal', () => window.closeHomeDayDetailsModal());
 
         window.EventDispatcher.onClick('.js-add-log', (e, el) => {
             e.preventDefault(); e.stopPropagation();
