@@ -7,7 +7,6 @@ window.HomeModule = (() => {
     let tasks = []; 
     let roomFilter = null; 
 
-    // Pomocnik do obsługi precyzyjnego czasu i stref czasowych
     const formatLocalDatetime = (isoStr) => {
         if (!isoStr) return '';
         const d = new Date(isoStr);
@@ -299,8 +298,14 @@ window.HomeModule = (() => {
         window.loadDashboard();
     };
 
+    // ZMIANA KRYTYCZNA: Asynchroniczne sprawdzanie i uzupełnianie brakujących danych
     window.openEditLogModal = function(logId) {
-        const log = logs.find(l => l.id === logId);
+        let log = logs.find(l => l.id === logId);
+        if (!log && window.AppStore) {
+            const state = window.AppStore.get();
+            log = (state.logs || []).find(l => l.id === logId);
+        }
+        
         if (!log) { window.showToast("Nie znaleziono wpisu."); return; }
 
         window.loadAndShowModal('edit-log-modal', '/modals/edit-log.html', () => {
@@ -366,6 +371,9 @@ window.HomeModule = (() => {
             e.preventDefault(); e.stopPropagation(); 
             window.clearRoomFilter();
         });
+
+        window.EventDispatcher.onClick('.js-open-home-day-details', (e, el) => window.openHomeDayDetails(el.dataset.date));
+        window.EventDispatcher.onClick('.js-close-day-details-modal', () => window.closeHomeDayDetailsModal());
 
         window.EventDispatcher.onClick('.js-add-log', (e, el) => {
             e.preventDefault(); e.stopPropagation();
