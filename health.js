@@ -10,6 +10,7 @@ window.HealthModule = (() => {
     let currentProfileId = null; 
     let isSwitchingProfile = false; 
 
+    // Pomocnik ucinający i formatujący czas z bazy do formatu HTML (Input)
     const formatLocalDatetime = (isoStr) => {
         if (!isoStr) return '';
         const d = new Date(isoStr);
@@ -17,10 +18,20 @@ window.HealthModule = (() => {
         return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     };
 
-    const forceTouchRepaint = () => {
-        if (document.activeElement) document.activeElement.blur();
-        document.body.style.cursor = 'default';
-        setTimeout(() => { document.body.style.cursor = ''; }, 50);
+    // Posiłki dla opornych przeglądarek mobilnych (Safari Fix)
+    const parseLocalDatetime = (dtStr) => {
+        if (!dtStr) return null;
+        if (dtStr.length === 16) dtStr += ':00'; // Safari gubi się, gdy nie ma podanych sekund
+        const d = new Date(dtStr);
+        if (isNaN(d.getTime())) return new Date(dtStr.replace('T', ' ').replace(/-/g, '/'));
+        return d;
+    };
+
+    const getLocalDayStr = (dObj = new Date()) => {
+        const y = dObj.getFullYear();
+        const m = String(dObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dObj.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
     };
 
     window.initHealthModule = async function() {
@@ -234,6 +245,8 @@ window.HealthModule = (() => {
 
     window.startHealthLog = async function(taskId, type) {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+        if (document.activeElement) document.activeElement.blur();
+
         const now = new Date().toISOString();
         
         const { error } = await window.supabaseClient.from('health_logs').insert([{ 
@@ -261,6 +274,8 @@ window.HealthModule = (() => {
 
     window.closeHealthLog = async function(logId) {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+        if (document.activeElement) document.activeElement.blur();
+
         const { error } = await window.supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('household_id', window.currentUser.household_id);
         if (error) { window.showToast("Błąd: " + error.message); return; }
         window.showToast("Zakończono"); 
@@ -327,6 +342,8 @@ window.HealthModule = (() => {
     };
 
     window.saveNewHealthTask = async function() {
+        if (document.activeElement) document.activeElement.blur();
+
         const n = document.getElementById('h-task-name').value.trim(); 
         const type = document.getElementById('h-task-type').value;
         
@@ -424,7 +441,7 @@ window.HealthModule = (() => {
                 dateWrapper.classList.remove('hidden');
                 
                 const dateInput = document.getElementById('health-settings-date');
-                if (dateInput) dateInput.value = task.event_date ? task.event_date.split('T')[0] : '';
+                if (dateInput) dateInput.value = task.event_date ? formatLocalDatetime(task.event_date) : '';
                 
                 const remindInput = document.getElementById('health-settings-remind-date');
                 if (remindInput) remindInput.value = task.remind_days_before || 0; 
@@ -435,15 +452,15 @@ window.HealthModule = (() => {
     window.closeHealthSettingsScreen = function() { window.goBack(); };
 
     window.saveHealthSettings = async function() {
+        if (document.activeElement) document.activeElement.blur();
+
         const task = healthTasks.find(t => t.id === window.currentHealthSettingsId);
-        
         if (!task) {
             window.showToast("Błąd: Nie znaleziono zadania.");
             return;
         }
 
         const n = document.getElementById('health-settings-name').value.trim(); 
-        
         let updateData = { name: n };
         
         const catEl = document.getElementById('health-settings-category');
@@ -453,10 +470,11 @@ window.HealthModule = (() => {
             updateData.interval_days = parseInt(document.getElementById('health-settings-interval').value) || 0; 
             updateData.remind_days_before = parseInt(document.getElementById('health-settings-remind-days').value) || 0; 
         } else if (task.task_type === 'one_time') {
-            updateData.event_date = document.getElementById('health-settings-date').value || null;
+            const dateStr = document.getElementById('health-settings-date').value;
+            updateData.event_date = dateStr ? parseLocalDatetime(dateStr).toISOString() : null;
             updateData.remind_days_before = parseInt(document.getElementById('health-settings-remind-date').value) || 0;
             if (updateData.event_date) {
-                updateData.next_due_at = new Date(updateData.event_date).toISOString();
+                updateData.next_due_at = updateData.event_date;
             }
         }
         
@@ -592,6 +610,8 @@ window.HealthModule = (() => {
     };
 
     window.saveNewPharmacyItem = async function() {
+        if (document.activeElement) document.activeElement.blur();
+        
         const name = document.getElementById('pharmacy-item-name').value.trim();
         const expRaw = document.getElementById('pharmacy-item-exp').value || null; 
         const purpose = document.getElementById('pharmacy-item-purpose').value.trim() || null;
@@ -636,6 +656,8 @@ window.HealthModule = (() => {
     };
 
     window.saveEditedPharmacyItem = async function() {
+        if (document.activeElement) document.activeElement.blur();
+        
         const id = document.getElementById('edit-pharmacy-id').value;
         const name = document.getElementById('edit-pharmacy-name').value.trim();
         const expRaw = document.getElementById('edit-pharmacy-exp').value || null;
@@ -689,6 +711,8 @@ window.HealthModule = (() => {
     };
 
     window.saveNewMeasurement = async function() {
+        if (document.activeElement) document.activeElement.blur();
+        
         const type = document.getElementById('measurement-type').value;
         const valRaw = document.getElementById('measurement-value').value.trim();
         const dateStr = document.getElementById('measurement-date').value;
@@ -697,7 +721,7 @@ window.HealthModule = (() => {
         const numericVal = parseFloat(valRaw.replace(',', '.'));
         if (isNaN(numericVal)) { window.showToast("Podaj poprawną liczbę!"); return; }
         let unit = type === 'Waga' ? 'kg' : (type === 'Wzrost' ? 'cm' : '°C');
-        const finalDate = new Date(dateStr).toISOString();
+        const finalDate = parseLocalDatetime(dateStr).toISOString();
 
         const { error } = await window.supabaseClient.from('health_measurements').insert([{
             household_id: window.currentUser.household_id, profile_id: currentProfileId, user_id: window.currentUser.user_id,
@@ -728,7 +752,6 @@ window.HealthModule = (() => {
         });
     };
 
-    // ZMIANA KRYTYCZNA: Asynchroniczne sprawdzanie AppStore przy otwieraniu okienek z Dashboardu
     window.openEditHealthBookItem = function(id, type) {
         const state = window.AppStore ? window.AppStore.get() : {};
         if (type === 'log') {
@@ -776,6 +799,8 @@ window.HealthModule = (() => {
     };
 
     window.saveEditHealthLog = async function() {
+        if (document.activeElement) document.activeElement.blur();
+
         const state = window.AppStore ? window.AppStore.get() : {};
         const id = document.getElementById('edit-hlog-id').value;
         const startStr = document.getElementById('edit-hlog-start').value;
@@ -787,11 +812,11 @@ window.HealthModule = (() => {
         if (!log) return;
         const task = healthTasks.find(t => t.id == log.health_task_id) || (state.hTasks || []).find(t => t.id == log.health_task_id);
 
-        const startDateIso = new Date(startStr).toISOString();
+        const startDateIso = parseLocalDatetime(startStr).toISOString();
         let endDateIso = log.end_date; 
         
         if (task && task.task_type === 'duration') {
-            endDateIso = endStr ? new Date(endStr).toISOString() : null;
+            endDateIso = endStr ? parseLocalDatetime(endStr).toISOString() : null;
         } else {
             endDateIso = startDateIso;
         }
@@ -816,6 +841,8 @@ window.HealthModule = (() => {
     };
 
     window.saveEditMeasurement = async function() {
+        if (document.activeElement) document.activeElement.blur();
+
         const id = document.getElementById('edit-meas-id').value;
         const valRaw = document.getElementById('edit-meas-value').value.trim();
         const dateStr = document.getElementById('edit-meas-date').value;
@@ -825,7 +852,7 @@ window.HealthModule = (() => {
         const numericVal = parseFloat(valRaw.replace(',', '.'));
         if (isNaN(numericVal)) { window.showToast("Podaj poprawną liczbę!"); return; }
 
-        const finalDate = new Date(dateStr).toISOString();
+        const finalDate = parseLocalDatetime(dateStr).toISOString();
 
         const { error } = await window.supabaseClient.from('health_measurements')
             .update({ value: numericVal, created_at: finalDate, notes: notes })
@@ -1023,7 +1050,6 @@ window.HealthModule = (() => {
             window.deleteHealthBookItem(el.dataset.id, el.dataset.type);
         });
 
-        // PODPIĘCIA DLA EDYCJI:
         window.EventDispatcher.onClick('.js-edit-health-book-item', (e, el) => {
             window.openEditHealthBookItem(el.dataset.id, el.dataset.type);
         });
