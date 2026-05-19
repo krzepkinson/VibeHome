@@ -12,15 +12,15 @@ window.EventDispatcher = (() => {
     style.innerHTML = '[class*="js-"] { cursor: pointer; -webkit-tap-highlight-color: transparent; }';
     document.head.appendChild(style);
 
-    // Dodatkowy fix dla bardzo starych wersji iOS (odblokowuje delegację kliknięć)
+    // Dodatkowy fix dla starszych wersji mobilnych (odblokowuje delegację kliknięć)
     document.body.addEventListener('touchstart', () => {}, { passive: true });
 
-    // Rejestracja globalnego nasłuchiwacza na klasę (np. .js-open-modal)
+    // Rejestracja globalnego nasłuchiwacza
     const onClick = (selector, callback) => {
         clickHandlers.push({ selector, callback });
     };
 
-    // Zaawansowane szukanie najspecyficzniejszego (najbliższego) dopasowania!
+    // Zaawansowane szukanie najspecyficzniejszego dopasowania
     document.addEventListener('click', (e) => {
         let bestMatch = null;
         let bestDepth = Infinity;
@@ -31,12 +31,12 @@ window.EventDispatcher = (() => {
 
             if (!targetElement) continue;
 
-            // Obliczamy głębokość: im bliżej e.target (klikanego miejsca) tym mniejsza głębokość (wyższy priorytet)
+            // Obliczamy głębokość
             let depth = 0;
             let node = e.target;
             while (node && node !== targetElement) {
                 depth++;
-                node = node.parentNode; // Używamy parentNode, by było bezpieczne dla ikon SVG na telefonach
+                node = node.parentNode; // Użyto parentNode (bezpieczne dla ikon SVG)
             }
 
             if (depth < bestDepth) {
@@ -45,7 +45,6 @@ window.EventDispatcher = (() => {
             }
         }
 
-        // Uruchamiamy TYLKO jedno, najdokładniejsze trafienie!
         if (bestMatch) {
             bestMatch.callback(e, bestMatch.targetElement);
         }
