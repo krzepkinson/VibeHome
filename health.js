@@ -10,7 +10,6 @@ window.HealthModule = (() => {
     let currentProfileId = null; 
     let isSwitchingProfile = false; 
 
-    // Pomocnik do formatowania z bazy do inputa datetime-local (uwzględnia strefę czasową PL)
     const formatLocalDatetime = (isoStr) => {
         if (!isoStr) return '';
         const d = new Date(isoStr);
@@ -729,12 +728,13 @@ window.HealthModule = (() => {
         });
     };
 
-    // NOWOŚĆ: Edycja logów (czas od - do) oraz pomiarów
+    // ZMIANA KRYTYCZNA: Asynchroniczne sprawdzanie AppStore przy otwieraniu okienek z Dashboardu
     window.openEditHealthBookItem = function(id, type) {
+        const state = window.AppStore ? window.AppStore.get() : {};
         if (type === 'log') {
-            const log = healthLogs.find(l => l.id == id);
+            let log = healthLogs.find(l => l.id == id) || (state.hLogs || []).find(l => l.id == id);
             if (!log) return;
-            const task = healthTasks.find(t => t.id == log.health_task_id);
+            const task = healthTasks.find(t => t.id == log.health_task_id) || (state.hTasks || []).find(t => t.id == log.health_task_id);
 
             window.loadAndShowModal('edit-health-log-modal', '/modals/edit-health-log.html', () => {
                 document.getElementById('edit-hlog-id').value = log.id;
@@ -754,7 +754,7 @@ window.HealthModule = (() => {
                 }
             });
         } else if (type === 'measurement') {
-            const meas = healthMeasurements.find(m => m.id == id);
+            let meas = healthMeasurements.find(m => m.id == id) || (state.hMeasurements || []).find(m => m.id == id);
             if (!meas) return;
             window.loadAndShowModal('edit-measurement-modal', '/modals/edit-measurement.html', () => {
                 document.getElementById('edit-meas-id').value = meas.id;
@@ -776,15 +776,16 @@ window.HealthModule = (() => {
     };
 
     window.saveEditHealthLog = async function() {
+        const state = window.AppStore ? window.AppStore.get() : {};
         const id = document.getElementById('edit-hlog-id').value;
         const startStr = document.getElementById('edit-hlog-start').value;
         const endStr = document.getElementById('edit-hlog-end').value;
         
         if (!id || !startStr) return;
 
-        const log = healthLogs.find(l => l.id == id);
+        const log = healthLogs.find(l => l.id == id) || (state.hLogs || []).find(l => l.id == id);
         if (!log) return;
-        const task = healthTasks.find(t => t.id == log.health_task_id);
+        const task = healthTasks.find(t => t.id == log.health_task_id) || (state.hTasks || []).find(t => t.id == log.health_task_id);
 
         const startDateIso = new Date(startStr).toISOString();
         let endDateIso = log.end_date; 
@@ -806,7 +807,12 @@ window.HealthModule = (() => {
         
         await window.refreshHealthData();
         if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
-        window.loadHealthBook();
+        
+        if (window.activeView === 'dashboard') {
+            if (typeof window.loadDashboardOverview === 'function') await window.loadDashboardOverview(true);
+        } else {
+            window.loadHealthBook();
+        }
     };
 
     window.saveEditMeasurement = async function() {
@@ -831,7 +837,13 @@ window.HealthModule = (() => {
         window.showToast("Zaktualizowano pomiar!");
         
         await window.refreshHealthData();
-        window.loadHealthBook();
+        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+        
+        if (window.activeView === 'dashboard') {
+            if (typeof window.loadDashboardOverview === 'function') await window.loadDashboardOverview(true);
+        } else {
+            window.loadHealthBook();
+        }
     };
 
     window.loadHealthBook = async function() {
@@ -854,7 +866,7 @@ window.HealthModule = (() => {
 
             if (mError) throw mError;
 
-            healthMeasurements = measurements || []; // Cache pomiarów dla edycji
+            healthMeasurements = measurements || []; 
             const tasks = healthTasks || [];
             const logs = healthLogs || [];
             
@@ -1011,7 +1023,7 @@ window.HealthModule = (() => {
             window.deleteHealthBookItem(el.dataset.id, el.dataset.type);
         });
 
-        // PODPIĘCIA NOWEJ EDYCJI:
+        // PODPIĘCIA DLA EDYCJI:
         window.EventDispatcher.onClick('.js-edit-health-book-item', (e, el) => {
             window.openEditHealthBookItem(el.dataset.id, el.dataset.type);
         });
