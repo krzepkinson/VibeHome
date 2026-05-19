@@ -6,15 +6,16 @@ window.HealthModule = (() => {
     let healthProfiles = []; 
     let healthTasks = []; 
     let healthLogs = [];
-    let healthMeasurements = []; // NOWE: Przechowujemy pomiary dla edycji
+    let healthMeasurements = [];
     let currentProfileId = null; 
     let isSwitchingProfile = false; 
 
-    const getLocalDayStr = (dObj = new Date()) => {
-        const y = dObj.getFullYear();
-        const m = String(dObj.getMonth() + 1).padStart(2, '0');
-        const d = String(dObj.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
+    // Pomocnik do formatowania z bazy do inputa datetime-local (uwzględnia strefę czasową PL)
+    const formatLocalDatetime = (isoStr) => {
+        if (!isoStr) return '';
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return '';
+        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     };
 
     const forceTouchRepaint = () => {
@@ -678,7 +679,7 @@ window.HealthModule = (() => {
         window.closeHealthFabMenu(); 
         window.loadAndShowModal('new-measurement-modal', '/modals/new-measurement.html', () => { 
             document.getElementById('measurement-value').value = ''; 
-            document.getElementById('measurement-date').value = getLocalDayStr(); 
+            document.getElementById('measurement-date').value = formatLocalDatetime(new Date().toISOString()); 
             document.getElementById('measurement-notes').value = ''; 
         }); 
     };
@@ -691,14 +692,13 @@ window.HealthModule = (() => {
     window.saveNewMeasurement = async function() {
         const type = document.getElementById('measurement-type').value;
         const valRaw = document.getElementById('measurement-value').value.trim();
-        const date = document.getElementById('measurement-date').value;
+        const dateStr = document.getElementById('measurement-date').value;
         const notes = document.getElementById('measurement-notes').value.trim();
         if (!valRaw || !currentProfileId) return;
         const numericVal = parseFloat(valRaw.replace(',', '.'));
         if (isNaN(numericVal)) { window.showToast("Podaj poprawną liczbę!"); return; }
         let unit = type === 'Waga' ? 'kg' : (type === 'Wzrost' ? 'cm' : '°C');
-        const todayStr = getLocalDayStr();
-        const finalDate = (date === todayStr) ? new Date().toISOString() : `${date}T12:00:00.000Z`;
+        const finalDate = new Date(dateStr).toISOString();
 
         const { error } = await window.supabaseClient.from('health_measurements').insert([{
             household_id: window.currentUser.household_id, profile_id: currentProfileId, user_id: window.currentUser.user_id,
@@ -729,14 +729,29 @@ window.HealthModule = (() => {
         });
     };
 
-    // EDYCJA LOGÓW I POMIARÓW
+    // NOWOŚĆ: Edycja logów (czas od - do) oraz pomiarów
     window.openEditHealthBookItem = function(id, type) {
         if (type === 'log') {
             const log = healthLogs.find(l => l.id == id);
             if (!log) return;
+            const task = healthTasks.find(t => t.id == log.health_task_id);
+
             window.loadAndShowModal('edit-health-log-modal', '/modals/edit-health-log.html', () => {
                 document.getElementById('edit-hlog-id').value = log.id;
-                document.getElementById('edit-hlog-date').value = log.start_date.split('T')[0];
+                
+                const startInput = document.getElementById('edit-hlog-start');
+                if (startInput) startInput.value = formatLocalDatetime(log.start_date);
+                
+                const endContainer = document.getElementById('edit-hlog-end-container');
+                const endInput = document.getElementById('edit-hlog-end');
+                
+                if (task && task.task_type === 'duration') {
+                    if (endContainer) endContainer.classList.remove('hidden');
+                    if (endInput) endInput.value = log.end_date ? formatLocalDatetime(log.end_date) : '';
+                } else {
+                    if (endContainer) endContainer.classList.add('hidden');
+                    if (endInput) endInput.value = '';
+                }
             });
         } else if (type === 'measurement') {
             const meas = healthMeasurements.find(m => m.id == id);
@@ -744,7 +759,7 @@ window.HealthModule = (() => {
             window.loadAndShowModal('edit-measurement-modal', '/modals/edit-measurement.html', () => {
                 document.getElementById('edit-meas-id').value = meas.id;
                 document.getElementById('edit-meas-value').value = meas.value;
-                document.getElementById('edit-meas-date').value = meas.created_at.split('T')[0];
+                document.getElementById('edit-meas-date').value = formatLocalDatetime(meas.created_at);
                 document.getElementById('edit-meas-notes').value = meas.notes || '';
             });
         }
@@ -762,17 +777,26 @@ window.HealthModule = (() => {
 
     window.saveEditHealthLog = async function() {
         const id = document.getElementById('edit-hlog-id').value;
-        const dateStr = document.getElementById('edit-hlog-date').value;
-        if (!id || !dateStr) return;
+        const startStr = document.getElementById('edit-hlog-start').value;
+        const endStr = document.getElementById('edit-hlog-end').value;
+        
+        if (!id || !startStr) return;
 
         const log = healthLogs.find(l => l.id == id);
         if (!log) return;
+        const task = healthTasks.find(t => t.id == log.health_task_id);
 
-        const todayStr = getLocalDayStr();
-        const finalDate = (dateStr === todayStr) ? new Date().toISOString() : `${dateStr}T12:00:00.000Z`;
+        const startDateIso = new Date(startStr).toISOString();
+        let endDateIso = log.end_date; 
+        
+        if (task && task.task_type === 'duration') {
+            endDateIso = endStr ? new Date(endStr).toISOString() : null;
+        } else {
+            endDateIso = startDateIso;
+        }
 
         const { error } = await window.supabaseClient.from('health_logs')
-            .update({ start_date: finalDate })
+            .update({ start_date: startDateIso, end_date: endDateIso })
             .eq('id', id).eq('household_id', window.currentUser.household_id);
 
         if (error) { window.showToast("Błąd: " + error.message); return; }
@@ -795,8 +819,7 @@ window.HealthModule = (() => {
         const numericVal = parseFloat(valRaw.replace(',', '.'));
         if (isNaN(numericVal)) { window.showToast("Podaj poprawną liczbę!"); return; }
 
-        const todayStr = getLocalDayStr();
-        const finalDate = (dateStr === todayStr) ? new Date().toISOString() : `${dateStr}T12:00:00.000Z`;
+        const finalDate = new Date(dateStr).toISOString();
 
         const { error } = await window.supabaseClient.from('health_measurements')
             .update({ value: numericVal, created_at: finalDate, notes: notes })
@@ -830,9 +853,8 @@ window.HealthModule = (() => {
                 .order('created_at', { ascending: false });
 
             if (mError) throw mError;
-            
-            healthMeasurements = measurements || []; // Zapisujemy pomiary do lokalnej tablicy
 
+            healthMeasurements = measurements || []; // Cache pomiarów dla edycji
             const tasks = healthTasks || [];
             const logs = healthLogs || [];
             
@@ -896,7 +918,6 @@ window.HealthModule = (() => {
                     lastMonthYear = monthYear;
                 }
                 
-                // NOWOŚĆ: Dodajemy przycisk Edycji przed przyciskiem Usuwania
                 html += `
                 <div class="relative pl-6 sm:pl-8 py-3 group border-l-2 border-[#333537] ml-4 sm:ml-6 animate-fade-in">
                     <div class="absolute -left-[17px] top-3 w-8 h-8 rounded-full ${item.bg} border flex items-center justify-center text-sm shadow-sm">${item.icon}</div>
@@ -990,7 +1011,7 @@ window.HealthModule = (() => {
             window.deleteHealthBookItem(el.dataset.id, el.dataset.type);
         });
 
-        // NOWE PODPIĘCIA DLA EDYCJI:
+        // PODPIĘCIA NOWEJ EDYCJI:
         window.EventDispatcher.onClick('.js-edit-health-book-item', (e, el) => {
             window.openEditHealthBookItem(el.dataset.id, el.dataset.type);
         });
