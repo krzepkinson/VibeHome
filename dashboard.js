@@ -35,7 +35,10 @@ window.DashboardModule = (() => {
             const hid = window.currentUser.household_id; 
             
             try {
-                // ZMIANA KRYTYCZNA: Dodano pobieranie health_measurements!
+                // FIX: Limitowanie kalendarza do 30 dni wstecz (unikamy pobierania tysięcy starych wpisów)
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
                 const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes, measRes] = await Promise.all([
                     window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
                     window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
@@ -45,7 +48,7 @@ window.DashboardModule = (() => {
                     window.supabaseClient.from('profiles').select('*').eq('household_id', hid),
                     window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name'),
                     window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false),
-                    window.supabaseClient.from('calendar_events').select('*').eq('household_id', hid).order('event_datetime', { ascending: true }),
+                    window.supabaseClient.from('calendar_events').select('*').eq('household_id', hid).gte('event_datetime', thirtyDaysAgo.toISOString()).order('event_datetime', { ascending: true }).limit(100),
                     window.supabaseClient.from('health_measurements').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100)
                 ]);
 
@@ -59,7 +62,7 @@ window.DashboardModule = (() => {
                     rooms: roomsRes.data || [],
                     checklists: listsRes.data || [],
                     calendarEvents: eventsRes.data || [],
-                    hMeasurements: measRes.data || [] // Zapis pomiarów w AppStore
+                    hMeasurements: measRes.data || []
                 });
                 
                 window.dashboardCacheTime = now;
@@ -81,11 +84,24 @@ window.DashboardModule = (() => {
             greetingEl.innerText = `Dzień dobry, ${window.currentUser.name}!`;
         }
 
-        _renderTodaySection(state, today, todayStr);
-        _renderHomeWidget(state, today);
-        _renderHealthWidget(state, today);
+        // OPTYMALIZACJA O(n): Tworzymy zmapowane logi raz dla wszystkich widżetów
+        const logsMap = new Map();
+        (state.logs || []).forEach(l => { 
+            if (!logsMap.has(l.task_id)) logsMap.set(l.task_id, []); 
+            logsMap.get(l.task_id).push(l); 
+        });
+
+        const hLogsMap = new Map();
+        (state.hLogs || []).forEach(l => { 
+            if (!hLogsMap.has(l.health_task_id)) hLogsMap.set(l.health_task_id, []); 
+            hLogsMap.get(l.health_task_id).push(l); 
+        });
+
+        _renderTodaySection(state, today, todayStr, logsMap, hLogsMap);
+        _renderHomeWidget(state, today, logsMap);
+        _renderHealthWidget(state, today, hLogsMap);
         _renderTodoWidget(state);
-        _renderHorizonSection(state, today);
+        _renderHorizonSection(state, today, hLogsMap);
         
         const overlay = document.getElementById('dashboard-history-overlay');
         if (overlay && !overlay.classList.contains('hidden')) {
@@ -94,22 +110,26 @@ window.DashboardModule = (() => {
     };
 
     // --- RENDEROWANIE: ZADANIA NA DZIŚ ---
-    function _renderTodaySection(state, today, todayStr) {
+    function _renderTodaySection(state, today, todayStr, logsMap, hLogsMap) {
         const todayContainer = document.getElementById('dashboard-today-container');
         if (!todayContainer) return;
 
-        const hTasks = state.hTasks || []; const hLogs = state.hLogs || [];
-        const tasks = state.tasks || []; const logs = state.logs || []; const rooms = state.rooms || [];
+        const hTasks = state.hTasks || [];
+        const tasks = state.tasks || []; 
+        const rooms = state.rooms || [];
 
         const healthToday = hTasks.filter(ht => {
             if (ht.task_type === 'one_time' && ht.event_date) {
-                if (hLogs.some(l => l.health_task_id === ht.id)) return false;
+                const taskLogs = hLogsMap.get(ht.id) || [];
+                if (taskLogs.length > 0) return false;
                 const evDate = new Date(ht.event_date); evDate.setHours(0,0,0,0);
                 return evDate <= today;
             }
             if (ht.task_type === 'cyclical' && ht.interval_days) {
-                const taskLogs = hLogs.filter(l => l.health_task_id === ht.id);
-                if (taskLogs.length === 0) return false;
+                const taskLogs = hLogsMap.get(ht.id) || [];
+                // FIX: Jeśli zadanie nie ma jeszcze logów, to jest od razu zaległe (czyli na dziś)
+                if (taskLogs.length === 0) return true; 
+                
                 const nextDate = new Date(taskLogs[0].start_date);
                 nextDate.setDate(nextDate.getDate() + ht.interval_days);
                 nextDate.setHours(0,0,0,0);
@@ -120,7 +140,7 @@ window.DashboardModule = (() => {
 
         const homeToday = tasks.filter(t => {
             if (!t.interval_days) return false;
-            const taskLogs = logs.filter(l => l.task_id === t.id);
+            const taskLogs = logsMap.get(t.id) || [];
             if (taskLogs.length === 0) return true; 
             
             const nextDate = new Date(taskLogs[0].created_at);
@@ -146,14 +166,18 @@ window.DashboardModule = (() => {
                     const evDate = new Date(ht.event_date); evDate.setHours(0,0,0,0);
                     diff = Math.ceil((evDate - today) / 86400000);
                 } else {
-                    const taskLogs = hLogs.filter(l => l.health_task_id === ht.id);
-                    const nextDate = new Date(taskLogs[0].start_date);
-                    nextDate.setDate(nextDate.getDate() + ht.interval_days); nextDate.setHours(0,0,0,0);
-                    diff = Math.ceil((nextDate - today) / 86400000);
+                    const taskLogs = hLogsMap.get(ht.id) || [];
+                    if (taskLogs.length === 0) {
+                        diff = -1; // Traktujemy jako zaległe, by wyświetliło stosowny kolor
+                    } else {
+                        const nextDate = new Date(taskLogs[0].start_date);
+                        nextDate.setDate(nextDate.getDate() + ht.interval_days); nextDate.setHours(0,0,0,0);
+                        diff = Math.ceil((nextDate - today) / 86400000);
+                    }
                 }
                 
                 let timeLabel = 'Dziś'; let timeColor = 'text-[#a8c7fa]/80';
-                if (diff === -1) { timeLabel = 'Wczoraj'; timeColor = 'text-[#ffb4ab] font-bold'; }
+                if (diff === -1) { timeLabel = 'Zaległe'; timeColor = 'text-[#ffb4ab] font-bold'; }
                 else if (diff < -1) { timeLabel = `${Math.abs(diff)} dni temu`; timeColor = 'text-[#ffb4ab] font-bold'; }
                 
                 const fullName = profileName ? `${window.esc(ht.name)} (${window.esc(profileName)})` : window.esc(ht.name);
@@ -164,7 +188,8 @@ window.DashboardModule = (() => {
             html += homeToday.map(t => {
                 let roomIcon = '🏠'; if (t.room) { const r = rooms.find(rx => rx.name === t.room); if (r && r.icon) roomIcon = r.icon; }
                 
-                let diff = 0; const taskLogs = logs.filter(l => l.task_id === t.id);
+                let diff = 0; 
+                const taskLogs = logsMap.get(t.id) || [];
                 if (taskLogs.length > 0) {
                     const nextDate = new Date(taskLogs[0].created_at); nextDate.setDate(nextDate.getDate() + t.interval_days); nextDate.setHours(0,0,0,0);
                     diff = Math.ceil((nextDate - today) / 86400000);
@@ -184,14 +209,13 @@ window.DashboardModule = (() => {
     }
 
     // --- RENDEROWANIE: WIDGET DOMU ---
-    function _renderHomeWidget(state, today) {
+    function _renderHomeWidget(state, today, logsMap) {
         let overdueHome = [];
         let upcomingHome = [];
         const tasks = state.tasks || [];
-        const logs = state.logs || [];
 
         tasks.forEach(t => {
-            const taskLogs = logs.filter(l => l.task_id === t.id);
+            const taskLogs = logsMap.get(t.id) || [];
             
             if (!t.interval_days || t.interval_days === 0) {
                 if (taskLogs.length === 0) overdueHome.push(t);
@@ -260,18 +284,18 @@ window.DashboardModule = (() => {
     }
 
     // --- RENDEROWANIE: WIDGET ZDROWIA ---
-    function _renderHealthWidget(state, today) {
+    function _renderHealthWidget(state, today, hLogsMap) {
         const badgesContainer = document.getElementById('widget-health-badges');
         const content = document.getElementById('widget-health-content');
         
         const hTasks = state.hTasks || [];
-        const hLogs = state.hLogs || [];
         const profiles = state.profiles || [];
 
         let activeHealth = [];
         const durationTasks = hTasks.filter(t => t.task_type === 'duration');
         durationTasks.forEach(t => {
-            const activeLog = hLogs.find(l => l.health_task_id === t.id && l.end_date === null);
+            const taskLogs = hLogsMap.get(t.id) || [];
+            const activeLog = taskLogs.find(l => l.end_date === null);
             if (activeLog) activeHealth.push({ task: t, log: activeLog });
         });
 
@@ -279,8 +303,11 @@ window.DashboardModule = (() => {
         const cyclicalTasks = hTasks.filter(t => t.task_type === 'cyclical');
         cyclicalTasks.forEach(t => {
             if (!t.interval_days) return;
-            const taskLogs = hLogs.filter(l => l.health_task_id === t.id);
-            if (taskLogs.length === 0) return;
+            const taskLogs = hLogsMap.get(t.id) || [];
+            if (taskLogs.length === 0) {
+                upcomingRoutines.push({ task: t, days: -1 }); // Od razu zaległe
+                return;
+            }
             
             const lastLog = taskLogs[0];
             const nextDate = new Date(lastLog.start_date);
@@ -295,8 +322,9 @@ window.DashboardModule = (() => {
         const eventTasks = hTasks.filter(t => t.task_type === 'one_time');
         eventTasks.forEach(t => {
             if (!t.event_date) return;
-            const isDone = hLogs.some(l => l.health_task_id === t.id);
-            if (isDone) return;
+            const taskLogs = hLogsMap.get(t.id) || [];
+            if (taskLogs.length > 0) return;
+
             const evDate = new Date(t.event_date); evDate.setHours(0,0,0,0);
             const diff = Math.ceil((evDate - today) / 86400000);
             if (diff < 0) overdueEvents.push({ task: t, days: diff });
@@ -415,21 +443,21 @@ window.DashboardModule = (() => {
     }
 
     // --- RENDEROWANIE: NA HORYZONCIE ---
-    function _renderHorizonSection(state, today) {
+    function _renderHorizonSection(state, today, hLogsMap) {
         const container = document.getElementById('dashboard-horizon-container');
         if (!container) return;
 
         let horizonItems = [];
         const hTasks = state.hTasks || [];
-        const hLogs = state.hLogs || [];
         const profiles = state.profiles || [];
         const checklists = state.checklists || [];
         const calEvents = state.calendarEvents || []; 
 
         hTasks.forEach(ht => {
             if (ht.task_type !== 'one_time' || !ht.event_date) return;
-            const isDone = hLogs.some(l => l.health_task_id === ht.id);
-            if (isDone) return;
+            const taskLogs = hLogsMap.get(ht.id) || [];
+            if (taskLogs.length > 0) return; // zrealizowane
+            
             const evDate = new Date(ht.event_date); evDate.setHours(0, 0, 0, 0);
             if (evDate >= today) { 
                 horizonItems.push({
@@ -537,7 +565,7 @@ window.DashboardModule = (() => {
         }
     }
 
-    // --- ZMIANA KRYTYCZNA: HISTORIA OVERLAY (Dopasowana do modułu Zdrowia) ---
+    // --- HISTORIA OVERLAY ---
     function _renderHistoryOverlay(state) {
         const listEl = document.getElementById('dashboard-history-list');
         if (!listEl) return;
@@ -547,23 +575,21 @@ window.DashboardModule = (() => {
         const tasks = state.tasks || [];
         const hLogs = state.hLogs || [];
         const hTasks = state.hTasks || [];
-        const hMeas = state.hMeasurements || []; // NOWE: Pomiary
+        const hMeas = state.hMeasurements || []; 
         const profiles = state.profiles || [];
         const todos = state.todos || [];
 
-        // Dodawanie Zadań Domowych
         logs.forEach(l => { 
             const t = tasks.find(x => x.id === l.task_id); 
             if (!t || t.show_in_history !== false) {
                 historyItems.push({ 
                     table: 'activity_logs', id: l.id, title: l.activity_name, 
-                    date: new Date(l.created_at), // Data z logu
+                    date: new Date(l.created_at), 
                     icon: '🏠', bg: 'bg-[#0f5223]/20', border: 'border-[#0f5223]/50', user: l.user_name || '?' 
                 }); 
             }
         });
         
-        // Dodawanie Zdarzeń Zdrowotnych (Zawsze start_date jak w Książeczce Zdrowia)
         hLogs.forEach(l => { 
             const ht = hTasks.find(x => x.id === l.health_task_id); 
             if (!ht || ht.show_in_history !== false) { 
@@ -571,33 +597,31 @@ window.DashboardModule = (() => {
                 const title = (ht ? ht.name : 'Zdarzenie') + (profile ? ` (${profile.name})` : ''); 
                 historyItems.push({ 
                     table: 'health_logs', id: l.id, title, 
-                    date: new Date(l.start_date), // ZMIANA KRYTYCZNA: Ujednolicona data
+                    date: new Date(l.start_date), 
                     icon: '❤️', bg: 'bg-[#8c1d18]/20', border: 'border-[#8c1d18]/50', user: l.user_name || '?' 
                 }); 
             } 
         });
 
-        // Dodawanie Pomiarów
         hMeas.forEach(m => {
             const profile = profiles.find(p => p.id === m.profile_id);
             const title = `Pomiar: ${m.measurement_type}` + (profile ? ` (${profile.name})` : '');
             historyItems.push({
                 table: 'health_measurements', id: m.id, title,
                 date: new Date(m.created_at),
-                icon: '📏', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: null // Pomiary nie mają zmiany wykonawcy na razie
+                icon: '📏', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: null
             });
         });
 
-        // Dodawanie Zadań
         todos.filter(t => t.is_completed).forEach(t => { 
             historyItems.push({ 
                 table: 'todos', id: t.id, title: t.title, 
-                date: new Date(t.completed_at), 
+                // FIX: Ochrona przed 1970 rokiem w razie braku completed_at
+                date: t.completed_at ? new Date(t.completed_at) : new Date(t.created_at), 
                 icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' 
             }); 
         });
         
-        // Sortowanie po nowemu
         historyItems.sort((a, b) => b.date - a.date);
         
         if (historyItems.length === 0) {
@@ -699,9 +723,9 @@ window.DashboardModule = (() => {
             if (task && task.interval_days > 0) {
                 const nextDate = new Date(now); nextDate.setDate(nextDate.getDate() + task.interval_days);
                 await window.supabaseClient.from('tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', finalTaskId);
-            } else if (task) {
-                await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', finalTaskId);
-            }
+            } 
+            // FIX: Usunięto else if (task) { is_archived: true }, aby nie archiwizować rutyn domowych bez ustawionego interwału!
+            
             window.showToast('Zapisano! ✔️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true); 
         });
     };
@@ -804,7 +828,6 @@ window.DashboardModule = (() => {
             window.loadDashboardOverview(true);
         });
 
-        // Obsługa kliknięcia przycisku Edycji w Globalnej Historii
         window.EventDispatcher.onClick('.js-dash-edit-log', (e, el) => {
             const table = el.dataset.table;
             const id = parseInt(el.dataset.id);
