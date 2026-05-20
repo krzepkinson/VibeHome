@@ -6,7 +6,7 @@ window.AppStore = (() => {
     // Stan początkowy
     let state = {
         tasks: [], logs: [], profiles: [], rooms: [], 
-        todos: [], hTasks: [], hLogs: [], pharmacy: []
+        todos: [], hTasks: [], hLogs: [], pharmacy: [], hMeasurements: []
     };
     
     let listeners = [];
@@ -15,11 +15,14 @@ window.AppStore = (() => {
         // Pobierz aktualny stan
         get: () => state,
 
-        // Aktualizuj stan i powiadom wszystkich "słuchaczy"
-        set: (newState) => {
-            state = { ...state, ...newState };
+        // ZMIANA KRYTYCZNA: Bezpieczny merge ze wsparciem dla funkcji (ochrona przed race-condition)
+        set: (updater) => {
+            const nextState = typeof updater === 'function' 
+                ? updater(state) 
+                : { ...state, ...updater };
             
-            // POPRAWKA AUDYTU: Logowanie tylko w trybie deweloperskim
+            state = nextState;
+            
             if (window.CONFIG && window.CONFIG.DEBUG) {
                 console.log("Store updated:", state);
             }
