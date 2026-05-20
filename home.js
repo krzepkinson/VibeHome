@@ -238,10 +238,9 @@ window.HomeModule = (() => {
             nextDate.setDate(nextDate.getDate() + taskObj.interval_days);
             await window.supabaseClient.from('tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', taskId);
             window.showToast("Zapisano log!");
-        } else if (taskObj) {
-            await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', taskId);
-            window.showToast("Zadanie jednorazowe zakończone!");
         } else {
+            // FIX BUG #2: Zrezygnowaliśmy z else if (taskObj) -> is_archived: true.
+            // Jeśli interwał wynosi 0 (np. mycie okien "jak są brudne"), zadanie zostaje na liście!
             window.showToast("Zapisano log!");
         }
 
