@@ -95,7 +95,7 @@ window.Router = (() => {
             nav.classList.toggle('hidden', viewName === 'auth' || isSubScreen);
             
             nav.querySelectorAll('button').forEach(btn => {
-                const isActive = btn.getAttribute('onclick')?.includes(`'${viewName}'`);
+                const isActive = btn.getAttribute('onclick')?.includes(`'${viewName}'`) || btn.dataset.view === viewName;
                 btn.style.opacity = isActive ? '1' : '0.5';
             });
         }
@@ -128,22 +128,25 @@ window.Router = (() => {
 
     // --- Nasłuchiwanie gestów systemowych wstecz/dalej ---
     window.addEventListener('popstate', (e) => {
-        // FIX: Jeśli wracamy do home BEZ filtra pokoju, a filtr jest aktywny -> wyczyść go
         if (e.state?.view === 'home' && !e.state?.roomFilter && activeView === 'home') {
             if (typeof window.clearRoomFilter === 'function') {
                 window.clearRoomFilter();
             }
-            return; // Jesteśmy już na home, tylko resetujemy filtr widoku
+            return; 
         }
         
+        // ZMIANA KRYTYCZNA: Ochrona przed widokiem 'auth' dla zalogowanych użytkowników
         if (e.state && e.state.view) {
-            window.switchView(e.state.view, false);
+            const targetView = (e.state.view === 'auth' && window.currentUser) 
+                ? 'dashboard' 
+                : e.state.view;
+            window.switchView(targetView, false);
         } else {
             const urlParams = new URLSearchParams(window.location.search);
             const view = urlParams.get('view') || 'dashboard';
             
             if (window.currentUser) {
-                window.switchView(view, false);
+                window.switchView(view === 'auth' ? 'dashboard' : view, false);
             } else {
                 window.switchView('auth', false);
             }
