@@ -9,12 +9,30 @@ window.esc = function(str) {
     }[tag] || tag));
 };
 
-window.getTodayLocalString = function(dateObj = new Date()) {
-    const year = dateObj.getFullYear();
-    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const day = String(dateObj.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`; 
+// --- GLOBALNE FUNKCJE CZASU I DATY ---
+window.getTodayLocalString = function(dObj = new Date()) {
+    if (!dObj || isNaN(dObj.getTime())) return '';
+    const y = dObj.getFullYear();
+    const m = String(dObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 };
+
+window.formatLocalDatetime = function(isoStr) {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return '';
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
+window.parseLocalDatetime = function(dtStr) {
+    if (!dtStr) return null;
+    if (dtStr.length === 16) dtStr += ':00'; // Fix dla Safari
+    const d = new Date(dtStr);
+    if (isNaN(d.getTime())) return new Date(dtStr.replace('T', ' ').replace(/-/g, '/'));
+    return d;
+};
+// ------------------------------------
 
 window.showToast = function(message) {
     const toast = document.getElementById('toast');
