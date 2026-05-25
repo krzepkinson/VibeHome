@@ -16,10 +16,15 @@ window.UI = {
 
     // --- 2. KOMPONENTY: DOM I PRZEGLĄD ---
     renderDashboardTodo: function(todo) {
+        const isUrgent = todo.is_urgent;
+        // NOWOŚĆ: Alarmowa koralowa krawędź oraz prefiks [PILNE] dla spójności komponentu
+        const borderClass = isUrgent ? 'border-l-[#ffb4ab]' : 'border-l-[#a8c7fa]';
+        const urgentPrefix = isUrgent ? '<span class="text-[#ffb4ab] text-xs font-bold mr-1">[PILNE]</span>' : '';
+
         return `
-        <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 border-l-[#a8c7fa] shadow-sm animate-fade-in">
+        <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1 border-l-4 ${borderClass} shadow-sm animate-fade-in">
             <div class="js-dash-nav flex-1 cursor-pointer pr-2" data-view="todo">
-                <h3 class="font-medium text-neutral-100 text-sm truncate">${window.esc(todo.title)}</h3>
+                <h3 class="font-medium text-neutral-100 text-sm truncate">${urgentPrefix}${window.esc(todo.title)}</h3>
                 <p class="text-[10px] text-neutral-500 mt-0.5">${new Date(todo.created_at).toLocaleDateString('pl-PL')}</p>
             </div>
             <button class="js-dash-complete-todo w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${todo.id}">✓</button>
