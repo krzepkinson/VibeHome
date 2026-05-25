@@ -405,50 +405,89 @@ window.DashboardModule = (() => {
         }
     }
 
-    // --- ZMIANA KRYTYCZNA: WIDGET ZADAŃ TO-DO Z PRIORYTETEM PILNE! ---
+    // --- ZMIANA ARCHITEKTONICZNA: WIDGET ZADAŃ TO-DO (Zadania pilne zawsze wyciągnięte "na zewnątrz" kafelka!) ---
     function _renderTodoWidget(state) {
         const todos = state.todos || [];
         const activeTodos = todos.filter(t => !t.is_completed);
         
-        // NOWOŚĆ: Bąbelkowanie pilnych spraw na sam szczyt widżetu pulpitu
-        activeTodos.sort((a, b) => (b.is_urgent ? 1 : 0) - (a.is_urgent ? 1 : 0));
+        // Rozdzielamy zadania na Pilne oraz Zwykłe
+        const urgentTodos = activeTodos.filter(t => t.is_urgent);
+        const regularTodos = activeTodos.filter(t => !t.is_urgent);
 
         const badge = document.getElementById('widget-todo-badge');
-        const content = document.getElementById('widget-todo-content');
+        const content = document.getElementById('widget-todo-content'); // To jest kontener, który ukrywa akordeon
         
-        if (activeTodos.length > 0) {
-            const toShow = activeTodos.slice(0, 5);
-            if (badge) {
+        // SPARK GENIALNOŚCI: Dynamicznie wstrzykujemy kontener na pilne zadania TUŻ NAD rozwijanym klockiem,
+        // dzięki czemu sekcja ta NIGDY nie schowa się pod klasę .hidden przydzielaną przez akordeon!
+        let urgentContent = document.getElementById('widget-todo-urgent-content');
+        if (!urgentContent && content) {
+            urgentContent = document.createElement('div');
+            urgentContent.id = 'widget-todo-urgent-content';
+            urgentContent.className = 'mb-1 animate-fade-in'; 
+            content.parentNode.insertBefore(urgentContent, content);
+        }
+
+        if (badge) {
+            if (activeTodos.length > 0) {
                 badge.innerText = `${activeTodos.length} otwartych`;
                 badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
             }
-            
-            let html = toShow.map(todo => {
-                const isUrgent = todo.is_urgent;
-                // NOWOŚĆ: Koralowy alarm lewej krawędzi oraz prefiks tekstowy
-                const borderClass = isUrgent ? 'border-l-4 border-l-[#ffb4ab]' : 'border-l-4 border-l-[#a8c7fa]';
-                const urgentPrefix = isUrgent ? '<span class="text-[#ffb4ab] text-xs font-bold mr-1">[PILNE]</span>' : '';
+        }
+        
+        // 1. RENDEROWANIE ZADAŃ PILNYCH (Zawsze widoczne, na zewnątrz harmonogramu)
+        if (urgentTodos.length > 0) {
+            if (urgentContent) {
+                urgentContent.innerHTML = urgentTodos.map(todo => {
+                    const borderClass = 'border-l-4 border-l-[#ffb4ab]';
+                    const urgentPrefix = '<span class="text-[#ffb4ab] text-xs font-bold mr-1">[PILNE]</span>';
+                    return `
+                    <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors mb-1 ${borderClass} shadow-sm bg-[#1e1f20]/60 border border-[#333537]">
+                        <div class="flex-1 min-w-0 pr-3 cursor-pointer js-dash-nav" data-view="todo">
+                            <h3 class="text-sm font-medium text-neutral-200 truncate">${urgentPrefix}${window.esc(todo.title)}</h3>
+                        </div>
+                        <button class="js-dash-complete-todo w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${todo.id}">✓</button>
+                    </div>`;
+                }).join('');
+                urgentContent.classList.remove('hidden');
+            }
+        } else {
+            if (urgentContent) {
+                urgentContent.innerHTML = '';
+                urgentContent.classList.add('hidden');
+            }
+        }
 
-                return `
-                <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors mb-1 ${borderClass} shadow-sm">
+        // 2. RENDEROWANIE ZADAŃ ZWYKŁYCH (Wewnątrz rozwijanego kafelka-akordeonu)
+        if (regularTodos.length > 0) {
+            const toShow = regularTodos.slice(0, 5);
+            let html = toShow.map(todo => `
+                <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors mb-1 border-l-4 border-l-[#a8c7fa] shadow-sm">
                     <div class="flex-1 min-w-0 pr-3 cursor-pointer js-dash-nav" data-view="todo">
-                        <h3 class="text-sm font-medium text-neutral-200 truncate">${urgentPrefix}${window.esc(todo.title)}</h3>
+                        <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(todo.title)}</h3>
                     </div>
                     <button class="js-dash-complete-todo w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${todo.id}">✓</button>
                 </div>
-            `;}).join('');
+            `).join('');
             
-            if (activeTodos.length > 5) {
-                html += `<div class="text-[10px] text-neutral-500 text-center mt-2 cursor-pointer hover:text-[#a8c7fa] py-2 js-dash-nav" data-view="todo">+${activeTodos.length - 5} więcej w module</div>`;
+            if (regularTodos.length > 5) {
+                html += `<div class="text-[10px] text-neutral-500 text-center mt-2 cursor-pointer hover:text-[#a8c7fa] py-2 js-dash-nav" data-view="todo">+${regularTodos.length - 5} więcej w module</div>`;
             }
             if (content) content.innerHTML = html;
         } else {
-            if (badge) badge.classList.add('hidden');
-            if (content) content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
-                <span class="text-3xl opacity-50 mb-2">🎉</span>
-                <p class="text-sm font-medium text-neutral-300">Lista czysta!</p>
-                <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Czas na relaks</p>
-            </div>`;
+            if (content) {
+                // Gdy są zadania pilne, ale brak zwykłych - po rozwinięciu dajemy ładną notatkę
+                if (urgentTodos.length > 0) {
+                    content.innerHTML = `<p class="text-[10px] text-neutral-500 text-center py-3 font-medium uppercase tracking-widest">Brak zwykłych zadań</p>`;
+                } else {
+                    content.innerHTML = `<div class="p-4 flex flex-col items-center justify-center text-center">
+                        <span class="text-3xl opacity-50 mb-2">🎉</span>
+                        <p class="text-sm font-medium text-neutral-300">Lista czysta!</p>
+                        <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Czas na relaks</p>
+                    </div>`;
+                }
+            }
         }
     }
 
