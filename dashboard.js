@@ -44,7 +44,7 @@ window.DashboardModule = (() => {
                     window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
                     window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
                     window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }).limit(200),
-                    window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }).limit(100),
+                    window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).limit(100),
                     window.supabaseClient.from('profiles').select('*').eq('household_id', hid),
                     window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name'),
                     window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false),
@@ -405,10 +405,14 @@ window.DashboardModule = (() => {
         }
     }
 
-    // --- RENDEROWANIE: WIDGET ZADAŃ ---
+    // --- ZMIANA KRYTYCZNA: WIDGET ZADAŃ TO-DO Z PRIORYTETEM PILNE! ---
     function _renderTodoWidget(state) {
         const todos = state.todos || [];
         const activeTodos = todos.filter(t => !t.is_completed);
+        
+        // NOWOŚĆ: Bąbelkowanie pilnych spraw na sam szczyt widżetu pulpitu
+        activeTodos.sort((a, b) => (b.is_urgent ? 1 : 0) - (a.is_urgent ? 1 : 0));
+
         const badge = document.getElementById('widget-todo-badge');
         const content = document.getElementById('widget-todo-content');
         
@@ -419,14 +423,20 @@ window.DashboardModule = (() => {
                 badge.classList.remove('hidden');
             }
             
-            let html = toShow.map(todo => `
-                <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors mb-1">
+            let html = toShow.map(todo => {
+                const isUrgent = todo.is_urgent;
+                // NOWOŚĆ: Koralowy alarm lewej krawędzi oraz prefiks tekstowy
+                const borderClass = isUrgent ? 'border-l-4 border-l-[#ffb4ab]' : 'border-l-4 border-l-[#a8c7fa]';
+                const urgentPrefix = isUrgent ? '<span class="text-[#ffb4ab] text-xs font-bold mr-1">[PILNE]</span>' : '';
+
+                return `
+                <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors mb-1 ${borderClass} shadow-sm">
                     <div class="flex-1 min-w-0 pr-3 cursor-pointer js-dash-nav" data-view="todo">
-                        <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(todo.title)}</h3>
+                        <h3 class="text-sm font-medium text-neutral-200 truncate">${urgentPrefix}${window.esc(todo.title)}</h3>
                     </div>
                     <button class="js-dash-complete-todo w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${todo.id}">✓</button>
                 </div>
-            `).join('');
+            `;}).join('');
             
             if (activeTodos.length > 5) {
                 html += `<div class="text-[10px] text-neutral-500 text-center mt-2 cursor-pointer hover:text-[#a8c7fa] py-2 js-dash-nav" data-view="todo">+${activeTodos.length - 5} więcej w module</div>`;
@@ -616,7 +626,6 @@ window.DashboardModule = (() => {
         todos.filter(t => t.is_completed).forEach(t => { 
             historyItems.push({ 
                 table: 'todos', id: t.id, title: t.title, 
-                // FIX: Ochrona przed 1970 rokiem w razie braku completed_at
                 date: t.completed_at ? new Date(t.completed_at) : new Date(t.created_at), 
                 icon: '📝', bg: 'bg-[#004a77]/20', border: 'border-[#004a77]/50', user: t.completer_name || '?' 
             }); 
@@ -724,8 +733,6 @@ window.DashboardModule = (() => {
                 const nextDate = new Date(now); nextDate.setDate(nextDate.getDate() + task.interval_days);
                 await window.supabaseClient.from('tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', finalTaskId);
             } 
-            // FIX: Usunięto else if (task) { is_archived: true }, aby nie archiwizować rutyn domowych bez ustawionego interwału!
-            
             window.showToast('Zapisano! ✔️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true); 
         });
     };
