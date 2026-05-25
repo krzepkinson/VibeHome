@@ -8,6 +8,17 @@
         <input type="text" id="new-todo-title" maxlength="150" placeholder="Np. Zapisać na basen" 
                class="w-full p-4 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
         
+        <div class="mt-4 flex items-center justify-between p-3.5 bg-[#131314] border border-[#333537] rounded-[20px]">
+            <div class="flex items-center gap-2">
+                <span class="text-base">🚨</span>
+                <span class="text-xs font-medium text-neutral-300">Zadanie pilne (Priorytet)</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer select-none">
+                <input type="checkbox" id="new-todo-urgent" class="sr-only peer">
+                <div class="w-10 h-6 bg-[#333537] rounded-full peer peer-checked:bg-[#ffb4ab] after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-[#1e1f20] after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4"></div>
+            </label>
+        </div>
+        
         <div class="flex gap-3 mt-6">
             <button onclick="window.closeNewTodoModal()" class="flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">
                 Anuluj
