@@ -46,13 +46,20 @@ window.TodoModule = (() => {
         const hid = window.currentUser.household_id;
 
         const [todosRes, listsRes] = await Promise.all([
-            window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('is_completed', { ascending: true }).order('created_at', { ascending: false }).limit(200),
+            window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).limit(200),
             window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false })
         ]);
 
-        const todos = todosRes.data || []; 
+        let todos = todosRes.data || []; 
         const lists = listsRes.data || [];
         let html = '';
+
+        // NOWOŚĆ: Zaawansowane sortowanie lokalne (Niezrobione na górę -> Pilne na sam szczyt -> Najnowsze)
+        todos.sort((a, b) => {
+            if (a.is_completed !== b.is_completed) return a.is_completed - b.is_completed; 
+            if (a.is_urgent !== b.is_urgent) return (b.is_urgent ? 1 : 0) - (a.is_urgent ? 1 : 0); 
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
 
         if (lists.length > 0) {
             html += `<h3 class="text-[10px] font-medium text-neutral-500 uppercase tracking-widest pl-1 mb-2">Twoje Listy</h3>`;
@@ -68,7 +75,7 @@ window.TodoModule = (() => {
                 return `
                 <div class="relative overflow-hidden mb-1.5 rounded-[16px] group">
                     <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
-                        <button class="js-archive-checklist text-[#ffb4ab] text-xl active:scale-90 transition-transform" data-id="${list.id}">🗑️</button>
+                        <button class="js-archive-checklist text-[#ffb4ab] text-xl active:scale-95 transition-transform" data-id="${list.id}">🗑️</button>
                     </div>
                     <div class="js-open-checklist swipe-front relative z-10 flex items-center justify-between p-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 cursor-pointer w-full transition-transform" data-id="${list.id}" data-title="${window.esc(list.title)}" data-type="${list.list_type || 'generic'}">
                         <div class="flex items-center gap-3 min-w-0 w-full">
@@ -89,26 +96,41 @@ window.TodoModule = (() => {
         } else {
             html += todos.map(todo => {
                 let isDone = todo.is_completed;
+                let isUrgent = todo.is_urgent;
+
                 let currentName = isDone ? (todo.completer_name || 'Ja') : (todo.creator_name || 'Ja');
                 let initial = currentName[0].toUpperCase();
                 let badgeType = isDone ? 'todos' : 'todos_creator';
                 let avatarClass = window.getAvatarColor ? window.getAvatarColor(currentName) : 'bg-[#333537] border-[#737373] text-neutral-300';
                 if (isDone) avatarClass = 'bg-[#0f5223]/30 border-[#0f5223]/50 text-[#c4eed0]';
+                
                 let userBadge = `<div class="js-change-user w-6 h-6 rounded-full ${avatarClass} border text-[10px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform font-bold" data-type="${badgeType}" data-id="${todo.id}" data-username="${window.esc(currentName)}">${initial}</div>`;
 
-                // POPRAWKA UX: border-[#737373] i border-2 na pustych checkboxach dla wyższego kontrastu
+                // NOWOŚĆ: Przycisk błyskawicznego przełączania priorytetu PILNE! (Syrenka)
+                let urgentIcon = isUrgent ? '🚨' : '🔔';
+                let urgentClass = isUrgent ? 'text-[#ffb4ab] opacity-100' : 'text-neutral-600 opacity-30 group-hover:opacity-60';
+                let urgentBtn = isDone ? '' : `<button class="js-toggle-todo-urgency p-1 text-sm shrink-0 active:scale-90 transition-all ${urgentClass}" data-id="${todo.id}" data-urgent="${isUrgent}" title="Przełącz priorytet pilny">${urgentIcon}</button>`;
+
+                // NOWOŚĆ: Wizualne koralowe obramowanie z lewej strony dla pilnych pozycji
+                let urgentBorderClass = (isUrgent && !isDone) ? 'border-l-4 border-l-[#ffb4ab]' : '';
+
                 return `
                 <div class="relative overflow-hidden mb-1.5 rounded-[16px] group ${isDone ? 'opacity-50' : ''}">
                     <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
-                        <button class="js-archive-todo text-[#ffb4ab] text-xl active:scale-90 transition-transform" data-id="${todo.id}">🗑️</button>
+                        <button class="js-archive-todo text-[#ffb4ab] text-xl active:scale-95 transition-transform" data-id="${todo.id}">🗑️</button>
                     </div>
-                    <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] cursor-pointer w-full transition-transform">
-                        <div class="js-edit-todo flex items-center gap-2 flex-1 min-w-0" data-id="${todo.id}" data-title="${window.esc(todo.title)}">
+                    <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] ${urgentBorderClass} w-full transition-transform">
+                        <div class="flex items-center gap-2 flex-1 min-w-0">
                             <div class="js-toggle-todo w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#737373]'} flex items-center justify-center transition-colors shrink-0" data-id="${todo.id}" data-status="${isDone}">
                                 ${isDone ? '<span class="text-[#0f5223] text-xs font-bold">✓</span>' : ''}
                             </div>
-                            <span class="text-sm truncate flex-1 ${isDone ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(todo.title)}</span>
-                            ${userBadge}
+                            <span class="js-edit-todo text-sm truncate flex-1 cursor-pointer ${isDone ? 'line-through text-neutral-500' : 'text-neutral-200'}" data-id="${todo.id}" data-title="${window.esc(todo.title)}">
+                                ${isUrgent && !isDone ? '<span class="text-[#ffb4ab] text-xs font-bold mr-1">[PILNE]</span>' : ''}${window.esc(todo.title)}
+                            </span>
+                            <div class="flex items-center gap-1 shrink-0">
+                                ${urgentBtn}
+                                ${userBadge}
+                            </div>
                         </div>
                     </div>
                 </div>`;
@@ -120,6 +142,10 @@ window.TodoModule = (() => {
     window.openNewTodoModal = function() { 
         window.loadAndShowModal('new-todo-modal', '/modals/new-todo.html', () => {
             document.getElementById('new-todo-title').value = ''; 
+            // Reset stanu przełącznika pilności na false
+            const urgentInput = document.getElementById('new-todo-urgent');
+            if (urgentInput) urgentInput.checked = false;
+
             setTimeout(() => document.getElementById('new-todo-title')?.focus(), 50);
         });
     };
@@ -136,16 +162,52 @@ window.TodoModule = (() => {
     window.saveNewTodo = async function() {
         const title = document.getElementById('new-todo-title').value.trim(); 
         if (!title) return;
+
+        // NOWOŚĆ: Pobieranie wartości logicznej is_urgent z przełącznika modala
+        const urgentInput = document.getElementById('new-todo-urgent');
+        const isUrgent = urgentInput ? urgentInput.checked : false;
+
         const { error } = await window.supabaseClient.from('todos').insert([{ 
             title, 
             user_id: window.currentUser.user_id, 
             household_id: window.currentUser.household_id, 
             is_completed: false, 
             is_archived: false, 
+            is_urgent: isUrgent, // Zapis kolumny w bazie
             creator_name: window.currentUser.name 
         }]);
         if (error) window.showToast("Błąd: " + error.message);
         else { window.closeNewTodoModal(); window.showToast("Zadanie dodane!"); window.loadTodosAndLists(); }
+    };
+
+    // NOWOŚĆ: Funkcja do dynamicznej zmiany pilności zadania „w locie” (z poziomu kafelka)
+    window.toggleTodoUrgency = async function(id, currentUrgent, btnEl) {
+        if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+        
+        const newUrgent = !currentUrgent;
+        
+        // Optymistyczna aktualizacja UI (błyskawiczny feedback wizualny przed odpowiedzią DB)
+        if (btnEl) {
+            btnEl.dataset.urgent = newUrgent.toString();
+            btnEl.innerHTML = newUrgent ? '🚨' : '🔔';
+            btnEl.className = `js-toggle-todo-urgency p-1 text-sm shrink-0 active:scale-90 transition-all ${newUrgent ? 'text-[#ffb4ab] opacity-100' : 'text-neutral-600 opacity-30'}`;
+            
+            const card = btnEl.closest('.swipe-front');
+            if (card) {
+                if (newUrgent) card.classList.add('border-l-4', 'border-l-[#ffb4ab]');
+                else card.classList.remove('border-l-4', 'border-l-[#ffb4ab]');
+            }
+        }
+
+        const { error } = await window.supabaseClient.from('todos')
+            .update({ is_urgent: newUrgent })
+            .eq('id', id);
+
+        if (error) {
+            window.showToast("Błąd zapisu priorytetu: " + error.message);
+        }
+        
+        window.loadTodosAndLists(); // Przeładuj, by zaktualizować poprawne pozycje sortowania
     };
 
     window.openNewChecklistModal = function() {
@@ -222,7 +284,7 @@ window.TodoModule = (() => {
         listEl.innerHTML = items.map(item => `
             <div class="relative overflow-hidden mb-1 rounded-[12px] group ${item.is_completed ? 'opacity-50' : ''}">
                 <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-4">
-                    <button class="js-delete-checklist-item text-[#ffb4ab] text-lg active:scale-90 transition-transform" data-id="${item.id}">🗑️</button>
+                    <button class="js-delete-checklist-item text-[#ffb4ab] text-lg active:scale-95 transition-transform" data-id="${item.id}">🗑️</button>
                 </div>
                 <div class="swipe-front relative z-10 flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] w-full transition-transform">
                     <div class="js-toggle-checklist-item flex items-center gap-3 flex-1 cursor-pointer min-w-0" data-id="${item.id}" data-status="${item.is_completed}">
@@ -251,9 +313,6 @@ window.TodoModule = (() => {
         window.loadChecklistItems();
     };
 
-    // ==========================================
-    // OPTYMIZACJA UI: Szybkie zadania (Todo)
-    // ==========================================
     window.toggleTodo = async function(id, currentStatus, el) {
         if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
 
@@ -263,7 +322,7 @@ window.TodoModule = (() => {
             
             if (container) {
                 container.classList.toggle('opacity-50', isDone);
-                const textSpan = container.querySelector('span.truncate');
+                const textSpan = container.querySelector('span.js-edit-todo');
                 if (textSpan) {
                     textSpan.classList.toggle('line-through', isDone);
                     textSpan.classList.toggle('text-neutral-500', isDone);
@@ -303,9 +362,6 @@ window.TodoModule = (() => {
         });
     };
 
-    // ==========================================
-    // OPTYMIZACJA UI: Elementy na listach
-    // ==========================================
     window.toggleChecklistItem = async function(id, currentStatus, el) {
         if (!currentStatus && typeof window.triggerHaptic === 'function') window.triggerHaptic();
 
@@ -387,6 +443,13 @@ window.TodoModule = (() => {
             e.stopPropagation();
             const isDone = el.dataset.status === 'true';
             window.toggleTodo(parseInt(el.dataset.id, 10), isDone, el);
+        });
+
+        // NOWE: Przypisanie nasłuchiwania dla dynamicznego przełącznika pilności (Syrenki)
+        window.EventDispatcher.onClick('.js-toggle-todo-urgency', (e, el) => {
+            e.stopPropagation();
+            const isUrgent = el.dataset.urgent === 'true';
+            window.toggleTodoUrgency(parseInt(el.dataset.id, 10), isUrgent, el);
         });
 
         window.EventDispatcher.onClick('.js-change-user', (e, el) => {
