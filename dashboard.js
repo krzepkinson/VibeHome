@@ -755,4 +755,118 @@ window.DashboardModule = (() => {
 
     window.quickLogHealthDashboard = async function(taskId) {
         window.customConfirm("Odhaczyć to zdarzenie?", async () => {
-            const finalId = isNaN
+            const finalId = isNaN(taskId) ? taskId : Number(taskId);
+            const state = window.AppStore.get();
+            const task = state.hTasks.find(t => t.id == finalId);
+            const now = new Date();
+
+            const { error } = await window.supabaseClient.from('health_logs').insert([{ 
+                health_task_id: finalId, start_date: now.toISOString(), end_date: now.toISOString(), 
+                user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
+            }]);
+            
+            if (error) { window.showToast("Błąd: " + error.message); return; }
+
+            if (task && task.interval_days > 0) {
+                const nextDate = new Date(now); nextDate.setDate(nextDate.getDate() + task.interval_days);
+                await window.supabaseClient.from('health_tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', finalId);
+            }
+            window.showToast('Zapisano! ❤️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true);
+        });
+    };
+
+    window.closeHealthLogDashboard = async function(logId) {
+        if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+        const { error } = await window.supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('household_id', window.currentUser.household_id);
+        if (error) { window.showToast("Błąd: " + error.message); return; }
+        window.showToast("Zakończono sytuację!"); 
+        window.invalidateDashboardCache(); 
+        window.loadDashboardOverview(true);
+    };
+
+    window.undoActionDashboard = function(table, id) {
+        window.customConfirm("Cofnąć / usunąć to wydarzenie?", async () => {
+            let errorObj = null;
+            if (table === 'todos') {
+                const { error } = await window.supabaseClient.from('todos').update({ is_completed: false, completed_at: null, completer_name: null }).eq('id', id);
+                errorObj = error;
+            } else {
+                const { error } = await window.supabaseClient.from(table).delete().eq('id', id);
+                errorObj = error;
+            }
+
+            if (errorObj) { 
+                window.showToast("Błąd: " + errorObj.message); 
+            } else {
+                window.showToast("Usunięto pomyślnie!");
+                window.invalidateDashboardCache();
+                window.loadDashboardOverview(true);
+                const ov = document.getElementById('dashboard-history-overlay');
+                if (ov) {
+                    ov.classList.add('hidden');
+                }
+            }
+        });
+    };
+
+    // ==========================================
+    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
+    // ==========================================
+    if (window.EventDispatcher) {
+        
+        window.EventDispatcher.onClick('.js-open-search', () => window.openGlobalSearch());
+
+        window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
+            const chevron = el.querySelector('.js-chevron');
+            window.toggleWidgetAccordion(el.dataset.target, chevron);
+        });
+
+        window.EventDispatcher.onClick('.js-open-packing-list', (e, el) => {
+            window.switchView('todo');
+            setTimeout(() => window.openChecklistScreen(el.dataset.id, el.dataset.title, 'packing'), 50);
+        });
+
+        window.EventDispatcher.onClick('.js-open-cart', () => window.openQuickShoppingList());
+        
+        window.EventDispatcher.onClick('.js-open-history', () => {
+            const ov = document.getElementById('dashboard-history-overlay');
+            ov.classList.remove('hidden');
+            _renderHistoryOverlay(window.AppStore.get());
+        });
+        
+        window.EventDispatcher.onClick('.js-close-history', () => {
+            const ov = document.getElementById('dashboard-history-overlay');
+            ov.classList.add('hidden');
+        });
+
+        window.EventDispatcher.onClick('.js-dashboard-refresh', () => {
+            window.invalidateDashboardCache();
+            window.loadDashboardOverview(true);
+        });
+
+        window.EventDispatcher.onClick('.js-dash-edit-log', (e, el) => {
+            const table = el.dataset.table;
+            const id = parseInt(el.dataset.id);
+            if (table === 'activity_logs') {
+                if (typeof window.openEditLogModal === 'function') window.openEditLogModal(id);
+            } else if (table === 'health_logs') {
+                if (typeof window.openEditHealthBookItem === 'function') window.openEditHealthBookItem(id, 'log');
+            } else if (table === 'health_measurements') {
+                if (typeof window.openEditHealthBookItem === 'function') window.openEditHealthBookItem(id, 'measurement');
+            }
+        });
+
+        window.EventDispatcher.onClick('.js-dash-nav', (e, el) => window.switchView(el.dataset.view));
+        window.EventDispatcher.onClick('.js-dash-complete-todo', (e, el) => window.quickCompleteTodoDashboard(el.dataset.id));
+        window.EventDispatcher.onClick('.js-dash-undo-log', (e, el) => window.undoActionDashboard(el.dataset.table, el.dataset.id));
+        window.EventDispatcher.onClick('.js-dash-log-task', (e, el) => window.quickLogTaskDashboard(el.dataset.id));
+        window.EventDispatcher.onClick('.js-quick-log-health', (e, el) => window.quickLogHealthDashboard(el.dataset.id));
+        window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLogDashboard(el.dataset.id));
+        window.EventDispatcher.onClick('.js-dash-change-user', (e, el) => window.openChangeUserModal(el.dataset.table, el.dataset.id, el.dataset.username));
+        
+    } else {
+        console.error("EventDispatcher nie został załadowany!");
+    }
+
+    return { load: window.loadDashboardOverview };
+})();
