@@ -44,7 +44,7 @@ window.DashboardModule = (() => {
                     window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
                     window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
                     window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }).limit(200),
-                    window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).limit(100),
+                    window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }).limit(100),
                     window.supabaseClient.from('profiles').select('*').eq('household_id', hid),
                     window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name'),
                     window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false),
@@ -405,27 +405,17 @@ window.DashboardModule = (() => {
         }
     }
 
-    // --- ZMIANA ARCHITEKTONICZNA: WIDGET ZADAŃ TO-DO (Zadania pilne zawsze wyciągnięte "na zewnątrz" kafelka!) ---
+    // --- ZMIANA KRYTYCZNA: WIDGET ZADAŃ TO-DO ---
     function _renderTodoWidget(state) {
         const todos = state.todos || [];
         const activeTodos = todos.filter(t => !t.is_completed);
-        
-        // Rozdzielamy zadania na Pilne oraz Zwykłe
+
         const urgentTodos = activeTodos.filter(t => t.is_urgent);
         const regularTodos = activeTodos.filter(t => !t.is_urgent);
 
         const badge = document.getElementById('widget-todo-badge');
-        const content = document.getElementById('widget-todo-content'); // To jest kontener, który ukrywa akordeon
-        
-        // SPARK GENIALNOŚCI: Dynamicznie wstrzykujemy kontener na pilne zadania TUŻ NAD rozwijanym klockiem,
-        // dzięki czemu sekcja ta NIGDY nie schowa się pod klasę .hidden przydzielaną przez akordeon!
-        let urgentContent = document.getElementById('widget-todo-urgent-content');
-        if (!urgentContent && content) {
-            urgentContent = document.createElement('div');
-            urgentContent.id = 'widget-todo-urgent-content';
-            urgentContent.className = 'mb-1 animate-fade-in'; 
-            content.parentNode.insertBefore(urgentContent, content);
-        }
+        const content = document.getElementById('widget-todo-content');
+        const urgentContent = document.getElementById('widget-todo-urgent-content');
 
         if (badge) {
             if (activeTodos.length > 0) {
@@ -435,49 +425,29 @@ window.DashboardModule = (() => {
                 badge.classList.add('hidden');
             }
         }
-        
-        // 1. RENDEROWANIE ZADAŃ PILNYCH (Zawsze widoczne, na zewnątrz harmonogramu)
-        if (urgentTodos.length > 0) {
-            if (urgentContent) {
-                urgentContent.innerHTML = urgentTodos.map(todo => {
-                    const borderClass = 'border-l-4 border-l-[#ffb4ab]';
-                    const urgentPrefix = '<span class="text-[#ffb4ab] text-xs font-bold mr-1">[PILNE]</span>';
-                    return `
-                    <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors mb-1 ${borderClass} shadow-sm bg-[#1e1f20]/60 border border-[#333537]">
-                        <div class="flex-1 min-w-0 pr-3 cursor-pointer js-dash-nav" data-view="todo">
-                            <h3 class="text-sm font-medium text-neutral-200 truncate">${urgentPrefix}${window.esc(todo.title)}</h3>
-                        </div>
-                        <button class="js-dash-complete-todo w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${todo.id}">✓</button>
-                    </div>`;
-                }).join('');
+
+        // 1. Renderowanie zadań pilnych w stabilnym, statycznym kontenerze (Poza akordeonem!)
+        if (urgentContent) {
+            if (urgentTodos.length > 0) {
+                urgentContent.innerHTML = urgentTodos.map(todo => window.UI.renderDashboardTodo(todo)).join('');
                 urgentContent.classList.remove('hidden');
-            }
-        } else {
-            if (urgentContent) {
+            } else {
                 urgentContent.innerHTML = '';
                 urgentContent.classList.add('hidden');
             }
         }
 
-        // 2. RENDEROWANIE ZADAŃ ZWYKŁYCH (Wewnątrz rozwijanego kafelka-akordeonu)
-        if (regularTodos.length > 0) {
-            const toShow = regularTodos.slice(0, 5);
-            let html = toShow.map(todo => `
-                <div class="flex items-center justify-between p-2 hover:bg-[#1e1f20] rounded-xl transition-colors mb-1 border-l-4 border-l-[#a8c7fa] shadow-sm">
-                    <div class="flex-1 min-w-0 pr-3 cursor-pointer js-dash-nav" data-view="todo">
-                        <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(todo.title)}</h3>
-                    </div>
-                    <button class="js-dash-complete-todo w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0" data-id="${todo.id}">✓</button>
-                </div>
-            `).join('');
-            
-            if (regularTodos.length > 5) {
-                html += `<div class="text-[10px] text-neutral-500 text-center mt-2 cursor-pointer hover:text-[#a8c7fa] py-2 js-dash-nav" data-view="todo">+${regularTodos.length - 5} więcej w module</div>`;
-            }
-            if (content) content.innerHTML = html;
-        } else {
-            if (content) {
-                // Gdy są zadania pilne, ale brak zwykłych - po rozwinięciu dajemy ładną notatkę
+        // 2. Renderowanie zadań zwykłych (Wewnątrz rozwijanego akordeonu)
+        if (content) {
+            if (regularTodos.length > 0) {
+                const toShow = regularTodos.slice(0, 5);
+                let html = toShow.map(todo => window.UI.renderDashboardTodo(todo)).join('');
+
+                if (regularTodos.length > 5) {
+                    html += `<div class="text-[10px] text-neutral-500 text-center mt-2 cursor-pointer hover:text-[#a8c7fa] py-2 js-dash-nav" data-view="todo">+${regularTodos.length - 5} więcej w module</div>`;
+                }
+                content.innerHTML = html;
+            } else {
                 if (urgentTodos.length > 0) {
                     content.innerHTML = `<p class="text-[10px] text-neutral-500 text-center py-3 font-medium uppercase tracking-widest">Brak zwykłych zadań</p>`;
                 } else {
@@ -785,118 +755,4 @@ window.DashboardModule = (() => {
 
     window.quickLogHealthDashboard = async function(taskId) {
         window.customConfirm("Odhaczyć to zdarzenie?", async () => {
-            const finalId = isNaN(taskId) ? taskId : Number(taskId);
-            const state = window.AppStore.get();
-            const task = state.hTasks.find(t => t.id == finalId);
-            const now = new Date();
-
-            const { error } = await window.supabaseClient.from('health_logs').insert([{ 
-                health_task_id: finalId, start_date: now.toISOString(), end_date: now.toISOString(), 
-                user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
-            }]);
-            
-            if (error) { window.showToast("Błąd: " + error.message); return; }
-
-            if (task && task.interval_days > 0) {
-                const nextDate = new Date(now); nextDate.setDate(nextDate.getDate() + task.interval_days);
-                await window.supabaseClient.from('health_tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', finalId);
-            }
-            window.showToast('Zapisano! ❤️'); window.invalidateDashboardCache(); window.loadDashboardOverview(true);
-        });
-    };
-
-    window.closeHealthLogDashboard = async function(logId) {
-        if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
-        const { error } = await window.supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('household_id', window.currentUser.household_id);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.showToast("Zakończono sytuację!"); 
-        window.invalidateDashboardCache(); 
-        window.loadDashboardOverview(true);
-    };
-
-    window.undoActionDashboard = function(table, id) {
-        window.customConfirm("Cofnąć / usunąć to wydarzenie?", async () => {
-            let errorObj = null;
-            if (table === 'todos') {
-                const { error } = await window.supabaseClient.from('todos').update({ is_completed: false, completed_at: null, completer_name: null }).eq('id', id);
-                errorObj = error;
-            } else {
-                const { error } = await window.supabaseClient.from(table).delete().eq('id', id);
-                errorObj = error;
-            }
-
-            if (errorObj) { 
-                window.showToast("Błąd: " + errorObj.message); 
-            } else {
-                window.showToast("Usunięto pomyślnie!");
-                window.invalidateDashboardCache();
-                window.loadDashboardOverview(true);
-                const ov = document.getElementById('dashboard-history-overlay');
-                if (ov) {
-                    ov.classList.add('hidden');
-                }
-            }
-        });
-    };
-
-    // ==========================================
-    // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
-    // ==========================================
-    if (window.EventDispatcher) {
-        
-        window.EventDispatcher.onClick('.js-open-search', () => window.openGlobalSearch());
-
-        window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
-            const chevron = el.querySelector('.js-chevron');
-            window.toggleWidgetAccordion(el.dataset.target, chevron);
-        });
-
-        window.EventDispatcher.onClick('.js-open-packing-list', (e, el) => {
-            window.switchView('todo');
-            setTimeout(() => window.openChecklistScreen(el.dataset.id, el.dataset.title, 'packing'), 50);
-        });
-
-        window.EventDispatcher.onClick('.js-open-cart', () => window.openQuickShoppingList());
-        
-        window.EventDispatcher.onClick('.js-open-history', () => {
-            const ov = document.getElementById('dashboard-history-overlay');
-            ov.classList.remove('hidden');
-            _renderHistoryOverlay(window.AppStore.get());
-        });
-        
-        window.EventDispatcher.onClick('.js-close-history', () => {
-            const ov = document.getElementById('dashboard-history-overlay');
-            ov.classList.add('hidden');
-        });
-
-        window.EventDispatcher.onClick('.js-dashboard-refresh', () => {
-            window.invalidateDashboardCache();
-            window.loadDashboardOverview(true);
-        });
-
-        window.EventDispatcher.onClick('.js-dash-edit-log', (e, el) => {
-            const table = el.dataset.table;
-            const id = parseInt(el.dataset.id);
-            if (table === 'activity_logs') {
-                if (typeof window.openEditLogModal === 'function') window.openEditLogModal(id);
-            } else if (table === 'health_logs') {
-                if (typeof window.openEditHealthBookItem === 'function') window.openEditHealthBookItem(id, 'log');
-            } else if (table === 'health_measurements') {
-                if (typeof window.openEditHealthBookItem === 'function') window.openEditHealthBookItem(id, 'measurement');
-            }
-        });
-
-        window.EventDispatcher.onClick('.js-dash-nav', (e, el) => window.switchView(el.dataset.view));
-        window.EventDispatcher.onClick('.js-dash-complete-todo', (e, el) => window.quickCompleteTodoDashboard(el.dataset.id));
-        window.EventDispatcher.onClick('.js-dash-undo-log', (e, el) => window.undoActionDashboard(el.dataset.table, el.dataset.id));
-        window.EventDispatcher.onClick('.js-dash-log-task', (e, el) => window.quickLogTaskDashboard(el.dataset.id));
-        window.EventDispatcher.onClick('.js-quick-log-health', (e, el) => window.quickLogHealthDashboard(el.dataset.id));
-        window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLogDashboard(el.dataset.id));
-        window.EventDispatcher.onClick('.js-dash-change-user', (e, el) => window.openChangeUserModal(el.dataset.table, el.dataset.id, el.dataset.username));
-        
-    } else {
-        console.error("EventDispatcher nie został załadowany!");
-    }
-
-    return { load: window.loadDashboardOverview };
-})();
+            const finalId = isNaN
