@@ -424,7 +424,6 @@ window.DashboardModule = (() => {
             }
         }
 
-        // Renderowanie zadań pilnych w statycznym kontenerze (Poza akordeonem)
         if (urgentContent) {
             if (urgentTodos.length > 0) {
                 urgentContent.innerHTML = urgentTodos.map(todo => window.UI.renderDashboardTodo(todo)).join('');
@@ -435,7 +434,6 @@ window.DashboardModule = (() => {
             }
         }
 
-        // Renderowanie zadań zwykłych (Wewnątrz akordeonu)
         if (content) {
             if (regularTodos.length > 0) {
                 const toShow = regularTodos.slice(0, 5);
@@ -459,7 +457,7 @@ window.DashboardModule = (() => {
         }
     }
 
-    // --- RENDEROWANIE: NA HORYZONCIE (ZALEGŁE NIE ZNIKAJĄ) ---
+    // --- RENDEROWANIE: NA HORYZONCIE (Z PRZYCISKAMI AKCJI) ---
     function _renderHorizonSection(state, today, hLogsMap) {
         const container = document.getElementById('dashboard-horizon-container');
         if (!container) return;
@@ -470,11 +468,11 @@ window.DashboardModule = (() => {
         const checklists = state.checklists || [];
         const calEvents = state.calendarEvents || []; 
 
-        // 1. Zdarzenia zdrowotne jednorazowe (niezrealizowane wciąż są widoczne)
+        // 1. Zdarzenia zdrowotne jednorazowe
         hTasks.forEach(ht => {
             if (ht.task_type !== 'one_time' || !ht.event_date) return;
             const taskLogs = hLogsMap.get(ht.id) || [];
-            if (taskLogs.length > 0) return; // Ukryj wyłącznie jeśli zrealizowane
+            if (taskLogs.length > 0) return;
             
             const evDate = new Date(ht.event_date); evDate.setHours(0, 0, 0, 0);
             horizonItems.push({
@@ -497,12 +495,10 @@ window.DashboardModule = (() => {
         calEvents.forEach(ev => {
             const evDateFull = new Date(ev.event_datetime);
             const dateOnly = new Date(evDateFull); dateOnly.setHours(0,0,0,0);
-            if (dateOnly >= today) {
-                horizonItems.push({
-                    type: 'event', date: dateOnly, exactTime: evDateFull,
-                    id: ev.id, title: ev.title
-                });
-            }
+            horizonItems.push({
+                type: 'event', date: dateOnly, exactTime: evDateFull,
+                id: ev.id, title: ev.title
+            });
         });
 
         horizonItems.sort((a, b) => {
@@ -536,16 +532,17 @@ window.DashboardModule = (() => {
                 if (item.type === 'health') {
                     const profile = profiles.find(p => p.id === item.profile_id);
                     return `
-                    <div class="flex items-center justify-between px-4 py-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 shadow-sm js-dash-nav cursor-pointer active:scale-95 transition-transform" data-view="health">
-                        <div class="flex gap-4 items-center">
+                    <div class="flex items-center justify-between px-4 py-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5 shadow-sm">
+                        <div class="flex gap-4 items-center flex-1 min-w-0 pr-2 js-dash-nav cursor-pointer" data-view="health">
                             <div class="text-2xl opacity-80">🗓️</div>
-                            <div>
-                                <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.name)}</h4>
+                            <div class="min-w-0">
+                                <h4 class="text-sm font-medium text-neutral-200 truncate">${window.esc(item.name)}</h4>
                                 <p class="text-[10px] text-neutral-500 mt-0.5">
                                     <span class="${colorClass}">${urgencyLabel}${timeText}</span> • ${profile ? profile.name : 'Zdrowie'}
                                 </p>
                             </div>
                         </div>
+                        <button class="js-quick-log-health w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0 cursor-pointer" data-id="${item.id}" title="Odhacz zdarzenie">✓</button>
                     </div>`;
                 } else if (item.type === 'trip') {
                     let dateLabel = item.date.toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit'});
@@ -554,29 +551,31 @@ window.DashboardModule = (() => {
                     }
 
                     return `
-                    <div class="js-open-packing-list flex items-center justify-between px-4 py-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 mb-1.5 shadow-sm cursor-pointer active:scale-95 transition-transform" data-id="${item.id}" data-title="${window.esc(item.title)}">
-                        <div class="flex gap-4 items-center">
+                    <div class="flex items-center justify-between px-4 py-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 mb-1.5 shadow-sm">
+                        <div class="js-open-packing-list flex gap-4 items-center flex-1 min-w-0 pr-2 cursor-pointer" data-id="${item.id}" data-title="${window.esc(item.title)}">
                             <div class="text-2xl opacity-80">🧳</div>
-                            <div>
-                                <h4 class="text-sm font-medium text-[#c2e7ff]">${window.esc(item.title)}</h4>
+                            <div class="min-w-0">
+                                <h4 class="text-sm font-medium text-[#c2e7ff] truncate">${window.esc(item.title)}</h4>
                                 <p class="text-[10px] text-[#a8c7fa]/70 mt-0.5">
                                     <span class="${colorClass}">${urgencyLabel}${timeText}</span> • ${dateLabel}
                                 </p>
                             </div>
                         </div>
+                        <button class="js-dash-archive-checklist w-8 h-8 rounded-full bg-[#004a77]/30 border border-[#004a77]/60 text-[#c2e7ff] flex items-center justify-center active:scale-90 text-base font-bold shrink-0 cursor-pointer" data-id="${item.id}" title="Zarchiwizuj wyjazd">✓</button>
                     </div>`;
                 } else if (item.type === 'event') {
                     return `
-                    <div class="flex items-center justify-between px-4 py-3 bg-[#3f0f4a]/20 rounded-[16px] border border-[#d946ef]/30 mb-1.5 shadow-sm js-dash-nav cursor-pointer active:scale-95 transition-transform" data-view="calendar">
-                        <div class="flex gap-4 items-center">
+                    <div class="flex items-center justify-between px-4 py-3 bg-[#3f0f4a]/20 rounded-[16px] border border-[#d946ef]/30 mb-1.5 shadow-sm">
+                        <div class="flex gap-4 items-center flex-1 min-w-0 pr-2 js-dash-nav cursor-pointer" data-view="calendar">
                             <div class="text-2xl opacity-90">🎟️</div>
-                            <div>
-                                <h4 class="text-sm font-medium text-[#f0abfc]">${window.esc(item.title)}</h4>
+                            <div class="min-w-0">
+                                <h4 class="text-sm font-medium text-[#f0abfc] truncate">${window.esc(item.title)}</h4>
                                 <p class="text-[10px] text-fuchsia-300/70 mt-0.5">
-                                    <span class="font-bold text-[#d946ef]">${urgencyLabel}${timeText}</span>
+                                    <span class="font-bold ${colorClass}">${urgencyLabel}${timeText}</span>
                                 </p>
                             </div>
                         </div>
+                        <button class="js-dash-delete-event w-8 h-8 rounded-full bg-[#3f0f4a]/50 border border-[#d946ef]/40 text-[#f0abfc] flex items-center justify-center active:scale-90 text-base font-bold shrink-0 cursor-pointer" data-id="${item.id}" title="Usuń z kalendarza">✓</button>
                     </div>`;
                 }
             }).join('');
@@ -677,6 +676,45 @@ window.DashboardModule = (() => {
     }
 
     // ==========================================
+    // AKCJE DLA "NA HORYZONCIE"
+    // ==========================================
+    window.quickArchiveChecklistDashboard = function(id) {
+        window.customConfirm("Zarchiwizować tę listę z horyzontu?", async () => {
+            const finalId = isNaN(id) ? id : Number(id);
+            window.AppStore.set(state => ({
+                ...state,
+                checklists: (state.checklists || []).filter(c => c.id != finalId)
+            }));
+            window.renderDashboardUI();
+            window.showToast("Zarchiwizowano listę!");
+
+            const { error } = await window.supabaseClient.from('checklists').update({ is_archived: true }).eq('id', finalId);
+            if (error) {
+                window.showToast("Błąd: " + error.message);
+                window.loadDashboardOverview(true);
+            }
+        });
+    };
+
+    window.quickDeleteEventDashboard = function(id) {
+        window.customConfirm("Usunąć to wydarzenie z horyzontu?", async () => {
+            const finalId = isNaN(id) ? id : Number(id);
+            window.AppStore.set(state => ({
+                ...state,
+                calendarEvents: (state.calendarEvents || []).filter(e => e.id != finalId)
+            }));
+            window.renderDashboardUI();
+            window.showToast("Usunięto wydarzenie!");
+
+            const { error } = await window.supabaseClient.from('calendar_events').delete().eq('id', finalId);
+            if (error) {
+                window.showToast("Błąd: " + error.message);
+                window.loadDashboardOverview(true);
+            }
+        });
+    };
+
+    // ==========================================
     // NIEŚMIERTELNY KOSZYK (SZYBKIE ZAKUPY)
     // ==========================================
     window.openQuickShoppingList = async function() {
@@ -749,11 +787,9 @@ window.DashboardModule = (() => {
         });
     };
 
-    // Optymistyczne odhaczanie To-do na pulpicie (0 ms reakcji)
     window.quickCompleteTodoDashboard = async function(id) {
         const finalId = isNaN(id) ? id : Number(id);
         
-        // 1. Instant local update
         window.AppStore.set(state => ({
             ...state,
             todos: (state.todos || []).map(t => t.id === finalId ? {
@@ -765,7 +801,6 @@ window.DashboardModule = (() => {
         }));
         window.renderDashboardUI();
 
-        // 2. Tło
         const { error } = await window.supabaseClient.from('todos')
             .update({ 
                 is_completed: true, 
@@ -892,6 +927,16 @@ window.DashboardModule = (() => {
         window.EventDispatcher.onClick('.js-quick-log-health', (e, el) => window.quickLogHealthDashboard(el.dataset.id));
         window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLogDashboard(el.dataset.id));
         window.EventDispatcher.onClick('.js-dash-change-user', (e, el) => window.openChangeUserModal(el.dataset.table, el.dataset.id, el.dataset.username));
+        
+        // NOWOŚĆ: Szybkie usuwanie / archiwizowanie z sekcji "Na horyzoncie"
+        window.EventDispatcher.onClick('.js-dash-archive-checklist', (e, el) => {
+            e.stopPropagation();
+            window.quickArchiveChecklistDashboard(el.dataset.id);
+        });
+        window.EventDispatcher.onClick('.js-dash-delete-event', (e, el) => {
+            e.stopPropagation();
+            window.quickDeleteEventDashboard(el.dataset.id);
+        });
         
     } else {
         console.error("EventDispatcher nie został załadowany!");
