@@ -1,5 +1,5 @@
 // ==========================================
-// LOGIKA: PRZEGLĄD BENTO BOX (dashboard.js)
+// LOGIKA: PRZEGLĄD BENTO BOX - LOCAL FIRST (dashboard.js)
 // ==========================================
 
 window.DashboardModule = (() => {
@@ -32,10 +32,10 @@ window.DashboardModule = (() => {
                 });
             }
             
-            const hid = window.currentUser.household_id; 
-            
+            const hid = window.currentUser ? window.currentUser.household_id : null; 
+            if (!hid) return;
+
             try {
-                // FIX: Limitowanie kalendarza do 30 dni wstecz (unikamy pobierania tysięcy starych wpisów)
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -68,7 +68,7 @@ window.DashboardModule = (() => {
                 window.dashboardCacheTime = now;
             } catch (err) {
                 console.error("Dashboard fetch error:", err);
-                window.showToast("Brak połączenia - ładuję zapisane dane");
+                window.showToast("Tryb offline - ładuję z pamięci urządzenia");
             }
         }
         window.renderDashboardUI();
@@ -84,7 +84,6 @@ window.DashboardModule = (() => {
             greetingEl.innerText = `Dzień dobry, ${window.currentUser.name}!`;
         }
 
-        // OPTYMALIZACJA O(n): Tworzymy zmapowane logi raz dla wszystkich widżetów
         const logsMap = new Map();
         (state.logs || []).forEach(l => { 
             if (!logsMap.has(l.task_id)) logsMap.set(l.task_id, []); 
@@ -127,7 +126,6 @@ window.DashboardModule = (() => {
             }
             if (ht.task_type === 'cyclical' && ht.interval_days) {
                 const taskLogs = hLogsMap.get(ht.id) || [];
-                // FIX: Jeśli zadanie nie ma jeszcze logów, to jest od razu zaległe (czyli na dziś)
                 if (taskLogs.length === 0) return true; 
                 
                 const nextDate = new Date(taskLogs[0].start_date);
@@ -168,7 +166,7 @@ window.DashboardModule = (() => {
                 } else {
                     const taskLogs = hLogsMap.get(ht.id) || [];
                     if (taskLogs.length === 0) {
-                        diff = -1; // Traktujemy jako zaległe, by wyświetliło stosowny kolor
+                        diff = -1;
                     } else {
                         const nextDate = new Date(taskLogs[0].start_date);
                         nextDate.setDate(nextDate.getDate() + ht.interval_days); nextDate.setHours(0,0,0,0);
@@ -305,7 +303,7 @@ window.DashboardModule = (() => {
             if (!t.interval_days) return;
             const taskLogs = hLogsMap.get(t.id) || [];
             if (taskLogs.length === 0) {
-                upcomingRoutines.push({ task: t, days: -1 }); // Od razu zaległe
+                upcomingRoutines.push({ task: t, days: -1 });
                 return;
             }
             
@@ -405,7 +403,7 @@ window.DashboardModule = (() => {
         }
     }
 
-    // --- ZMIANA KRYTYCZNA: WIDGET ZADAŃ TO-DO ---
+    // --- WIDGET ZADAŃ TO-DO ---
     function _renderTodoWidget(state) {
         const todos = state.todos || [];
         const activeTodos = todos.filter(t => !t.is_completed);
@@ -426,7 +424,7 @@ window.DashboardModule = (() => {
             }
         }
 
-        // 1. Renderowanie zadań pilnych w stabilnym, statycznym kontenerze (Poza akordeonem!)
+        // Renderowanie zadań pilnych w statycznym kontenerze (Poza akordeonem)
         if (urgentContent) {
             if (urgentTodos.length > 0) {
                 urgentContent.innerHTML = urgentTodos.map(todo => window.UI.renderDashboardTodo(todo)).join('');
@@ -437,7 +435,7 @@ window.DashboardModule = (() => {
             }
         }
 
-        // 2. Renderowanie zadań zwykłych (Wewnątrz rozwijanego akordeonu)
+        // Renderowanie zadań zwykłych (Wewnątrz akordeonu)
         if (content) {
             if (regularTodos.length > 0) {
                 const toShow = regularTodos.slice(0, 5);
@@ -461,7 +459,7 @@ window.DashboardModule = (() => {
         }
     }
 
-    // --- RENDEROWANIE: NA HORYZONCIE ---
+    // --- RENDEROWANIE: NA HORYZONCIE (ZALEGŁE NIE ZNIKAJĄ) ---
     function _renderHorizonSection(state, today, hLogsMap) {
         const container = document.getElementById('dashboard-horizon-container');
         if (!container) return;
@@ -472,31 +470,30 @@ window.DashboardModule = (() => {
         const checklists = state.checklists || [];
         const calEvents = state.calendarEvents || []; 
 
+        // 1. Zdarzenia zdrowotne jednorazowe (niezrealizowane wciąż są widoczne)
         hTasks.forEach(ht => {
             if (ht.task_type !== 'one_time' || !ht.event_date) return;
             const taskLogs = hLogsMap.get(ht.id) || [];
-            if (taskLogs.length > 0) return; // zrealizowane
+            if (taskLogs.length > 0) return; // Ukryj wyłącznie jeśli zrealizowane
             
             const evDate = new Date(ht.event_date); evDate.setHours(0, 0, 0, 0);
-            if (evDate >= today) { 
+            horizonItems.push({
+                type: 'health', date: evDate, exactTime: null, id: ht.id, name: ht.name, profile_id: ht.profile_id
+            });
+        });
+
+        // 2. Wyjazdy / Checklisty pakowania
+        checklists.forEach(list => {
+            if (list.list_type === 'packing' && list.start_date) {
+                const stDate = new Date(list.start_date); stDate.setHours(0, 0, 0, 0);
                 horizonItems.push({
-                    type: 'health', date: evDate, exactTime: null, id: ht.id, name: ht.name, profile_id: ht.profile_id
+                    type: 'trip', date: stDate, exactTime: null, endDate: list.end_date ? new Date(list.end_date) : null,
+                    id: list.id, title: list.title
                 });
             }
         });
 
-        checklists.forEach(list => {
-            if (list.list_type === 'packing' && list.start_date) {
-                const stDate = new Date(list.start_date); stDate.setHours(0, 0, 0, 0);
-                if (stDate >= today) { 
-                    horizonItems.push({
-                        type: 'trip', date: stDate, exactTime: null, endDate: list.end_date ? new Date(list.end_date) : null,
-                        id: list.id, title: list.title
-                    });
-                }
-            }
-        });
-
+        // 3. Wydarzenia z kalendarza
         calEvents.forEach(ev => {
             const evDateFull = new Date(ev.event_datetime);
             const dateOnly = new Date(evDateFull); dateOnly.setHours(0,0,0,0);
@@ -520,15 +517,21 @@ window.DashboardModule = (() => {
                 const daysUntil = Math.ceil((item.date - today) / 86400000);
                 
                 let urgencyLabel = `Za ${daysUntil} dni`;
-                if (daysUntil === 0) urgencyLabel = 'Dzisiaj!';
-                else if (daysUntil === 1) urgencyLabel = 'Jutro!';
+                let colorClass = daysUntil <= 3 ? 'text-amber-400' : 'text-[#a8c7fa]';
+
+                if (daysUntil < 0) {
+                    urgencyLabel = `Zaległe (${Math.abs(daysUntil)}d temu)`;
+                    colorClass = 'text-[#ffb4ab] font-bold';
+                } else if (daysUntil === 0) {
+                    urgencyLabel = 'Dzisiaj!';
+                } else if (daysUntil === 1) {
+                    urgencyLabel = 'Jutro!';
+                }
                 
                 let timeText = '';
                 if (item.exactTime) {
                     timeText = ' o ' + item.exactTime.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
                 }
-                
-                const colorClass = daysUntil <= 3 ? 'text-amber-400' : 'text-[#a8c7fa]';
                 
                 if (item.type === 'health') {
                     const profile = profiles.find(p => p.id === item.profile_id);
@@ -539,7 +542,7 @@ window.DashboardModule = (() => {
                             <div>
                                 <h4 class="text-sm font-medium text-neutral-200">${window.esc(item.name)}</h4>
                                 <p class="text-[10px] text-neutral-500 mt-0.5">
-                                    <span class="font-bold ${colorClass}">${urgencyLabel}${timeText}</span> • ${profile ? profile.name : 'Zdrowie'}
+                                    <span class="${colorClass}">${urgencyLabel}${timeText}</span> • ${profile ? profile.name : 'Zdrowie'}
                                 </p>
                             </div>
                         </div>
@@ -557,7 +560,7 @@ window.DashboardModule = (() => {
                             <div>
                                 <h4 class="text-sm font-medium text-[#c2e7ff]">${window.esc(item.title)}</h4>
                                 <p class="text-[10px] text-[#a8c7fa]/70 mt-0.5">
-                                    <span class="font-bold text-[#c2e7ff]">${urgencyLabel}${timeText}</span> • ${dateLabel}
+                                    <span class="${colorClass}">${urgencyLabel}${timeText}</span> • ${dateLabel}
                                 </p>
                             </div>
                         </div>
@@ -684,8 +687,8 @@ window.DashboardModule = (() => {
             setTimeout(() => window.openChecklistScreen(shoppingList.id, shoppingList.title, 'shopping'), 50);
         } else {
             window.showToast("Tworzę nowy koszyk...");
-            const hid = window.currentUser.household_id;
-            const uid = window.currentUser.user_id;
+            const hid = window.currentUser ? window.currentUser.household_id : null;
+            const uid = window.currentUser ? window.currentUser.user_id : null;
             
             const { data, error } = await window.supabaseClient.from('checklists').insert([{
                 title: 'Zakupy',
@@ -746,11 +749,37 @@ window.DashboardModule = (() => {
         });
     };
 
+    // Optymistyczne odhaczanie To-do na pulpicie (0 ms reakcji)
     window.quickCompleteTodoDashboard = async function(id) {
         const finalId = isNaN(id) ? id : Number(id);
-        const { error } = await window.supabaseClient.from('todos').update({ is_completed: true, completed_at: new Date().toISOString(), completer_name: window.currentUser.name }).eq('id', finalId);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.invalidateDashboardCache(); window.loadDashboardOverview(true);
+        
+        // 1. Instant local update
+        window.AppStore.set(state => ({
+            ...state,
+            todos: (state.todos || []).map(t => t.id === finalId ? {
+                ...t, 
+                is_completed: true, 
+                completed_at: new Date().toISOString(), 
+                completer_name: window.currentUser ? window.currentUser.name : 'Ja'
+            } : t)
+        }));
+        window.renderDashboardUI();
+
+        // 2. Tło
+        const { error } = await window.supabaseClient.from('todos')
+            .update({ 
+                is_completed: true, 
+                completed_at: new Date().toISOString(), 
+                completer_name: window.currentUser ? window.currentUser.name : 'Ja' 
+            })
+            .eq('id', finalId);
+
+        if (error) { 
+            window.showToast("Błąd: " + error.message); 
+            window.loadDashboardOverview(true);
+            return; 
+        }
+        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     };
 
     window.quickLogHealthDashboard = async function(taskId) {
