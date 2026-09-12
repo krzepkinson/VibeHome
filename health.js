@@ -1,12 +1,12 @@
 // ==========================================
-// LOGIKA: ZDROWIE 2.0 (health.js)
+// LOGIKA: ZDROWIE 2.0 - LOCAL FIRST (health.js)
 // ==========================================
 
 window.HealthModule = (() => {
-    // ZMIANA KRYTYCZNA: Usunięto lokalne tablice (healthTasks, healthLogs, itd.). 
-    // Od teraz korzystamy ZAWSZE ze świeżych danych w window.AppStore.get() !
     let currentProfileId = null; 
-    let isSwitchingProfile = false; 
+
+    // Bezpieczne porównywanie identyfikatorów bez względu na ich typ (String / Number)
+    const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 
     const formatLocalDatetime = (isoStr) => {
         if (!isoStr) return '';
@@ -31,23 +31,30 @@ window.HealthModule = (() => {
     };
 
     window.initHealthModule = async function() {
-        // Gwarantujemy, że główny magazyn ma pobrane dane z bazy
-        if (typeof window.loadDashboardOverview === 'function') {
-            await window.loadDashboardOverview(); 
-        }
-        
-        const state = window.AppStore.get();
+        // Przywrócenie ostatnio wybranego profilu z pamięci urządzenia
+        try {
+            const savedProfile = localStorage.getItem('bento_health_active_profile');
+            if (savedProfile) currentProfileId = savedProfile;
+        } catch (e) {}
+
+        const state = window.AppStore.get() || {};
         const pData = state.profiles || [];
         
-        if (pData.length > 0 && !currentProfileId) {
+        if (pData.length > 0 && (!currentProfileId || !pData.some(p => sameId(p.id, currentProfileId)))) {
             currentProfileId = pData[0].id;
         }
+
         window.renderHealthUI();
+
+        // Tło: dociągnięcie świeżych danych z serwera
+        if (typeof window.loadDashboardOverview === 'function') {
+            await window.loadDashboardOverview(); 
+            window.renderHealthUI();
+        }
     };
 
     window.refreshHealthData = async function() {
         if (!currentProfileId) return;
-        // Wymuszamy pełne odświeżenie danych w AppStore
         if (typeof window.loadDashboardOverview === 'function') {
             await window.loadDashboardOverview(true);
         }
@@ -55,15 +62,22 @@ window.HealthModule = (() => {
     };
 
     window.renderHealthUI = function() {
-        const state = window.AppStore.get();
+        const state = window.AppStore.get() || {};
         const profiles = state.profiles || [];
-        const profile = profiles.find(p => p.id === currentProfileId);
-        const sectionsWrapper = document.getElementById('health-sections-wrapper');
+        
+        // Bezpieczne wyszukiwanie profilu odporne na typ danych
+        let profile = profiles.find(p => sameId(p.id, currentProfileId));
+        if (!profile && profiles.length > 0) {
+            profile = profiles[0];
+            currentProfileId = profile.id;
+        }
 
+        const sectionsWrapper = document.getElementById('health-sections-wrapper');
         const pillsContainer = document.getElementById('health-profile-pills');
+
         if (pillsContainer && profiles.length > 0) {
             pillsContainer.innerHTML = profiles.map(p => {
-                const isActive = p.id === currentProfileId;
+                const isActive = sameId(p.id, currentProfileId);
                 const color = window.getAvatarColor ? window.getAvatarColor(p.name) : 'bg-neutral-600';
                 const activeClass = isActive
                     ? `${color} text-white border-transparent shadow-md scale-105`
@@ -107,14 +121,13 @@ window.HealthModule = (() => {
             headerAvatar.innerText = profile.name.charAt(0).toUpperCase();
         }
 
-        if(sectionsWrapper) sectionsWrapper.classList.remove('hidden');
+        if (sectionsWrapper) sectionsWrapper.classList.remove('hidden');
         window.renderHealthSections();
     };
 
     window.renderHealthSections = function() {
-        const state = window.AppStore.get();
-        // Pobieramy tylko zadania przypisane do aktualnego profilu i niezarchiwizowane
-        const hTasks = (state.hTasks || []).filter(t => t.profile_id === currentProfileId && !t.is_archived);
+        const state = window.AppStore.get() || {};
+        const hTasks = (state.hTasks || []).filter(t => sameId(t.profile_id, currentProfileId) && !t.is_archived);
         const hLogs = state.hLogs || [];
         
         const activeList = document.getElementById('health-active-list');
@@ -126,39 +139,45 @@ window.HealthModule = (() => {
         const currentlyActive = [];
         const inactiveDuration = [];
         activeTasks.forEach(t => {
-            const log = hLogs.find(l => l.health_task_id === t.id && l.end_date === null);
+            const log = hLogs.find(l => sameId(l.health_task_id, t.id) && l.end_date === null);
             if (log) currentlyActive.push({ task: t, log: log });
             else inactiveDuration.push(t);
         });
 
-        document.getElementById('health-active-section').classList.toggle('hidden', currentlyActive.length === 0 && inactiveDuration.length === 0);
+        const activeSection = document.getElementById('health-active-section');
+        if (activeSection) {
+            activeSection.classList.toggle('hidden', currentlyActive.length === 0 && inactiveDuration.length === 0);
+        }
+
         let activeHtml = '';
         if (currentlyActive.length > 0) {
             activeHtml += currentlyActive.map(item => window.UI.renderHealthActiveTask(item.task, item.log)).join('');
         }
         if (inactiveDuration.length > 0) {
-            activeHtml += inactiveDuration.map(t => {
-                return `
+            activeHtml += inactiveDuration.map(t => `
                 <div class="flex items-center justify-between p-3 bg-[#1e1f20] border border-[#333537] rounded-xl mb-1.5 hover:bg-[#252627] transition-colors">
                     <div class="flex-1 min-w-0 pr-3 js-open-health-settings cursor-pointer" data-id="${t.id}">
                         <h3 class="text-sm font-medium text-neutral-300 truncate">🤒 ${window.esc(t.name)}</h3>
                         <p class="text-[10px] text-neutral-500 mt-0.5">Gotowe do uruchomienia</p>
                     </div>
                     <button class="js-start-health-log w-8 h-8 rounded-full bg-rose-900/40 text-rose-200 flex items-center justify-center active:scale-90 border border-rose-800/60 shadow-inner shrink-0 cursor-pointer" data-id="${t.id}" data-type="duration">▶</button>
-                </div>`;
-            }).join('');
+                </div>`).join('');
         }
-        if(activeList) activeList.innerHTML = activeHtml;
+        if (activeList) activeList.innerHTML = activeHtml;
 
         const upcoming = hTasks.filter(t => {
             if (t.task_type !== 'one_time' || !t.event_date) return false;
             const evDate = new Date(t.event_date); evDate.setHours(0,0,0,0);
-            const isDone = hLogs.some(l => l.health_task_id === t.id);
+            const isDone = hLogs.some(l => sameId(l.health_task_id, t.id));
             return evDate >= today && !isDone;
         }).sort((a,b) => new Date(a.event_date) - new Date(b.event_date));
 
-        document.getElementById('health-upcoming-section').classList.toggle('hidden', upcoming.length === 0);
-        if(upcomingList) {
+        const upcomingSection = document.getElementById('health-upcoming-section');
+        if (upcomingSection) {
+            upcomingSection.classList.toggle('hidden', upcoming.length === 0);
+        }
+
+        if (upcomingList) {
             upcomingList.innerHTML = upcoming.map(t => {
                 const diff = Math.ceil((new Date(t.event_date) - today) / 86400000);
                 const label = diff === 0 ? "Dzisiaj!" : `Za ${diff} dni`;
@@ -166,9 +185,9 @@ window.HealthModule = (() => {
             }).join('');
         }
 
-        if(routineList) {
+        if (routineList) {
             routineList.innerHTML = hTasks.filter(t => t.task_type === 'cyclical').map(t => {
-                const taskLogs = hLogs.filter(l => l.health_task_id === t.id);
+                const taskLogs = hLogs.filter(l => sameId(l.health_task_id, t.id));
                 const statusHtml = window.getHealthStatusString(t, null, taskLogs);
                 return window.UI.renderHealthRoutineTask(t, statusHtml);
             }).join('') || window.UI.renderEmptyState("Brak zaplanowanych rutyn", "");
@@ -188,7 +207,7 @@ window.HealthModule = (() => {
             return 'Brak aktywnych';
         } 
         else if (task.task_type === 'one_time') {
-            if (taskLogs.length > 0) return '<span class="text-neutral-500">Wydarzenie zakończone</span>';
+            if (taskLogs && taskLogs.length > 0) return '<span class="text-neutral-500">Wydarzenie zakończone</span>';
             if (!task.event_date) return 'Brak określonej daty';
             const evDate = new Date(task.event_date); evDate.setHours(0,0,0,0);
             const diff = Math.floor((evDate - today) / 86400000);
@@ -209,41 +228,84 @@ window.HealthModule = (() => {
         }
     };
 
+    // INSTANT LOCAL-FIRST: Rejestrowanie wykonania zdarzenia w 0 ms
     window.startHealthLog = async function(taskId, type) {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
         if (document.activeElement) document.activeElement.blur();
 
         const now = new Date().toISOString();
-        
-        const { error } = await window.supabaseClient.from('health_logs').insert([{ 
-            health_task_id: taskId, start_date: now, end_date: (type === 'cyclical' || type === 'one_time') ? now : null, 
-            user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, user_name: window.currentUser.name 
-        }]);
+        const tempId = Date.now();
 
-        if (error) { window.showToast("Błąd: " + error.message); return; }
+        const newLog = {
+            id: tempId,
+            health_task_id: taskId,
+            start_date: now,
+            end_date: (type === 'cyclical' || type === 'one_time') ? now : null,
+            user_id: window.currentUser ? window.currentUser.user_id : null,
+            household_id: window.currentUser ? window.currentUser.household_id : null,
+            user_name: window.currentUser ? window.currentUser.name : 'Ja'
+        };
+
+        // 1. Natychmiastowy zapis w lokalnym AppStore
+        window.AppStore.set(state => ({
+            ...state,
+            hLogs: [newLog, ...(state.hLogs || [])]
+        }));
+        window.renderHealthUI();
+        window.showToast("Zapisano!");
+
+        // 2. Wysyłka do chmury w tle
+        const { data, error } = await window.supabaseClient.from('health_logs').insert([{ 
+            health_task_id: taskId, start_date: now, end_date: newLog.end_date, 
+            user_id: newLog.user_id, household_id: newLog.household_id, user_name: newLog.user_name 
+        }]).select().single();
+
+        if (error) {
+            window.showToast("Błąd zapisu w chmurze");
+            window.refreshHealthData();
+            return;
+        }
+
+        if (data) {
+            window.AppStore.set(state => ({
+                ...state,
+                hLogs: (state.hLogs || []).map(l => l.id === tempId ? data : l)
+            }));
+        }
 
         const state = window.AppStore.get();
-        const task = (state.hTasks || []).find(t => t.id == taskId);
-        
+        const task = (state.hTasks || []).find(t => sameId(t.id, taskId));
         if (task && task.task_type === 'cyclical' && task.interval_days > 0) {
             const nextDate = new Date(now);
             nextDate.setDate(nextDate.getDate() + task.interval_days);
             await window.supabaseClient.from('health_tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', taskId);
         }
-
-        window.showToast("Zapisano!"); 
-        await window.refreshHealthData(); 
     };
 
+    // INSTANT LOCAL-FIRST: Zakończenie trwającej sytuacji w 0 ms
     window.closeHealthLog = async function(logId) {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
         if (document.activeElement) document.activeElement.blur();
 
-        const { error } = await window.supabaseClient.from('health_logs').update({ end_date: new Date().toISOString() }).eq('id', logId).eq('household_id', window.currentUser.household_id);
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        
-        window.showToast("Zakończono"); 
-        await window.refreshHealthData(); 
+        const now = new Date().toISOString();
+
+        // 1. Natychmiastowa aktualizacja ekranu
+        window.AppStore.set(state => ({
+            ...state,
+            hLogs: (state.hLogs || []).map(l => sameId(l.id, logId) ? { ...l, end_date: now } : l)
+        }));
+        window.renderHealthUI();
+        window.showToast("Zakończono");
+
+        // 2. Synchronizacja w tle
+        const { error } = await window.supabaseClient.from('health_logs')
+            .update({ end_date: now })
+            .eq('id', logId);
+
+        if (error) { 
+            window.showToast("Błąd zapisu w chmurze"); 
+            window.refreshHealthData();
+        }
     };
 
     window.openHealthFabMenu = function() { 
@@ -304,7 +366,6 @@ window.HealthModule = (() => {
 
         const n = document.getElementById('h-task-name').value.trim(); 
         const type = document.getElementById('h-task-type').value;
-        
         const catEl = document.getElementById('h-task-category');
         const catValue = catEl ? catEl.value : 'Inne';
 
@@ -325,36 +386,14 @@ window.HealthModule = (() => {
         
         if (!n || !currentProfileId) return;
 
-        // ZMIANA KRYTYCZNA: Dodano eq('task_type', type) by uniknąć fałszywych duplikatów wg nazwy!
-        const { data: existingHTasks } = await window.supabaseClient
-            .from('health_tasks')
-            .select('id, is_archived')
-            .eq('household_id', window.currentUser.household_id)
-            .eq('profile_id', currentProfileId)
-            .eq('task_type', type)
-            .ilike('name', n)
-            .limit(1);
+        const { error } = await window.supabaseClient.from('health_tasks').insert([{ 
+            profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, 
+            remind_days_before: remind, event_date: evDate, show_in_history: true, is_archived: false, 
+            user_id: window.currentUser.user_id, household_id: window.currentUser.household_id,
+            next_due_at: initialDue, category: catValue
+        }]);
 
-        if (existingHTasks && existingHTasks.length > 0) {
-            const existing = existingHTasks[0];
-            if (existing.is_archived) {
-                const { error: updErr } = await window.supabaseClient.from('health_tasks').update({
-                    is_archived: false, interval_days: interval, remind_days_before: remind, event_date: evDate, next_due_at: initialDue, category: catValue
-                }).eq('id', existing.id);
-                if (updErr) { window.showToast("Błąd przywracania: " + updErr.message); return; }
-            } else {
-                window.showToast("Zdarzenie o tej nazwie jest już aktywne!");
-                return;
-            }
-        } else {
-            const { error } = await window.supabaseClient.from('health_tasks').insert([{ 
-                profile_id: currentProfileId, name: n, task_type: type, interval_days: interval, 
-                remind_days_before: remind, event_date: evDate, show_in_history: true, is_archived: false, 
-                user_id: window.currentUser.user_id, household_id: window.currentUser.household_id,
-                next_due_at: initialDue, category: catValue
-            }]);
-            if (error) { window.showToast("Błąd: " + error.message); return; }
-        }
+        if (error) { window.showToast("Błąd: " + error.message); return; }
         
         window.closeNewHealthTaskModal(); 
         window.showToast("Dodano zdarzenie!");
@@ -364,9 +403,9 @@ window.HealthModule = (() => {
     window.currentHealthSettingsId = null;
     
     window.openHealthSettingsScreen = async function(taskId) {
-        window.currentHealthSettingsId = parseInt(taskId); 
-        const state = window.AppStore.get();
-        const task = (state.hTasks || []).find(t => t.id === window.currentHealthSettingsId);
+        window.currentHealthSettingsId = taskId; 
+        const state = window.AppStore.get() || {};
+        const task = (state.hTasks || []).find(t => sameId(t.id, window.currentHealthSettingsId));
         if (!task) return;
 
         await window.switchView('health-settings-screen');
@@ -389,20 +428,16 @@ window.HealthModule = (() => {
         if (task.task_type === 'cyclical') {
             if (intervalWrapper) {
                 intervalWrapper.classList.remove('hidden');
-                
                 const intervalInput = document.getElementById('health-settings-interval');
                 if (intervalInput) intervalInput.value = task.interval_days || 0; 
-                
                 const remindInput = document.getElementById('health-settings-remind-days');
                 if (remindInput) remindInput.value = task.remind_days_before || 0; 
             }
         } else if (task.task_type === 'one_time') {
             if (dateWrapper) {
                 dateWrapper.classList.remove('hidden');
-                
                 const dateInput = document.getElementById('health-settings-date');
                 if (dateInput) dateInput.value = task.event_date ? formatLocalDatetime(task.event_date) : '';
-                
                 const remindInput = document.getElementById('health-settings-remind-date');
                 if (remindInput) remindInput.value = task.remind_days_before || 0; 
             }
@@ -414,8 +449,8 @@ window.HealthModule = (() => {
     window.saveHealthSettings = async function() {
         if (document.activeElement) document.activeElement.blur();
 
-        const state = window.AppStore.get();
-        const task = (state.hTasks || []).find(t => t.id === window.currentHealthSettingsId);
+        const state = window.AppStore.get() || {};
+        const task = (state.hTasks || []).find(t => sameId(t.id, window.currentHealthSettingsId));
         
         if (!task) {
             window.showToast("Błąd: Nie znaleziono zadania.");
@@ -440,7 +475,7 @@ window.HealthModule = (() => {
             }
         }
         
-        const { error } = await window.supabaseClient.from('health_tasks').update(updateData).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
+        const { error } = await window.supabaseClient.from('health_tasks').update(updateData).eq('id', window.currentHealthSettingsId);
         if (error) { window.showToast("Błąd: " + error.message); return; }
         window.showToast("Zapisano!"); 
         
@@ -450,7 +485,7 @@ window.HealthModule = (() => {
 
     window.deleteHealthTask = function() {
         window.customConfirm("Zarchiwizować to zdarzenie?", async () => {
-            const { error } = await window.supabaseClient.from('health_tasks').update({ is_archived: true }).eq('id', window.currentHealthSettingsId).eq('household_id', window.currentUser.household_id);
+            const { error } = await window.supabaseClient.from('health_tasks').update({ is_archived: true }).eq('id', window.currentHealthSettingsId);
             if (error) { window.showToast("Błąd: " + error.message); return; }
             
             await window.refreshHealthData(); 
@@ -458,32 +493,25 @@ window.HealthModule = (() => {
         });
     };
 
-    window.selectHealthProfile = async function(id) { 
-        if (isSwitchingProfile) return; 
-        isSwitchingProfile = true;
-        
-        try {
-            currentProfileId = parseInt(id); 
-            if (typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
-            
-            const sectionsWrapper = document.getElementById('health-sections-wrapper');
-            if (sectionsWrapper) sectionsWrapper.style.opacity = '0.3';
+    // SZYBKIE PRZEŁĄCZANIE PROFILU (BEZ BLOKAD I ZAPAMIĘTANE NA STAŁE)
+    window.selectHealthProfile = function(id) { 
+        if (!id) return;
+        currentProfileId = id; 
 
-            window.renderHealthUI();
-        } catch (error) {
-            console.error(error);
-        } finally {
-            const sectionsWrapper = document.getElementById('health-sections-wrapper');
-            if (sectionsWrapper) sectionsWrapper.style.opacity = '';
-            isSwitchingProfile = false; 
-        }
+        try {
+            localStorage.setItem('bento_health_active_profile', String(id));
+        } catch (e) {}
+
+        if (typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
+        
+        window.renderHealthUI();
     };
 
     window.toggleProfileSwitcher = function() {
         window.loadAndShowModal('profile-switcher-modal', '/modals/profile-switcher.html', () => {
-            const state = window.AppStore.get();
+            const state = window.AppStore.get() || {};
             const profiles = state.profiles || [];
-            document.getElementById('switcher-profiles-list').innerHTML = profiles.map(p => window.UI.renderProfileSwitcherItem(p, p.id === currentProfileId)).join('');
+            document.getElementById('switcher-profiles-list').innerHTML = profiles.map(p => window.UI.renderProfileSwitcherItem(p, sameId(p.id, currentProfileId))).join('');
         });
     };
 
@@ -502,7 +530,9 @@ window.HealthModule = (() => {
     
     window.loadPharmacyItems = async function() {
         const listEl = document.getElementById('pharmacy-list');
+        if (!listEl) return;
         listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Szukam leków...</p>`;
+        
         const { data, error } = await window.supabaseClient.from('pharmacy_items').select('*').eq('household_id', window.currentUser.household_id).order('expiration_date', { ascending: true, nullsFirst: false });
         if (error) { listEl.innerHTML = `<p class="text-center text-[#ffb4ab] text-xs py-10">Błąd pobierania bazy leków.</p>`; return; }
         window.allPharmacyItems = data || [];
@@ -511,6 +541,8 @@ window.HealthModule = (() => {
 
     window.renderPharmacyList = function() {
         const listEl = document.getElementById('pharmacy-list');
+        if (!listEl) return;
+
         const searchInput = document.getElementById('pharmacy-search-input');
         const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
         
@@ -594,7 +626,7 @@ window.HealthModule = (() => {
     };
 
     window.openEditPharmacyModal = function(id) {
-        const item = window.allPharmacyItems.find(p => p.id == id);
+        const item = window.allPharmacyItems.find(p => sameId(p.id, id));
         if (!item) return;
 
         window.loadAndShowModal('edit-pharmacy-item-modal', '/modals/edit-pharmacy-item.html', () => {
@@ -635,7 +667,7 @@ window.HealthModule = (() => {
 
         const { error } = await window.supabaseClient.from('pharmacy_items')
             .update({ name: name, expiration_date: expDateSQL, purpose: purpose })
-            .eq('id', id).eq('household_id', window.currentUser.household_id);
+            .eq('id', id);
 
         if (error) { window.showToast("Błąd zapisu: " + error.message); return; }
         
@@ -646,7 +678,7 @@ window.HealthModule = (() => {
 
     window.deletePharmacyItem = function(id) {
         window.customConfirm("Usunąć ten lek?", async () => {
-            const { error } = await window.supabaseClient.from('pharmacy_items').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
+            const { error } = await window.supabaseClient.from('pharmacy_items').delete().eq('id', id);
             if (error) { window.showToast("Błąd usuwania: " + error.message); return; }
             window.showToast("Lek wyrzucony!"); 
             window.closeEditPharmacyModal();
@@ -710,15 +742,14 @@ window.HealthModule = (() => {
     };
 
     window.openEditHealthBookItem = function(id, type) {
-        const state = window.AppStore.get();
+        const state = window.AppStore.get() || {};
         if (type === 'log') {
-            const log = (state.hLogs || []).find(l => l.id == id);
+            const log = (state.hLogs || []).find(l => sameId(l.id, id));
             if (!log) return;
-            const task = (state.hTasks || []).find(t => t.id == log.health_task_id);
+            const task = (state.hTasks || []).find(t => sameId(t.id, log.health_task_id));
 
             window.loadAndShowModal('edit-health-log-modal', '/modals/edit-health-log.html', () => {
                 document.getElementById('edit-hlog-id').value = log.id;
-                
                 const startInput = document.getElementById('edit-hlog-start');
                 if (startInput) startInput.value = formatLocalDatetime(log.start_date);
                 
@@ -734,7 +765,7 @@ window.HealthModule = (() => {
                 }
             });
         } else if (type === 'measurement') {
-            const meas = (state.hMeasurements || []).find(m => m.id == id);
+            const meas = (state.hMeasurements || []).find(m => sameId(m.id, id));
             if (!meas) return;
             window.loadAndShowModal('edit-measurement-modal', '/modals/edit-measurement.html', () => {
                 document.getElementById('edit-meas-id').value = meas.id;
@@ -758,16 +789,16 @@ window.HealthModule = (() => {
     window.saveEditHealthLog = async function() {
         if (document.activeElement) document.activeElement.blur();
 
-        const state = window.AppStore.get();
+        const state = window.AppStore.get() || {};
         const id = document.getElementById('edit-hlog-id').value;
         const startStr = document.getElementById('edit-hlog-start').value;
         const endStr = document.getElementById('edit-hlog-end').value;
         
         if (!id || !startStr) return;
 
-        const log = (state.hLogs || []).find(l => l.id == id);
+        const log = (state.hLogs || []).find(l => sameId(l.id, id));
         if (!log) return;
-        const task = (state.hTasks || []).find(t => t.id == log.health_task_id);
+        const task = (state.hTasks || []).find(t => sameId(t.id, log.health_task_id));
 
         const startDateIso = parseLocalDatetime(startStr).toISOString();
         let endDateIso = log.end_date; 
@@ -780,7 +811,7 @@ window.HealthModule = (() => {
 
         const { error } = await window.supabaseClient.from('health_logs')
             .update({ start_date: startDateIso, end_date: endDateIso })
-            .eq('id', id).eq('household_id', window.currentUser.household_id);
+            .eq('id', id);
 
         if (error) { window.showToast("Błąd: " + error.message); return; }
         
@@ -812,7 +843,7 @@ window.HealthModule = (() => {
 
         const { error } = await window.supabaseClient.from('health_measurements')
             .update({ value: numericVal, created_at: finalDate, notes: notes })
-            .eq('id', id).eq('household_id', window.currentUser.household_id);
+            .eq('id', id);
 
         if (error) { window.showToast("Błąd: " + error.message); return; }
         
@@ -834,24 +865,22 @@ window.HealthModule = (() => {
         tl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Analizowanie danych...</p>`;
         
         try {
-            const state = window.AppStore.get();
+            const state = window.AppStore.get() || {};
             const profiles = state.profiles || [];
-            const profile = profiles.find(p => p.id === currentProfileId);
+            const profile = profiles.find(p => sameId(p.id, currentProfileId));
             
             if (profile) {
                 const subtitle = document.getElementById('health-book-subtitle');
                 if (subtitle) subtitle.innerText = `Pacjent: ${profile.name}`;
             }
 
-            // Odtąd budujemy Książeczkę CAŁKOWICIE z AppStore!
             const allMeas = state.hMeasurements || [];
             const allTasks = state.hTasks || [];
             const allLogs = state.hLogs || [];
 
-            const measurements = allMeas.filter(m => m.profile_id === currentProfileId);
-            const tasks = allTasks.filter(t => t.profile_id === currentProfileId);
-            const taskMap = new Map(tasks.map(t => [t.id, t]));
-            const profileLogs = allLogs.filter(l => taskMap.has(l.health_task_id));
+            const measurements = allMeas.filter(m => sameId(m.profile_id, currentProfileId));
+            const tasks = allTasks.filter(t => sameId(t.profile_id, currentProfileId));
+            const profileLogs = allLogs.filter(l => tasks.some(t => sameId(t.id, l.health_task_id)));
             
             let timelineItems = [];
 
@@ -869,17 +898,13 @@ window.HealthModule = (() => {
             });
 
             profileLogs.forEach(l => {
-                const task = taskMap.get(l.health_task_id); 
+                const task = tasks.find(t => sameId(t.id, l.health_task_id)); 
                 if (!task) return;
 
                 const wykonawca = l.user_name || 'Domownik';
-                let szczegoly = '';
-                
-                if (task.task_type === 'duration') {
-                    szczegoly = l.end_date ? `Zdarzenie trwało do ${new Date(l.end_date).toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'})}` : 'Zdarzenie nadal trwa';
-                } else {
-                    szczegoly = `Zarejestrowano wykonanie zadania`;
-                }
+                let szczegoly = task.task_type === 'duration' 
+                    ? (l.end_date ? `Zdarzenie trwało do ${new Date(l.end_date).toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'})}` : 'Zdarzenie nadal trwa')
+                    : `Zarejestrowano wykonanie zadania`;
 
                 timelineItems.push({
                     id: l.id,
@@ -940,14 +965,12 @@ window.HealthModule = (() => {
             document.getElementById('day-details-title').innerText = "Szczegóły Zdrowia";
             document.getElementById('day-details-date').innerText = new Date(dateStr).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
             
-            const state = window.AppStore.get();
-            const hTasks = (state.hTasks || []).filter(t => t.profile_id === currentProfileId && !t.is_archived);
+            const state = window.AppStore.get() || {};
+            const hTasks = (state.hTasks || []).filter(t => sameId(t.profile_id, currentProfileId) && !t.is_archived);
             const hLogs = state.hLogs || [];
 
-            const taskMap = new Map(hTasks.map(t => [t.id, t]));
-
             const dayLogs = hLogs.filter(l => { 
-                const task = taskMap.get(l.health_task_id);
+                const task = hTasks.find(t => sameId(t.id, l.health_task_id));
                 if (!task) return false;
                 const start = l.start_date.split('T')[0]; 
                 const end = l.end_date ? l.end_date.split('T')[0] : getLocalDayStr(); 
@@ -961,11 +984,11 @@ window.HealthModule = (() => {
             } else {
                 let itemsHtml = '';
                 oneTimeEvents.forEach(t => { 
-                    const isDone = hLogs.some(l => l.health_task_id === t.id); 
+                    const isDone = hLogs.some(l => sameId(l.health_task_id, t.id)); 
                     itemsHtml += window.UI.renderHealthDayEvent(t, isDone); 
                 });
                 dayLogs.forEach(l => { 
-                    const task = taskMap.get(l.health_task_id); 
+                    const task = hTasks.find(t => sameId(t.id, l.health_task_id)); 
                     if (task) itemsHtml += window.UI.renderHealthDayLog(task, l); 
                 });
                 list.innerHTML = itemsHtml;
@@ -984,8 +1007,8 @@ window.HealthModule = (() => {
     if (window.EventDispatcher) {
         window.EventDispatcher.onClick('.js-toggle-health-view', async () => {
             await window.switchView('calendar');
-            if (typeof window.CalendarModule.setFilter === 'function') window.CalendarModule.setFilter('Zdrowie');
-            if (typeof window.CalendarModule.setProfileFilter === 'function') window.CalendarModule.setProfileFilter(currentProfileId);
+            if (typeof window.CalendarModule?.setFilter === 'function') window.CalendarModule.setFilter('Zdrowie');
+            if (typeof window.CalendarModule?.setProfileFilter === 'function') window.CalendarModule.setProfileFilter(currentProfileId);
         });
         
         window.EventDispatcher.onClick('.js-open-health-book', () => window.openHealthBook());
