@@ -1,8 +1,11 @@
 // ==========================================
-// ROUTER: ZARZĄDZANIE WIDOKAMI (router.js)
+// ROUTER & MODAL ENGINE - LOCAL FIRST (router.js)
 // ==========================================
 
 window.Router = (() => {
+    const VIEW_CACHE_PREFIX = 'bento_view_cache_';
+    const MODAL_CACHE_PREFIX = 'bento_modal_cache_';
+
     const viewConfig = {
         // GŁÓWNE WIDOKI
         'auth':      { onEnter: null },
@@ -22,13 +25,23 @@ window.Router = (() => {
         'settings-profiles-screen': { file: 'settings-profiles.html', onEnter: () => window.loadAppProfiles?.() },
         'edit-profile-screen': { file: 'edit-profile.html', onEnter: null },
         'settings-screen': { file: 'task-settings.html', onEnter: null },
-        'calendar': { file: 'calendar.html', onEnter: () => window.CalendarModule.init() },
+        'calendar': { file: 'calendar.html', onEnter: () => window.CalendarModule?.init() },
         'health-settings-screen': { file: 'health-settings.html', onEnter: null }
     };
 
     let activeView = 'auth';
-    let loadedViews = new Map(); // Pamięć załadowanych widoków z plików
+    let loadedViews = new Map();
 
+    // POMOCNICZE: Bezpieczny odczyt i zapis w localStorage
+    const getCachedHtml = (key) => {
+        try { return localStorage.getItem(key); } catch (e) { return null; }
+    };
+
+    const setCachedHtml = (key, html) => {
+        try { localStorage.setItem(key, html); } catch (e) {}
+    };
+
+    // 1. SILNIK PRZEŁĄCZANIA WIDOKÓW
     window.switchView = async function(viewName, pushToHistory = true) {
         if (activeView === viewName && viewName !== 'auth') return;
 
@@ -41,34 +54,46 @@ window.Router = (() => {
         // Ukrywamy wszystkie ekrany
         document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
         
-        // --- TRYB 1: WIDOK Z PLIKU (Lazy Loading) ---
+        // --- WIDOK Z PLIKU / LOCAL STORAGE ---
         if (config.file) {
             const container = document.getElementById('view-container');
+            const cacheKey = VIEW_CACHE_PREFIX + viewName;
+
             if (!loadedViews.has(viewName)) {
-                try {
-                    const appVersion = (window.CONFIG && window.CONFIG.VERSION) ? window.CONFIG.VERSION : Date.now();
-                    const response = await fetch(`/views/${config.file}?v=${appVersion}`);
-                    
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const html = await response.text();
-                    
-                    const wrapper = document.createElement('div');
-                    wrapper.id = `view-${viewName}`;
-                    wrapper.className = 'screen-view transition-all duration-300';
-                    wrapper.innerHTML = html;
-                    
-                    container.appendChild(wrapper);
-                    loadedViews.set(viewName, wrapper);
-                } catch (err) {
-                    console.error(`Błąd ładowania ${config.file}:`, err);
-                    window.showToast("Błąd ładowania interfejsu");
-                    window.switchView('dashboard', false); 
-                    return;
+                let html = getCachedHtml(cacheKey);
+
+                // Jeśli brak w pamięci podręcznej urządzenia, pobieramy przez sieć
+                if (!html) {
+                    try {
+                        const appVersion = (window.CONFIG && window.CONFIG.VERSION) ? window.CONFIG.VERSION : Date.now();
+                        const response = await fetch(`/views/${config.file}?v=${appVersion}`);
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        html = await response.text();
+                        setCachedHtml(cacheKey, html);
+                    } catch (err) {
+                        console.error(`Błąd ładowania ${config.file}:`, err);
+                        window.showToast?.("Brak połączenia - widok niedostępny");
+                        window.switchView('dashboard', false); 
+                        return;
+                    }
+                } else {
+                    // Cicha aktualizacja w tle jeśli jest zasięg
+                    fetch(`/views/${config.file}`).then(r => r.ok ? r.text() : null).then(freshHtml => {
+                        if (html && freshHtml) setCachedHtml(cacheKey, freshHtml);
+                    }).catch(() => {});
                 }
+
+                const wrapper = document.createElement('div');
+                wrapper.id = `view-${viewName}`;
+                wrapper.className = 'screen-view transition-all duration-300';
+                wrapper.innerHTML = html;
+                
+                if (container) container.appendChild(wrapper);
+                loadedViews.set(viewName, wrapper);
             }
             loadedViews.get(viewName).classList.remove('hidden');
         } 
-        // --- TRYB 2: WIDOK WBUDOWANY W INDEX.HTML ---
+        // --- WIDOK WBUDOWANY W INDEX.HTML ---
         else {
             const targetId = config.screenId || `view-${viewName}`;
             const targetScreen = document.getElementById(targetId) || document.getElementById(viewName);
@@ -82,7 +107,6 @@ window.Router = (() => {
 
         window.scrollTo(0, 0);
 
-        // --- Dodawanie do Historii Przeglądarki (URL) ---
         if (pushToHistory && viewName !== 'auth') {
             const newUrl = viewName === 'dashboard' ? '/' : `/?view=${viewName}`;
             window.history.pushState({ view: viewName }, '', newUrl);
@@ -95,7 +119,7 @@ window.Router = (() => {
             nav.classList.toggle('hidden', viewName === 'auth' || isSubScreen);
             
             nav.querySelectorAll('button').forEach(btn => {
-                const isActive = btn.getAttribute('onclick')?.includes(`'${viewName}'`) || btn.dataset.view === viewName;
+                const isActive = btn.dataset.view === viewName || btn.getAttribute('onclick')?.includes(`'${viewName}'`);
                 btn.style.opacity = isActive ? '1' : '0.5';
             });
         }
@@ -106,6 +130,63 @@ window.Router = (() => {
         if (typeof config.onEnter === 'function') {
             config.onEnter();
         }
+    };
+
+    // 2. PANCERNY SILNIK MODALI OFFLINE
+    window.loadAndShowModal = async function(modalId, modalPath, onReadyCallback) {
+        let modalEl = document.getElementById(modalId);
+        const cacheKey = MODAL_CACHE_PREFIX + modalId;
+
+        if (!modalEl) {
+            let html = getCachedHtml(cacheKey);
+
+            if (!html) {
+                try {
+                    const response = await fetch(modalPath);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    html = await response.text();
+                    setCachedHtml(cacheKey, html);
+                } catch (err) {
+                    console.error(`Błąd pobierania modala ${modalPath}:`, err);
+                    window.showToast?.("Tryb offline - brak szablonu formularza");
+                    return;
+                }
+            } else {
+                // Cicha aktualizacja w tle
+                fetch(modalPath).then(r => r.ok ? r.text() : null).then(freshHtml => {
+                    if (freshHtml) setCachedHtml(cacheKey, freshHtml);
+                }).catch(() => {});
+            }
+
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = html;
+            modalEl = wrapper.firstElementChild;
+            document.body.appendChild(modalEl);
+        }
+
+        modalEl.classList.remove('hidden');
+        modalEl.style.pointerEvents = 'auto';
+
+        if (typeof onReadyCallback === 'function') {
+            onReadyCallback(modalEl);
+        }
+    };
+
+    // 3. CICHE POBIERANIE WSZYSTKICH EKRANÓW I FORMULARZY W TLE (Prefetching)
+    window.prefetchAllViewsAndModals = async function() {
+        if (!navigator.onLine) return;
+
+        // Pobieramy widoki
+        Object.entries(viewConfig).forEach(([vName, cfg]) => {
+            if (cfg.file) {
+                const cacheKey = VIEW_CACHE_PREFIX + vName;
+                if (!getCachedHtml(cacheKey)) {
+                    fetch(`/views/${cfg.file}`).then(r => r.ok ? r.text() : null).then(html => {
+                        if (html) setCachedHtml(cacheKey, html);
+                    }).catch(() => {});
+                }
+            }
+        });
     };
 
     window.goBack = function() { 
@@ -126,7 +207,7 @@ window.Router = (() => {
         }
     };
 
-    // --- Nasłuchiwanie gestów systemowych wstecz/dalej ---
+    // --- POPSTATE & INICJALIZACJA TŁA ---
     window.addEventListener('popstate', (e) => {
         if (e.state?.view === 'home' && !e.state?.roomFilter && activeView === 'home') {
             if (typeof window.clearRoomFilter === 'function') {
@@ -135,7 +216,6 @@ window.Router = (() => {
             return; 
         }
         
-        // ZMIANA KRYTYCZNA: Ochrona przed widokiem 'auth' dla zalogowanych użytkowników
         if (e.state && e.state.view) {
             const targetView = (e.state.view === 'auth' && window.currentUser) 
                 ? 'dashboard' 
@@ -152,6 +232,9 @@ window.Router = (() => {
             }
         }
     });
+
+    // Uruchom cichy prefetch po załadowaniu
+    setTimeout(() => window.prefetchAllViewsAndModals(), 2000);
 
     return { active: () => activeView };
 })();
