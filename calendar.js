@@ -1,12 +1,12 @@
 // ==========================================
-// LOGIKA: ZUNIFIKOWANY KALENDARZ (calendar.js)
+// LOGIKA: ZUNIFIKOWANY KALENDARZ - LOCAL FIRST (calendar.js)
 // ==========================================
 
 window.CalendarModule = (() => {
     let currentTab = 'agenda'; 
     let activeFilter = 'all'; 
-    let activeSubFilterTasks = []; // ZMIANA: Tablica zamiast pojedynczej wartości
-    let tempSelectedTasks = []; // Pomocnicza tablica na czas edycji modala
+    let activeSubFilterTasks = [];
+    let tempSelectedTasks = [];
     let activeSubFilterPerson = null; 
     
     let allEvents = []; 
@@ -16,6 +16,8 @@ window.CalendarModule = (() => {
     let currentYear = new Date().getFullYear();
     let eventsSetupDone = false; 
 
+    const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+
     const getLocalDayStr = (dObj = new Date()) => {
         const y = dObj.getFullYear();
         const m = String(dObj.getMonth() + 1).padStart(2, '0');
@@ -24,125 +26,122 @@ window.CalendarModule = (() => {
     };
 
     async function init() {
-        document.getElementById('calendar-subtitle').innerText = 'Ładowanie danych...';
-        await fetchAllData();
+        const subtitle = document.getElementById('calendar-subtitle');
+        if (subtitle) subtitle.innerText = 'Wczytywanie...';
+
+        // 1. Instant render z AppStore (0 ms)
+        buildEventsFromStore();
         renderProfilePills();
         renderCurrentTab();
         setupEvents();
+
+        if (subtitle) subtitle.innerText = 'Gotowe';
+
+        // 2. Tło: Dociągnięcie ewentualnych braków z chmury
+        if (typeof window.loadDashboardOverview === 'function') {
+            await window.loadDashboardOverview();
+            buildEventsFromStore();
+            renderProfilePills();
+            renderCurrentTab();
+        }
     }
 
-    async function fetchAllData() {
-        const hid = window.currentUser.household_id;
+    function buildEventsFromStore() {
+        const state = window.AppStore.get() || {};
         allEvents = [];
+        appProfiles = state.profiles || [];
 
-        try {
-            const oneYearAgo = new Date();
-            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-            const dateLimit = oneYearAgo.toISOString();
+        const tasks = (state.tasks || []).filter(t => !t.is_archived);
+        const logs = state.logs || [];
+        const hTasks = (state.hTasks || []).filter(t => !t.is_archived);
+        const hLogs = state.hLogs || [];
+        const calEvents = state.calendarEvents || [];
 
-            const [profilesRes, tasksRes, tLogsRes, hTasksRes, hLogsRes, eventsRes] = await Promise.all([
-                window.supabaseClient.from('profiles').select('*').eq('household_id', hid).order('name'),
-                window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-                window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).gte('created_at', dateLimit).limit(2000),
-                window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-                window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).gte('start_date', dateLimit).limit(2000),
-                window.supabaseClient.from('calendar_events').select('*').eq('household_id', hid).gte('event_datetime', dateLimit).limit(1000)
-            ]);
+        // 1. Wydarzenia własne z kalendarza
+        calEvents.forEach(ev => {
+            const dateObj = new Date(ev.event_datetime);
+            const timeStr = dateObj.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+            allEvents.push({
+                id: ev.id, type: 'Wydarzenie', title: `${ev.title} • ${timeStr}`, rawTitle: ev.title, rawDatetime: ev.event_datetime, icon: '🎟️',
+                date: getLocalDayStr(dateObj), color: 'text-fuchsia-400', bg: 'bg-[#d946ef]', profileId: null, isDuration: false
+            });
+        });
 
-            appProfiles = profilesRes.data || [];
+        // 2. Zadania Domowe
+        tasks.forEach(t => {
+            let isTaskAssigned = true; 
+            if (t.assigned_to && window.currentUser && !sameId(t.assigned_to, window.currentUser.id) && t.assigned_to !== window.currentUser.name) {
+                isTaskAssigned = false;
+            }
 
-            if (eventsRes.data) {
-                eventsRes.data.forEach(ev => {
-                    const dateObj = new Date(ev.event_datetime);
-                    const timeStr = dateObj.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+            if (isTaskAssigned) {
+                if (t.interval_days && t.interval_days > 0) {
+                    const taskLogs = logs.filter(l => sameId(l.task_id, t.id)).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+                    let nextDateObj = new Date();
+                    if (taskLogs.length > 0) {
+                        nextDateObj = new Date(taskLogs[0].created_at);
+                        nextDateObj.setDate(nextDateObj.getDate() + t.interval_days);
+                    }
                     allEvents.push({
-                        id: ev.id, type: 'Wydarzenie', title: `${ev.title} • ${timeStr}`, rawTitle: ev.title, rawDatetime: ev.event_datetime, icon: '🎟️',
-                        date: getLocalDayStr(dateObj), color: 'text-fuchsia-400', bg: 'bg-[#d946ef]', profileId: null, isDuration: false
+                        id: t.id, type: 'Dom', title: t.name, icon: '🏠',
+                        date: getLocalDayStr(nextDateObj), color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
                     });
-                });
-            }
-
-            if (tasksRes.data) {
-                tasksRes.data.forEach(t => {
-                    let isTaskAssigned = true; 
-                    if (t.assigned_to && t.assigned_to !== window.currentUser.id && t.assigned_to !== window.currentUser.name) isTaskAssigned = false;
-
-                    if (isTaskAssigned) {
-                        if (t.interval_days && t.interval_days > 0) {
-                            const logs = (tLogsRes.data || []).filter(l => l.task_id === t.id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-                            let nextDateObj = new Date();
-                            if (logs.length > 0) {
-                                nextDateObj = new Date(logs[0].created_at);
-                                nextDateObj.setDate(nextDateObj.getDate() + t.interval_days);
-                            }
-                            allEvents.push({
-                                id: t.id, type: 'Dom', title: t.name, icon: '🏠',
-                                date: getLocalDayStr(nextDateObj), color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
-                            });
-                        } else if (t.task_type === 'one_time' && t.event_date) {
-                             allEvents.push({
-                                id: t.id, type: 'Dom', title: t.name, icon: '🏠',
-                                date: t.event_date.split('T')[0], color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
-                            });
-                        }
-                    }
-                });
-            }
-
-            if (hTasksRes.data && hLogsRes.data) {
-                // ZMIANA KRYTYCZNA: Generowanie pigułek wielokrotnego wyboru, podzielonych po Kategoriach
-                const pillsContainer = document.getElementById('cal-subfilter-pills');
-                if (pillsContainer) {
-                    const grouped = {};
-                    hTasksRes.data.forEach(ht => {
-                        const cat = ht.category || 'Inne';
-                        if (!grouped[cat]) grouped[cat] = [];
-                        grouped[cat].push(ht);
+                } else if (t.task_type === 'one_time' && t.event_date) {
+                    allEvents.push({
+                        id: t.id, type: 'Dom', title: t.name, icon: '🏠',
+                        date: t.event_date.split('T')[0], color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
                     });
-
-                    let html = '';
-                    const sortedKeys = Object.keys(grouped).sort((a, b) => a === 'Infekcja' ? -1 : b === 'Infekcja' ? 1 : a.localeCompare(b));
-                    
-                    sortedKeys.forEach(cat => {
-                        html += `<div><h4 class="text-[9px] text-neutral-500 uppercase tracking-widest mb-2 font-bold pl-1">${window.esc(cat)}</h4><div class="flex flex-wrap gap-2">`;
-                        grouped[cat].forEach(t => {
-                            html += `<button class="js-cal-multi-pill px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-xl text-xs font-medium transition-colors active:scale-95" data-id="${t.id}" data-name="${window.esc(t.name)}">${window.esc(t.name)}</button>`;
-                        });
-                        html += `</div></div>`;
-                    });
-                    pillsContainer.innerHTML = html || '<p class="text-xs text-neutral-500">Brak dostępnych zdarzeń</p>';
                 }
+            }
+        });
 
-                hTasksRes.data.forEach(ht => {
-                    if (ht.task_type === 'duration') {
-                        const logs = hLogsRes.data.filter(l => l.health_task_id === ht.id);
-                        logs.forEach(l => {
-                            let start = new Date(l.start_date); let end = l.end_date ? new Date(l.end_date) : new Date();
-                            allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '🤒', subTaskId: ht.id, date: getLocalDayStr(start), endDate: getLocalDayStr(end), color: 'text-red-400', bg: 'bg-[#ef4444]', profileId: ht.profile_id, isDuration: true, isSummary: true });
-                            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                                allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '🤒', subTaskId: ht.id, date: getLocalDayStr(d), color: 'text-red-400', bg: 'bg-[#ef4444]', profileId: ht.profile_id, isDuration: true, isSummary: false });
-                            }
-                        });
-                    } else if (ht.task_type === 'one_time' && ht.event_date) {
-                        allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '📅', subTaskId: ht.id, date: ht.event_date.split('T')[0], color: 'text-amber-500', bg: 'bg-[#f59e0b]', profileId: ht.profile_id, isDuration: false });
+        // 3. Zdrowie
+        hTasks.forEach(ht => {
+            if (ht.task_type === 'duration') {
+                const taskLogs = hLogs.filter(l => sameId(l.health_task_id, ht.id));
+                taskLogs.forEach(l => {
+                    let start = new Date(l.start_date); 
+                    let end = l.end_date ? new Date(l.end_date) : new Date();
+                    allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '🤒', subTaskId: ht.id, date: getLocalDayStr(start), endDate: getLocalDayStr(end), color: 'text-red-400', bg: 'bg-[#ef4444]', profileId: ht.profile_id, isDuration: true, isSummary: true });
+                    
+                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                        allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '🤒', subTaskId: ht.id, date: getLocalDayStr(d), color: 'text-red-400', bg: 'bg-[#ef4444]', profileId: ht.profile_id, isDuration: true, isSummary: false });
                     }
                 });
+            } else if (ht.task_type === 'one_time' && ht.event_date) {
+                allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '📅', subTaskId: ht.id, date: ht.event_date.split('T')[0], color: 'text-amber-500', bg: 'bg-[#f59e0b]', profileId: ht.profile_id, isDuration: false });
             }
+        });
 
-            document.getElementById('calendar-subtitle').innerText = 'Gotowe';
+        // 4. Aktualizacja pigułek podfiltra w modalu
+        const pillsContainer = document.getElementById('cal-subfilter-pills');
+        if (pillsContainer && hTasks.length > 0) {
+            const grouped = {};
+            hTasks.forEach(ht => {
+                const cat = ht.category || 'Inne';
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(ht);
+            });
 
-        } catch (e) {
-            console.error(e);
-            document.getElementById('calendar-subtitle').innerText = 'Błąd danych';
+            let html = '';
+            const sortedKeys = Object.keys(grouped).sort((a, b) => a === 'Infekcja' ? -1 : b === 'Infekcja' ? 1 : a.localeCompare(b));
+            
+            sortedKeys.forEach(cat => {
+                html += `<div><h4 class="text-[9px] text-neutral-500 uppercase tracking-widest mb-2 font-bold pl-1">${window.esc(cat)}</h4><div class="flex flex-wrap gap-2">`;
+                grouped[cat].forEach(t => {
+                    html += `<button class="js-cal-multi-pill px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-xl text-xs font-medium transition-colors active:scale-95 cursor-pointer" data-id="${t.id}" data-name="${window.esc(t.name)}">${window.esc(t.name)}</button>`;
+                });
+                html += `</div></div>`;
+            });
+            pillsContainer.innerHTML = html;
         }
     }
 
     function getFilteredEvents(forHeatmap = false) {
         return allEvents.filter(e => {
             if (activeFilter !== 'all' && e.type !== activeFilter) return false;
-            // ZMIANA: Sprawdzanie czy id zdarzenia jest w naszej tablicy wybranych
-            if (activeSubFilterTasks.length > 0 && !activeSubFilterTasks.includes(e.subTaskId)) return false;
-            if (activeSubFilterPerson && e.profileId && e.profileId != activeSubFilterPerson) return false;
+            if (activeSubFilterTasks.length > 0 && !activeSubFilterTasks.some(id => sameId(id, e.subTaskId))) return false;
+            if (activeSubFilterPerson && e.profileId && !sameId(e.profileId, activeSubFilterPerson)) return false;
             if (e.isDuration) {
                 if (forHeatmap && e.isSummary) return false;
                 if (!forHeatmap && !e.isSummary) return false;
@@ -154,11 +153,11 @@ window.CalendarModule = (() => {
     function renderProfilePills() {
         const container = document.getElementById('cal-profile-filters');
         if (!container) return;
-        let html = `<button class="js-cal-profile-filter px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 transition-colors ${!activeSubFilterPerson ? 'bg-[#a8c7fa] text-[#004a77]' : 'bg-[#131314] border border-[#333537] text-neutral-400'}" data-id="null">Wszyscy</button>`;
+        let html = `<button class="js-cal-profile-filter px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 transition-colors cursor-pointer ${!activeSubFilterPerson ? 'bg-[#a8c7fa] text-[#004a77]' : 'bg-[#131314] border border-[#333537] text-neutral-400'}" data-id="null">Wszyscy</button>`;
         appProfiles.forEach(p => {
-            const isActive = activeSubFilterPerson == p.id;
+            const isActive = sameId(p.id, activeSubFilterPerson);
             const bgClass = isActive ? 'bg-[#004a77] border border-[#a8c7fa]/30 text-[#a8c7fa]' : 'bg-[#131314] border border-[#333537] text-neutral-400';
-            html += `<button class="js-cal-profile-filter px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 transition-colors ${bgClass}" data-id="${p.id}">${p.name}</button>`;
+            html += `<button class="js-cal-profile-filter px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 transition-colors cursor-pointer ${bgClass}" data-id="${p.id}">${window.esc(p.name)}</button>`;
         });
         container.innerHTML = html;
     }
@@ -186,17 +185,22 @@ window.CalendarModule = (() => {
     }
 
     function renderCurrentTab() {
-        document.getElementById('cal-view-agenda').classList.add('hidden');
-        document.getElementById('cal-view-month').classList.add('hidden');
-        document.getElementById('cal-view-year').classList.add('hidden');
+        const agendaView = document.getElementById('cal-view-agenda');
+        const monthView = document.getElementById('cal-view-month');
+        const yearView = document.getElementById('cal-view-year');
 
-        if (currentTab === 'agenda') { document.getElementById('cal-view-agenda').classList.remove('hidden'); renderAgenda(); } 
-        else if (currentTab === 'month') { document.getElementById('cal-view-month').classList.remove('hidden'); renderMonth(); } 
-        else if (currentTab === 'year') { document.getElementById('cal-view-year').classList.remove('hidden'); renderYearHeatmap(); }
+        if (agendaView) agendaView.classList.add('hidden');
+        if (monthView) monthView.classList.add('hidden');
+        if (yearView) yearView.classList.add('hidden');
+
+        if (currentTab === 'agenda') { if (agendaView) agendaView.classList.remove('hidden'); renderAgenda(); } 
+        else if (currentTab === 'month') { if (monthView) monthView.classList.remove('hidden'); renderMonth(); } 
+        else if (currentTab === 'year') { if (yearView) yearView.classList.remove('hidden'); renderYearHeatmap(); }
     }
 
     function renderAgenda() {
         const container = document.getElementById('cal-view-agenda');
+        if (!container) return;
         const events = getFilteredEvents(false);
         const todayStr = getLocalDayStr();
         const futureEvents = events.filter(e => e.date >= todayStr).sort((a,b) => a.date.localeCompare(b.date));
@@ -217,10 +221,10 @@ window.CalendarModule = (() => {
             }
             
             const durationTxt = e.isDuration ? `<span class="text-[8px] border border-[#ffb4ab]/30 px-1 ml-2 rounded text-neutral-400">Trwa od: ${e.endDate}</span>` : '';
-            const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
-            const pTxt = pName ? ` • ${pName}` : '';
+            const profileObj = e.profileId ? appProfiles.find(p => sameId(p.id, e.profileId)) : null;
+            const pTxt = profileObj ? ` • ${profileObj.name}` : '';
             
-            const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0" data-id="${e.id}">✏️</button>` : '';
+            const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 cursor-pointer" data-id="${e.id}">✏️</button>` : '';
 
             html += `
             <div class="bg-[#1e1f20] p-4 rounded-[16px] border border-[#333537] flex items-center gap-4 mb-2 shadow-sm">
@@ -238,6 +242,8 @@ window.CalendarModule = (() => {
     function renderMonth() {
         const grid = document.getElementById('cal-month-grid');
         const title = document.getElementById('cal-month-title');
+        if (!grid || !title) return;
+
         const monthNames = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"];
         title.innerText = `${monthNames[currentMonth]} ${currentYear}`;
 
@@ -261,7 +267,7 @@ window.CalendarModule = (() => {
                 const colors = [...new Set(dayEvents.map(e => e.bg))].slice(0, 3);
                 dotsHtml = `<div class="absolute bottom-1 w-full flex justify-center gap-0.5 pointer-events-none">` + colors.map(c => `<div class="w-1.5 h-1.5 rounded-full ${c}"></div>`).join('') + `</div>`;
             }
-            html += `<button class="js-cal-day-details relative w-full p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center active:scale-90 transition-transform select-none focus:outline-none" data-date="${dateStr}">${d}${dotsHtml}</button>`;
+            html += `<button class="js-cal-day-details relative w-full p-2 h-10 ${bgClass} rounded-lg flex items-start justify-center active:scale-90 transition-transform select-none focus:outline-none cursor-pointer" data-date="${dateStr}">${d}${dotsHtml}</button>`;
         }
         html += `</div>`;
         grid.innerHTML = html;
@@ -269,6 +275,8 @@ window.CalendarModule = (() => {
 
     function showMonthDetails(dateStr) {
         const container = document.getElementById('cal-month-details');
+        if (!container) return;
+
         const dayEvents = getFilteredEvents(false).filter(e => e.date === dateStr || (e.isDuration && dateStr >= e.date && dateStr <= e.endDate));
         const dateObj = new Date(dateStr);
         const dateLabel = dateObj.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -278,9 +286,9 @@ window.CalendarModule = (() => {
         } else {
             let html = `<h3 class="text-[10px] font-bold text-[#a8c7fa] uppercase tracking-widest mb-4 sticky top-0 bg-[#131314]">${dateLabel}</h3>`;
             dayEvents.forEach(e => {
-                const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
-                const pTxt = pName ? ` • ${pName}` : '';
-                const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-7 h-7 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 ml-2" data-id="${e.id}">✏️</button>` : '';
+                const profileObj = e.profileId ? appProfiles.find(p => sameId(p.id, e.profileId)) : null;
+                const pTxt = profileObj ? ` • ${profileObj.name}` : '';
+                const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-7 h-7 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 ml-2 cursor-pointer" data-id="${e.id}">✏️</button>` : '';
 
                 html += `
                 <div class="border-l-2 border-[#333537] ml-2 pl-4 py-2 relative mb-2 flex items-center justify-between group">
@@ -299,8 +307,12 @@ window.CalendarModule = (() => {
 
     function renderYearHeatmap() {
         const grid = document.getElementById('cal-year-grid');
-        document.getElementById('cal-year-title').innerText = `Heatmapa: ${currentYear}`;
-        document.getElementById('cal-stats-title').innerText = `Podsumowanie: ${currentYear}`;
+        const titleEl = document.getElementById('cal-year-title');
+        const statsTitleEl = document.getElementById('cal-stats-title');
+        if (!grid || !titleEl) return;
+
+        titleEl.innerText = `Heatmapa: ${currentYear}`;
+        if (statsTitleEl) statsTitleEl.innerText = `Podsumowanie: ${currentYear}`;
         
         const eventsHeatmap = getFilteredEvents(true);
         const eventsAgenda = getFilteredEvents(false);
@@ -338,24 +350,18 @@ window.CalendarModule = (() => {
                     }
                 }
 
-                monthHtml += `<button class="js-cal-heatmap-day ${cellClass} flex items-center justify-center focus:outline-none active:scale-90 transition-transform" data-date="${dateStr}">${innerNum}</button>`;
+                monthHtml += `<button class="js-cal-heatmap-day ${cellClass} flex items-center justify-center focus:outline-none active:scale-90 transition-transform cursor-pointer" data-date="${dateStr}">${innerNum}</button>`;
             }
             monthHtml += `</div></div>`;
             html += monthHtml;
         }
         grid.innerHTML = html;
 
-        // --- STATYSTYKI Z UWZGLĘDNIENIEM MULTISELEKTU ---
+        // Statystyki
         const daysWithActivity = new Set(eventsHeatmap.filter(e => e.date.startsWith(currentYearStr)).map(e => e.date)).size;
-        
-        let uniqueEventsCount = 0;
-        if (activeFilter === 'Zdrowie') {
-            // Unikalne instancje zdarzeń
-            const uniqueIds = new Set(eventsHeatmap.filter(e => e.date.startsWith(currentYearStr)).map(e => e.id));
-            uniqueEventsCount = uniqueIds.size;
-        } else {
-            uniqueEventsCount = eventsAgenda.filter(e => e.date.startsWith(currentYearStr) || (e.isDuration && e.endDate && e.endDate.startsWith(currentYearStr))).length;
-        }
+        let uniqueEventsCount = activeFilter === 'Zdrowie'
+            ? new Set(eventsHeatmap.filter(e => e.date.startsWith(currentYearStr)).map(e => e.id)).size
+            : eventsAgenda.filter(e => e.date.startsWith(currentYearStr) || (e.isDuration && e.endDate && e.endDate.startsWith(currentYearStr))).length;
 
         const val1El = document.getElementById('cal-stats-val-1');
         const val2El = document.getElementById('cal-stats-val-2');
@@ -365,40 +371,39 @@ window.CalendarModule = (() => {
         if (val1El) val1El.innerText = daysWithActivity;
         if (val2El) val2El.innerText = uniqueEventsCount;
 
-        if (activeFilter === 'Zdrowie') {
-            label1El.innerText = "Dni objawowych";
-            label2El.innerText = "Ilość zdarzeń";
-            val1El.className = "text-2xl font-bold text-[#ffb4ab]";
-        } else if (activeFilter === 'Wydarzenie') {
-            label1El.innerText = "Dni z wyjściami";
-            label2El.innerText = "Ilość wydarzeń";
-            val1El.className = "text-2xl font-bold text-[#f0abfc]";
-        } else if (activeFilter === 'Dom') {
-            label1El.innerText = "Dni sprzątania";
-            label2El.innerText = "Zrealizowane zadania";
-            val1El.className = "text-2xl font-bold text-[#c2e7ff]";
-        } else {
-            label1El.innerText = "Aktywne dni";
-            label2El.innerText = "Suma akcji";
-            val1El.className = "text-2xl font-bold text-neutral-200";
+        if (label1El && label2El) {
+            if (activeFilter === 'Zdrowie') {
+                label1El.innerText = "Dni objawowych"; label2El.innerText = "Ilość zdarzeń";
+                if (val1El) val1El.className = "text-2xl font-bold text-[#ffb4ab]";
+            } else if (activeFilter === 'Wydarzenie') {
+                label1El.innerText = "Dni z wyjściami"; label2El.innerText = "Ilość wydarzeń";
+                if (val1El) val1El.className = "text-2xl font-bold text-[#f0abfc]";
+            } else if (activeFilter === 'Dom') {
+                label1El.innerText = "Dni sprzątania"; label2El.innerText = "Zrealizowane zadania";
+                if (val1El) val1El.className = "text-2xl font-bold text-[#c2e7ff]";
+            } else {
+                label1El.innerText = "Aktywne dni"; label2El.innerText = "Suma akcji";
+                if (val1El) val1El.className = "text-2xl font-bold text-neutral-200";
+            }
         }
     }
 
     function openHeatmapModal(dateStr) {
         const container = document.getElementById('cal-heatmap-modal-content');
         const title = document.getElementById('cal-heatmap-modal-title');
+        if (!container || !title) return;
         
         const dayEvents = getFilteredEvents(true).filter(e => e.date === dateStr);
-        if(dayEvents.length === 0) return; 
+        if (dayEvents.length === 0) return; 
 
         const dateObj = new Date(dateStr);
         title.innerText = dateObj.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
         
         let html = '';
         dayEvents.forEach(e => {
-            const pName = e.profileId ? appProfiles.find(p=>p.id == e.profileId)?.name || '' : '';
-            const pTxt = pName ? ` • ${pName}` : '';
-            const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 ml-2" data-id="${e.id}">✏️</button>` : '';
+            const profileObj = e.profileId ? appProfiles.find(p => sameId(p.id, e.profileId)) : null;
+            const pTxt = profileObj ? ` • ${profileObj.name}` : '';
+            const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 ml-2 cursor-pointer" data-id="${e.id}">✏️</button>` : '';
             html += `
             <div class="bg-[#131314] border border-[#333537] p-3 rounded-xl flex items-center justify-between group mb-2">
                 <div class="flex items-center gap-3 min-w-0">
@@ -415,14 +420,19 @@ window.CalendarModule = (() => {
 
         const modal = document.getElementById('cal-heatmap-modal');
         const panel = document.getElementById('cal-heatmap-panel');
-        modal.classList.remove('hidden');
-        requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
+        if (modal && panel) {
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
+        }
     }
 
     function closeHeatmapModal() {
         const panel = document.getElementById('cal-heatmap-panel');
-        panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
-        setTimeout(() => document.getElementById('cal-heatmap-modal').classList.add('hidden'), 300);
+        const modal = document.getElementById('cal-heatmap-modal');
+        if (panel && modal) {
+            panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
     }
 
     function openEventModal(id = null) {
@@ -432,7 +442,7 @@ window.CalendarModule = (() => {
         const delBtn = document.getElementById('cal-event-delete-btn');
 
         if (id) {
-            const ev = allEvents.find(e => e.id == id && e.type === 'Wydarzenie');
+            const ev = allEvents.find(e => sameId(e.id, id) && e.type === 'Wydarzenie');
             if (!ev) return;
             document.getElementById('cal-event-id').value = id;
             document.getElementById('cal-event-title').value = ev.rawTitle;
@@ -442,27 +452,33 @@ window.CalendarModule = (() => {
             const localISOTime = (new Date(dt - tzOffset)).toISOString().slice(0, 16);
             document.getElementById('cal-event-datetime').value = localISOTime;
 
-            titleEl.innerText = 'Edytuj Wydarzenie';
-            delBtn.classList.remove('hidden');
+            if (titleEl) titleEl.innerText = 'Edytuj Wydarzenie';
+            if (delBtn) delBtn.classList.remove('hidden');
         } else {
             document.getElementById('cal-event-id').value = '';
             document.getElementById('cal-event-title').value = '';
             document.getElementById('cal-event-datetime').value = '';
 
-            titleEl.innerText = 'Nowe Wydarzenie';
-            delBtn.classList.add('hidden');
+            if (titleEl) titleEl.innerText = 'Nowe Wydarzenie';
+            if (delBtn) delBtn.classList.add('hidden');
         }
 
-        modal.classList.remove('hidden');
-        requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
+        if (modal && panel) {
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
+        }
     }
 
     function closeEventModal() {
         const panel = document.getElementById('cal-event-panel');
-        panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
-        setTimeout(() => document.getElementById('cal-event-modal').classList.add('hidden'), 300);
+        const modal = document.getElementById('cal-event-modal');
+        if (panel && modal) {
+            panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
     }
 
+    // INSTANT LOCAL-FIRST: Zapis nowego/edytowanego wydarzenia w 0 ms
     async function saveEvent() {
         const id = document.getElementById('cal-event-id').value;
         const title = document.getElementById('cal-event-title').value.trim();
@@ -471,52 +487,82 @@ window.CalendarModule = (() => {
         if (!title || !dtVal) { window.showToast("Wypełnij tytuł i datę z godziną!"); return; }
 
         const evDate = new Date(dtVal);
+        const tempId = id || Date.now();
         const payload = {
+            id: tempId,
             title: title, 
             event_datetime: evDate.toISOString(), 
-            household_id: window.currentUser.household_id, 
-            user_id: window.currentUser.user_id
+            household_id: window.currentUser ? window.currentUser.household_id : null, 
+            user_id: window.currentUser ? window.currentUser.user_id : null
         };
 
-        let errorObj;
-        if (id) {
-            const { error } = await window.supabaseClient.from('calendar_events').update(payload).eq('id', id).eq('household_id', window.currentUser.household_id);
-            errorObj = error;
-        } else {
-            const { error } = await window.supabaseClient.from('calendar_events').insert([payload]);
-            errorObj = error;
-        }
+        // 1. Instant update w AppStore i przerysowanie
+        window.AppStore.set(state => {
+            const currentEvents = state.calendarEvents || [];
+            const updated = id 
+                ? currentEvents.map(e => sameId(e.id, id) ? payload : e)
+                : [payload, ...currentEvents];
+            return { ...state, calendarEvents: updated };
+        });
 
-        if (errorObj) { window.showToast("Błąd zapisu: " + errorObj.message); return; }
-
-        window.showToast(id ? "Zaktualizowano wydarzenie!" : "Zapisano wydarzenie!");
+        window.showToast(id ? "Zaktualizowano!" : "Zapisano!");
         closeEventModal();
-        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
-        await fetchAllData();
+        buildEventsFromStore();
         renderCurrentTab();
+
+        // 2. Synchronizacja w tle
+        if (id) {
+            const { error } = await window.supabaseClient.from('calendar_events').update({
+                title: payload.title, event_datetime: payload.event_datetime
+            }).eq('id', id);
+            if (error) window.showToast("Błąd chmury: " + error.message);
+        } else {
+            const { data, error } = await window.supabaseClient.from('calendar_events').insert([{
+                title: payload.title, event_datetime: payload.event_datetime,
+                household_id: payload.household_id, user_id: payload.user_id
+            }]).select().single();
+
+            if (error) {
+                window.showToast("Błąd chmury: " + error.message);
+            } else if (data) {
+                window.AppStore.set(state => ({
+                    ...state,
+                    calendarEvents: (state.calendarEvents || []).map(e => sameId(e.id, tempId) ? data : e)
+                }));
+            }
+        }
+        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     }
 
+    // INSTANT LOCAL-FIRST: Usuwanie wydarzenia z kalendarza
     function deleteEvent() {
         const id = document.getElementById('cal-event-id').value;
-        if(!id) return;
+        if (!id) return;
         window.customConfirm("Czy na pewno usunąć to wydarzenie?", async () => {
-            const { error } = await window.supabaseClient.from('calendar_events').delete().eq('id', id).eq('household_id', window.currentUser.household_id);
-            if (error) { window.showToast("Błąd usuwania: " + error.message); return; }
-            
+            window.AppStore.set(state => ({
+                ...state,
+                calendarEvents: (state.calendarEvents || []).filter(e => !sameId(e.id, id))
+            }));
+
             window.showToast("Wydarzenie usunięte!");
             closeEventModal();
             closeHeatmapModal(); 
             
-            document.getElementById('cal-month-details').innerHTML = `<p class="text-center text-neutral-500 text-xs mt-10">Wybierz dzień z kalendarza, aby zobaczyć szczegóły.</p>`;
-            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
-            await fetchAllData();
+            const details = document.getElementById('cal-month-details');
+            if (details) details.innerHTML = `<p class="text-center text-neutral-500 text-xs mt-10">Wybierz dzień z kalendarza, aby zobaczyć szczegóły.</p>`;
+            
+            buildEventsFromStore();
             renderCurrentTab();
+
+            const { error } = await window.supabaseClient.from('calendar_events').delete().eq('id', id);
+            if (error) window.showToast("Błąd usuwania w chmurze");
+            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
         });
     }
 
     function updatePillsUI() {
         document.querySelectorAll('.js-cal-multi-pill').forEach(btn => {
-            const id = parseInt(btn.dataset.id);
+            const id = parseInt(btn.dataset.id, 10);
             if (tempSelectedTasks.includes(id)) {
                 btn.classList.replace('bg-[#131314]', 'bg-[#3c1414]');
                 btn.classList.replace('border-[#333537]', 'border-[#ffb4ab]/50');
@@ -530,7 +576,7 @@ window.CalendarModule = (() => {
     }
 
     function toggleSubFilterPill(id) {
-        const numId = parseInt(id);
+        const numId = parseInt(id, 10);
         const idx = tempSelectedTasks.indexOf(numId);
         if (idx > -1) tempSelectedTasks.splice(idx, 1);
         else tempSelectedTasks.push(numId);
@@ -538,42 +584,49 @@ window.CalendarModule = (() => {
     }
 
     function openSubFilterModal() {
-        tempSelectedTasks = [...activeSubFilterTasks]; // Klonujemy aktywne przy otwarciu
+        tempSelectedTasks = [...activeSubFilterTasks];
         updatePillsUI();
         
         const modal = document.getElementById('cal-subfilter-modal');
         const panel = document.getElementById('cal-subfilter-panel');
-        modal.classList.remove('hidden');
-        requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
+        if (modal && panel) {
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => { panel.classList.remove('translate-y-full'); panel.classList.add('translate-y-0'); });
+        }
     }
 
     function closeSubFilterModal() {
         const panel = document.getElementById('cal-subfilter-panel');
-        panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
-        setTimeout(() => document.getElementById('cal-subfilter-modal').classList.add('hidden'), 300);
+        const modal = document.getElementById('cal-subfilter-modal');
+        if (panel && modal) {
+            panel.classList.remove('translate-y-0'); panel.classList.add('translate-y-full');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
     }
 
     function applySubFilter() {
         activeSubFilterTasks = [...tempSelectedTasks];
         const badgeContainer = document.getElementById('active-subfilter-badge');
         
-        if (activeSubFilterTasks.length > 0) {
-            const names = [];
-            document.querySelectorAll('.js-cal-multi-pill').forEach(btn => {
-                if(activeSubFilterTasks.includes(parseInt(btn.dataset.id))) names.push(btn.dataset.name);
-            });
-            
-            const badgeTxt = names.length <= 2 ? names.join(', ') : `${names.length} wybrane`;
-            
-            badgeContainer.innerHTML = `
-                <span class="px-3 py-1.5 bg-[#3c1414] border border-[#ffb4ab]/30 text-[#ffb4ab] rounded-full text-[10px] font-bold shadow-sm flex items-center max-w-[150px] sm:max-w-[200px]">
-                    <span class="truncate">${badgeTxt}</span>
-                </span>
-                <button class="js-cal-clear-subfilter text-neutral-500 text-xs font-bold ml-1 active:scale-90">CZYŚĆ ✕</button>
-            `;
-            badgeContainer.classList.remove('hidden');
-        } else {
-            badgeContainer.classList.add('hidden');
+        if (badgeContainer) {
+            if (activeSubFilterTasks.length > 0) {
+                const names = [];
+                document.querySelectorAll('.js-cal-multi-pill').forEach(btn => {
+                    if (activeSubFilterTasks.includes(parseInt(btn.dataset.id, 10))) names.push(btn.dataset.name);
+                });
+                
+                const badgeTxt = names.length <= 2 ? names.join(', ') : `${names.length} wybrane`;
+                
+                badgeContainer.innerHTML = `
+                    <span class="px-3 py-1.5 bg-[#3c1414] border border-[#ffb4ab]/30 text-[#ffb4ab] rounded-full text-[10px] font-bold shadow-sm flex items-center max-w-[150px] sm:max-w-[200px]">
+                        <span class="truncate">${badgeTxt}</span>
+                    </span>
+                    <button class="js-cal-clear-subfilter text-neutral-500 text-xs font-bold ml-1 active:scale-90 cursor-pointer">CZYŚĆ ✕</button>
+                `;
+                badgeContainer.classList.remove('hidden');
+            } else {
+                badgeContainer.classList.add('hidden');
+            }
         }
         renderCurrentTab();
         closeSubFilterModal();
@@ -582,7 +635,8 @@ window.CalendarModule = (() => {
     function clearSubFilter() {
         activeSubFilterTasks = [];
         tempSelectedTasks = [];
-        document.getElementById('active-subfilter-badge').classList.add('hidden');
+        const badge = document.getElementById('active-subfilter-badge');
+        if (badge) badge.classList.add('hidden');
         renderCurrentTab();
     }
 
@@ -599,21 +653,20 @@ window.CalendarModule = (() => {
             });
 
             window.EventDispatcher.onClick('.js-cal-change-month', (e, el) => {
-                const offset = parseInt(el.dataset.offset);
+                const offset = parseInt(el.dataset.offset, 10);
                 currentMonth += offset;
                 if (currentMonth < 0) { currentMonth = 11; currentYear--; } 
                 else if (currentMonth > 11) { currentMonth = 0; currentYear++; }
                 renderMonth();
             });
             window.EventDispatcher.onClick('.js-cal-change-year', (e, el) => {
-                currentYear += parseInt(el.dataset.offset);
+                currentYear += parseInt(el.dataset.offset, 10);
                 renderYearHeatmap();
             });
 
             window.EventDispatcher.onClick('.js-cal-day-details', (e, el) => showMonthDetails(el.dataset.date));
             window.EventDispatcher.onClick('.js-cal-heatmap-day', (e, el) => openHeatmapModal(el.dataset.date));
 
-            // Multiselect pigułki
             window.EventDispatcher.onClick('.js-cal-multi-pill', (e, el) => toggleSubFilterPill(el.dataset.id));
 
             window.EventDispatcher.onClick('.js-cal-open-subfilter', openSubFilterModal);
@@ -630,7 +683,7 @@ window.CalendarModule = (() => {
             window.EventDispatcher.onClick('.js-cal-close-heatmap', closeHeatmapModal);
             window.EventDispatcher.onClick('.js-cal-go-back', () => { if(typeof window.goBack === 'function') window.goBack(); });
             
-            window.EventDispatcher.onClick('.js-cal-generate-pdf', () => window.showToast("Generowanie PDF w przygotowaniu! 📄"));
+            window.EventDispatcher.onClick('.js-cal-generate-pdf', () => window.showToast?.("Generowanie PDF w przygotowaniu! 📄"));
         }
     }
 
@@ -645,6 +698,6 @@ window.CalendarModule = (() => {
     return { 
         init, 
         setFilter,
-        setProfileFilter // Udostępniamy tę funkcję na zewnątrz
+        setProfileFilter
     };
 })();
