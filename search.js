@@ -1,5 +1,5 @@
 // ==========================================
-// LOGIKA: WYSZUKIWARKA (search.js)
+// LOGIKA: WYSZUKIWARKA - LOCAL FIRST (search.js)
 // ==========================================
 
 window.SearchModule = (() => {
@@ -10,8 +10,11 @@ window.SearchModule = (() => {
         const input = document.getElementById('global-search-input');
         if (!modal) return;
         
-        input.value = '';
-        document.getElementById('search-results-list').innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
+        if (input) input.value = '';
+        const listEl = document.getElementById('search-results-list');
+        if (listEl) {
+            listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
+        }
         
         modal.classList.remove('hidden');
         
@@ -40,58 +43,56 @@ window.SearchModule = (() => {
         }
     };
 
+    // WYSZUKIWANIE LOKALNE W RAM / APPSTORE (0 ms)
     window.performGlobalSearch = function(query) {
         const q = query.trim().toLowerCase();
         const listEl = document.getElementById('search-results-list');
+        if (!listEl) return;
 
         if (q.length < 2) {
             listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
             return;
         }
 
-        listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500 animate-pulse">Szukanie w Domu...</p></div>`;
-
         if (searchTimeout) clearTimeout(searchTimeout);
 
-        searchTimeout = setTimeout(async () => {
+        // Niewielki debounce (50ms) wyłącznie dla zachowania płynności klawiatury
+        searchTimeout = setTimeout(() => {
             try {
-                const hid = window.currentUser.household_id;
+                const state = window.AppStore.get() || {};
 
-                const [tasksRes, healthRes, todosRes, listsRes, pharmacyRes] = await Promise.all([
-                    window.supabaseClient.from('tasks').select('*').eq('household_id', hid).ilike('name', `%${q}%`).eq('is_archived', false),
-                    window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).ilike('name', `%${q}%`).eq('is_archived', false),
-                    window.supabaseClient.from('todos').select('*').eq('household_id', hid).ilike('title', `%${q}%`).eq('is_archived', false),
-                    window.supabaseClient.from('checklists').select('*').eq('household_id', hid).ilike('title', `%${q}%`).eq('is_archived', false),
-                    window.supabaseClient.from('pharmacy_items').select('*').eq('household_id', hid).or(`name.ilike.%${q}%,purpose.ilike.%${q}%`)
-                ]);
+                const tasks = state.tasks || [];
+                const hTasks = state.hTasks || [];
+                const todos = state.todos || [];
+                const lists = state.checklists || [];
+                const pharmacy = window.allPharmacyItems || state.pharmacy || [];
 
                 let results = [];
 
-                if (tasksRes.data) {
-                    tasksRes.data.forEach(t => results.push({ 
-                        id: t.id, title: t.name, type: 'Dom', icon: '🏠', extraData: t.room || 'Inne' 
-                    }));
-                }
-                if (healthRes.data) {
-                    healthRes.data.forEach(t => results.push({ 
-                        id: t.id, title: t.name, type: 'Zdrowie', icon: '❤️', extraData: '' 
-                    }));
-                }
-                if (todosRes.data) {
-                    todosRes.data.forEach(t => results.push({ 
-                        id: t.id, title: t.title, type: 'Zadanie', icon: '📝', extraData: '' 
-                    }));
-                }
-                if (listsRes.data) {
-                    listsRes.data.forEach(t => results.push({ 
-                        id: t.id, title: t.title, type: 'Lista', icon: '🗂️', extraData: t.list_type || 'generic' 
-                    }));
-                }
-                if (pharmacyRes.data) {
-                    pharmacyRes.data.forEach(p => results.push({ 
-                        id: p.id, title: p.name, type: 'Apteczka', icon: '💊', extraData: p.purpose || '' 
-                    }));
-                }
+                // 1. Zadania Domowe
+                tasks.filter(t => !t.is_archived && t.name && t.name.toLowerCase().includes(q)).forEach(t => {
+                    results.push({ id: t.id, title: t.name, type: 'Dom', icon: '🏠', extraData: t.room || 'Inne' });
+                });
+
+                // 2. Zdrowie
+                hTasks.filter(t => !t.is_archived && t.name && t.name.toLowerCase().includes(q)).forEach(t => {
+                    results.push({ id: t.id, title: t.name, type: 'Zdrowie', icon: '❤️', extraData: '' });
+                });
+
+                // 3. Szybkie zadania To-do
+                todos.filter(t => !t.is_archived && t.title && t.title.toLowerCase().includes(q)).forEach(t => {
+                    results.push({ id: t.id, title: t.title, type: 'Zadanie', icon: '📝', extraData: '' });
+                });
+
+                // 4. Checklisty / Listy zakupów
+                lists.filter(l => !l.is_archived && l.title && l.title.toLowerCase().includes(q)).forEach(l => {
+                    results.push({ id: l.id, title: l.title, type: 'Lista', icon: '🗂️', extraData: l.list_type || 'generic' });
+                });
+
+                // 5. Apteczka
+                pharmacy.filter(p => (p.name && p.name.toLowerCase().includes(q)) || (p.purpose && p.purpose.toLowerCase().includes(q))).forEach(p => {
+                    results.push({ id: p.id, title: p.name, type: 'Apteczka', icon: '💊', extraData: p.purpose || '' });
+                });
 
                 if (results.length === 0) {
                     listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Brak wyników dla "${window.esc(q)}"</p></div>`;
@@ -114,13 +115,13 @@ window.SearchModule = (() => {
                 `).join('');
 
             } catch (error) {
-                console.error("Błąd wyszukiwania:", error);
-                listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-[#ffb4ab]">Wystąpił błąd bazy danych.</p></div>`;
+                console.error("Błąd wyszukiwania lokalnego:", error);
+                listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-[#ffb4ab]">Wystąpił błąd wyszukiwania.</p></div>`;
             }
-        }, 400);
+        }, 50);
     };
 
-    // ZMIANA KRYTYCZNA: Nasłuchiwanie wpisywania na klawiaturze zastępujące oninput w HTML
+    // Nasłuchiwanie pola wpisywania
     document.addEventListener('input', (e) => {
         if (e.target && e.target.id === 'global-search-input') {
             window.performGlobalSearch(e.target.value);
@@ -142,35 +143,35 @@ window.SearchModule = (() => {
             e.preventDefault();
             window.closeGlobalSearch();
 
-            const id = parseInt(el.dataset.id);
+            const id = parseInt(el.dataset.id, 10);
             const type = el.dataset.type;
             const title = el.dataset.title;
             const extra = el.dataset.extra;
 
             if (type === 'Dom') {
                 window.switchView('home');
-                window.filterHomeByRoom(extra);
-                setTimeout(() => window.openSettingsScreen(id), 150);
+                if (typeof window.filterHomeByRoom === 'function') window.filterHomeByRoom(extra);
+                setTimeout(() => { if (typeof window.openSettingsScreen === 'function') window.openSettingsScreen(id); }, 150);
             } 
             else if (type === 'Zdrowie') {
                 window.switchView('health');
-                setTimeout(() => window.openHealthSettingsScreen(id), 150);
+                setTimeout(() => { if (typeof window.openHealthSettingsScreen === 'function') window.openHealthSettingsScreen(id); }, 150);
             } 
             else if (type === 'Zadanie') {
                 window.switchView('todo');
                 setTimeout(() => {
-                    if(typeof window.openEditTodoModal === 'function') {
+                    if (typeof window.openEditTodoModal === 'function') {
                         window.openEditTodoModal(id, title);
                     }
                 }, 150);
             } 
             else if (type === 'Lista') {
                 window.switchView('todo');
-                setTimeout(() => window.openChecklistScreen(id, title, extra), 150); 
+                setTimeout(() => { if (typeof window.openChecklistScreen === 'function') window.openChecklistScreen(id, title, extra); }, 150); 
             }
             else if (type === 'Apteczka') {
-                window.openPharmacyScreen(); 
-                setTimeout(() => window.openEditPharmacyModal(id), 200); 
+                if (typeof window.openPharmacyScreen === 'function') window.openPharmacyScreen(); 
+                setTimeout(() => { if (typeof window.openEditPharmacyModal === 'function') window.openEditPharmacyModal(id); }, 200); 
             }
         });
     } else {
