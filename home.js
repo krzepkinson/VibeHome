@@ -1,11 +1,12 @@
 // ==========================================
-// LOGIKA: DOM (home.js)
+// LOGIKA: DOM - LOCAL FIRST (home.js)
 // ==========================================
 
 window.HomeModule = (() => {
-    let logs = []; 
-    let tasks = []; 
     let roomFilter = null; 
+
+    // Helper do bezpiecznego porównywania ID (String vs Number)
+    const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 
     const formatLocalDatetime = (isoStr) => {
         if (!isoStr) return '';
@@ -16,7 +17,7 @@ window.HomeModule = (() => {
 
     const parseLocalDatetime = (dtStr) => {
         if (!dtStr) return null;
-        if (dtStr.length === 16) dtStr += ':00'; // Fix dla Safari
+        if (dtStr.length === 16) dtStr += ':00';
         const d = new Date(dtStr);
         if (isNaN(d.getTime())) return new Date(dtStr.replace('T', ' ').replace(/-/g, '/'));
         return d;
@@ -57,24 +58,32 @@ window.HomeModule = (() => {
             if (list) list.classList.remove('hidden');
         }
 
-        const now = Date.now();
-        const isStale = (now - (window.dashboardCacheTime || 0) > window.CONFIG.CACHE_TTL);
-        
-        let state = window.AppStore.get() || {};
-        if (isStale || !state.tasks || state.tasks.length === 0) {
-            await window.loadDashboardOverview(true); 
-            state = window.AppStore.get() || {};
+        // 1. INSTANT RENDER z AppStore (0 ms)
+        window.renderHomeUI();
+
+        // 2. Tło: Dociągnięcie danych z Supabase w razie potrzeby
+        const state = window.AppStore.get() || {};
+        if (!state.tasks || state.tasks.length === 0) {
+            if (typeof window.loadDashboardOverview === 'function') {
+                await window.loadDashboardOverview(true);
+                window.renderHomeUI();
+            }
         }
+    };
+
+    window.renderHomeUI = function() {
+        const list = document.getElementById('dashboard-list') || document.getElementById('home-task-list');
+        const state = window.AppStore.get() || {};
         
-        tasks = state.tasks || []; 
-        logs = state.logs || [];
+        const tasks = (state.tasks || []).filter(t => !t.is_archived); 
+        const logs = state.logs || [];
         const dbRooms = state.rooms || [];
 
         if (tasks.length === 0 && !roomFilter) {
             if (list) {
                 list.innerHTML = window.UI.renderEmptyState("Twój dom jest pusty", "Dodaj pierwszą czynność, by zacząć dbać o przestrzeń.") + `
                 <div class="flex justify-center -mt-10">
-                    <button class="js-open-new-task-modal bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2">
+                    <button class="js-open-new-task-modal bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2 cursor-pointer">
                         <span class="text-xl pb-1">+</span> Dodaj pierwszą czynność
                     </button>
                 </div>`;
@@ -96,7 +105,7 @@ window.HomeModule = (() => {
                 if (!roomStats[rName]) roomStats[rName] = { icon: '📦', total: 0, overdue: 0 };
                 roomStats[rName].total++;
                 
-                const taskLogs = logs.filter(l => l.task_id === task.id);
+                const taskLogs = logs.filter(l => sameId(l.task_id, task.id));
                 if (task.interval_days && task.interval_days > 0) {
                     if (taskLogs.length === 0) {
                         roomStats[rName].overdue++; 
@@ -137,7 +146,7 @@ window.HomeModule = (() => {
         let tasksToDisplay = roomFilter === 'Wszystkie' ? tasks : tasks.filter(t => (t.room || 'Inne') === roomFilter);
 
         let scored = tasksToDisplay.map(t => {
-            const taskLogs = logs.filter(l => l.task_id === t.id);
+            const taskLogs = logs.filter(l => sameId(l.task_id, t.id));
             const lastLog = taskLogs[0]; 
             let daysRemaining;
             
@@ -206,12 +215,11 @@ window.HomeModule = (() => {
     };
 
     window.closeAddLogModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('add-log-modal');
-            if (modal) modal.classList.add('hidden');
-        }, 10);
+        const modal = document.getElementById('add-log-modal');
+        if (modal) modal.classList.add('hidden');
     };
 
+    // INSTANT LOCAL-FIRST: Zapis nowego wykonania sprzątania w 0 ms
     window.saveNewLog = async function() {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
         if (document.activeElement) document.activeElement.blur();
@@ -219,34 +227,70 @@ window.HomeModule = (() => {
         const taskId = document.getElementById('add-log-name').value;
         const dStr = document.getElementById('add-log-date').value; 
         const nt = document.getElementById('add-log-notes').value;
-        const taskObj = tasks.find(t => t.id == taskId);
+        
+        const state = window.AppStore.get() || {};
+        const taskObj = (state.tasks || []).find(t => sameId(t.id, taskId));
         
         if (!dStr) { window.showToast("Wprowadź datę i godzinę!"); return; }
         const finalDate = parseLocalDatetime(dStr).toISOString();
-        
-        const { error } = await window.supabaseClient.from('activity_logs').insert([{ 
-            task_id: taskId, activity_name: taskObj ? taskObj.name : 'Zadanie', 
+
+        const tempLogId = Date.now();
+        const newLog = {
+            id: tempLogId,
+            task_id: taskId,
+            activity_name: taskObj ? taskObj.name : 'Zadanie',
+            created_at: finalDate,
+            notes: nt,
+            user_id: window.currentUser ? window.currentUser.user_id : null,
+            household_id: window.currentUser ? window.currentUser.household_id : null,
+            user_name: window.currentUser ? window.currentUser.name : 'Ja'
+        };
+
+        // 1. Natychmiastowy update w AppStore i przerysowanie
+        window.AppStore.set(prevState => {
+            const updatedLogs = [newLog, ...(prevState.logs || [])];
+            let updatedTasks = prevState.tasks || [];
+            
+            if (taskObj && taskObj.interval_days > 0) {
+                const nextDate = new Date(finalDate); 
+                nextDate.setDate(nextDate.getDate() + taskObj.interval_days);
+                updatedTasks = updatedTasks.map(t => sameId(t.id, taskId) ? { ...t, next_due_at: nextDate.toISOString() } : t);
+            }
+            return { ...prevState, logs: updatedLogs, tasks: updatedTasks };
+        });
+
+        window.closeAddLogModal(); 
+        window.showToast("Zapisano log!");
+        window.renderHomeUI();
+
+        // 2. Synchronizacja z chmurą w tle
+        const { data, error } = await window.supabaseClient.from('activity_logs').insert([{ 
+            task_id: taskId, activity_name: newLog.activity_name, 
             created_at: finalDate, notes: nt, 
-            user_id: window.currentUser.user_id, 
-            household_id: window.currentUser.household_id, user_name: window.currentUser.name 
-        }]);
-        
-        if (error) { window.showToast("Błąd: " + error.message); return; }
+            user_id: newLog.user_id, 
+            household_id: newLog.household_id, user_name: newLog.user_name 
+        }]).select().single();
+
+        if (error) {
+            window.showToast("Błąd zapisu w chmurze");
+            window.loadDashboardOverview(true);
+            return;
+        }
+
+        if (data) {
+            window.AppStore.set(prevState => ({
+                ...prevState,
+                logs: (prevState.logs || []).map(l => l.id === tempLogId ? data : l)
+            }));
+        }
 
         if (taskObj && taskObj.interval_days > 0) {
             const nextDate = new Date(finalDate); 
             nextDate.setDate(nextDate.getDate() + taskObj.interval_days);
             await window.supabaseClient.from('tasks').update({ next_due_at: nextDate.toISOString() }).eq('id', taskId);
-            window.showToast("Zapisano log!");
-        } else {
-            // FIX BUG #2: Zrezygnowaliśmy z else if (taskObj) -> is_archived: true.
-            // Jeśli interwał wynosi 0 (np. mycie okien "jak są brudne"), zadanie zostaje na liście!
-            window.showToast("Zapisano log!");
         }
 
-        window.invalidateDashboardCache(); 
-        window.closeAddLogModal(); 
-        window.loadDashboard();
+        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     };
 
     window.openNewTaskModal = function() {
@@ -260,12 +304,11 @@ window.HomeModule = (() => {
     };
 
     window.closeNewTaskModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('new-task-modal');
-            if (modal) modal.classList.add('hidden');
-        }, 10);
+        const modal = document.getElementById('new-task-modal');
+        if (modal) modal.classList.add('hidden');
     };
 
+    // INSTANT LOCAL-FIRST: Tworzenie nowej czynności w 0 ms
     window.saveNewTask = async function() {
         if (document.activeElement) document.activeElement.blur();
 
@@ -276,45 +319,47 @@ window.HomeModule = (() => {
         if (!n) return;
 
         const initialDue = new Date().toISOString();
+        const tempTaskId = Date.now();
 
-        const { data: existingTasks } = await window.supabaseClient
-            .from('tasks')
-            .select('id, is_archived')
-            .eq('household_id', window.currentUser.household_id)
-            .ilike('name', n)
-            .limit(1);
+        const newTask = {
+            id: tempTaskId,
+            name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
+            room: r, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, 
+            next_due_at: initialDue, is_archived: false
+        };
 
-        if (existingTasks && existingTasks.length > 0) {
-            const existing = existingTasks[0];
-            if (existing.is_archived) {
-                const { error: updErr } = await window.supabaseClient.from('tasks').update({ 
-                    is_archived: false, interval_days: i, remind_days_before: remind, room: r, next_due_at: initialDue 
-                }).eq('id', existing.id);
-                if (updErr) { window.showToast("Błąd przywracania: " + updErr.message); return; }
-            } else {
-                window.showToast("Zadanie o tej nazwie wciąż istnieje w tym domu!");
-                return;
-            }
-        } else {
-            const { error } = await window.supabaseClient.from('tasks').insert([{ 
-                name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
-                room: r, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id, next_due_at: initialDue
-            }]);
-            if (error) { window.showToast("Błąd: " + error.message); return; }
-        }
-        
-        window.invalidateDashboardCache();
+        // 1. Zapis w pamięci urządzenia i natychmiastowe przerysowanie
+        window.AppStore.set(prevState => ({
+            ...prevState,
+            tasks: [newTask, ...(prevState.tasks || [])]
+        }));
+
         window.closeNewTaskModal(); 
         window.showToast("Dodano czynność!"); 
-        window.loadDashboard();
+        window.renderHomeUI();
+
+        // 2. Synchronizacja z baza Supabase w tle
+        const { data, error } = await window.supabaseClient.from('tasks').insert([{ 
+            name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
+            room: r, user_id: newTask.user_id, household_id: newTask.household_id, next_due_at: initialDue
+        }]).select().single();
+
+        if (error) {
+            window.showToast("Błąd zapisu w chmurze");
+            window.loadDashboardOverview(true);
+        } else if (data) {
+            window.AppStore.set(prevState => ({
+                ...prevState,
+                tasks: (prevState.tasks || []).map(t => t.id === tempTaskId ? data : t)
+            }));
+        }
+
+        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     };
 
     window.openEditLogModal = function(logId) {
-        let log = logs.find(l => l.id === logId);
-        if (!log && window.AppStore) {
-            const state = window.AppStore.get();
-            log = (state.logs || []).find(l => l.id === logId);
-        }
+        const state = window.AppStore.get() || {};
+        const log = (state.logs || []).find(l => sameId(l.id, logId));
         
         if (!log) { window.showToast("Nie znaleziono wpisu."); return; }
 
@@ -327,10 +372,8 @@ window.HomeModule = (() => {
     };
 
     window.closeEditLogModal = function() { 
-        setTimeout(() => {
-            const modal = document.getElementById('edit-log-modal');
-            if (modal) modal.classList.add('hidden');
-        }, 10);
+        const modal = document.getElementById('edit-log-modal');
+        if (modal) modal.classList.add('hidden');
     };
 
     window.saveEditLog = async function() {
@@ -343,41 +386,57 @@ window.HomeModule = (() => {
         if (!id || !dateStr) { window.showToast("Wprowadź datę i godzinę!"); return; }
         const finalDate = parseLocalDatetime(dateStr).toISOString();
 
+        // Instant local update
+        window.AppStore.set(prevState => ({
+            ...prevState,
+            logs: (prevState.logs || []).map(l => sameId(l.id, id) ? { ...l, created_at: finalDate, notes: notes } : l)
+        }));
+
+        window.closeEditLogModal();
+        window.showToast("Wpis zaktualizowany! ✏️"); 
+        window.renderHomeUI();
+
         const { error } = await window.supabaseClient.from('activity_logs')
             .update({ created_at: finalDate, notes: notes })
-            .eq('id', id).eq('household_id', window.currentUser.household_id);
+            .eq('id', id);
 
-        if (error) { window.showToast("Błąd: " + error.message); return; }
-        window.showToast("Wpis zaktualizowany! ✏️"); 
-        
-        window.invalidateDashboardCache();
-        window.closeEditLogModal();
-        
-        if (typeof window.loadDashboardOverview === 'function') await window.loadDashboardOverview(true);
-        window.loadDashboard();
+        if (error) { 
+            window.showToast("Błąd zapisu w chmurze"); 
+            window.loadDashboardOverview(true);
+        }
+        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     };
 
     window.deleteTaskFromHome = function(id, name) {
         window.customConfirm(`Czy na pewno usunąć "${name}"?`, async () => {
+            // Instant local update
+            window.AppStore.set(prevState => ({
+                ...prevState,
+                tasks: (prevState.tasks || []).filter(t => !sameId(t.id, id))
+            }));
+            window.renderHomeUI();
+            window.showToast("Usunięto!");
+
             const { error } = await window.supabaseClient.from('tasks').update({ is_archived: true }).eq('id', id);
-            if (error) { window.showToast("Błąd usuwania"); return; }
-            
-            window.invalidateDashboardCache(); 
-            window.showToast("Usunięto!"); 
-            window.loadDashboard();
+            if (error) { 
+                window.showToast("Błąd usuwania w chmurze"); 
+                window.loadDashboardOverview(true);
+            }
+            if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
         });
     };
 
+    // --- DELEGACJA ZDARZEŃ (VIA DISPATCHER) ---
     if (window.EventDispatcher) {
         window.EventDispatcher.onClick('.js-toggle-home-view', async () => {
             await window.switchView('calendar');
-            if (typeof window.CalendarModule.setFilter === 'function') {
+            if (typeof window.CalendarModule?.setFilter === 'function') {
                 window.CalendarModule.setFilter('Dom');
             }
         });
 
         window.EventDispatcher.onClick('.js-open-home-stats', () => window.openStatsScreen());
-        window.EventDispatcher.onClick('.js-refresh-home-view', () => window.refreshCurrentView());
+        window.EventDispatcher.onClick('.js-refresh-home-view', () => window.loadDashboardOverview(true));
         window.EventDispatcher.onClick('.js-open-new-task-modal', () => window.openNewTaskModal());
 
         window.EventDispatcher.onClick('.js-home-back', (e) => {
@@ -415,7 +474,8 @@ window.HomeModule = (() => {
     }
 
     return {
-        getLogs: () => logs, setLogs: (newLogs) => logs = newLogs, getRoomFilter: () => roomFilter
+        getLogs: () => (window.AppStore.get() || {}).logs || [], 
+        getRoomFilter: () => roomFilter
     };
 
 })();
