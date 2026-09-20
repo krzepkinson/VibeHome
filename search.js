@@ -1,9 +1,92 @@
 // ==========================================
-// LOGIKA: WYSZUKIWARKA - LOCAL FIRST (search.js)
+// LOGIKA: WYSZUKIWARKA 2.0 - LOCAL FIRST + UX (search.js)
 // ==========================================
 
 window.SearchModule = (() => {
     let searchTimeout = null;
+    const HISTORY_KEY = 'bento_recent_searches_v1';
+
+    // 1. HELPERY HISTORII WYSZUKIWANIA (LOCALSTORAGE)
+    const getRecentSearches = () => {
+        try {
+            return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+        } catch (e) {
+            return [];
+        }
+    };
+
+    const saveToRecentSearches = (item) => {
+        try {
+            let list = getRecentSearches();
+            list = list.filter(i => !(i.id === item.id && i.type === item.type));
+            list.unshift({
+                id: item.id,
+                title: item.title,
+                type: item.type,
+                icon: item.icon,
+                extraData: item.extraData
+            });
+            if (list.length > 5) list = list.slice(0, 5);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+        } catch (e) {}
+    };
+
+    window.clearRecentSearches = function() {
+        try {
+            localStorage.removeItem(HISTORY_KEY);
+        } catch (e) {}
+        window.renderRecentSearches();
+    };
+
+    // 2. HIGHLIGHTING (PODŚWIETLANIE FRAZY)
+    const highlightText = (text, query) => {
+        if (!text) return '';
+        if (!query) return window.esc(text);
+        const escText = window.esc(text);
+        const escQuery = window.esc(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const reg = new RegExp(`(${escQuery})`, 'gi');
+        return escText.replace(reg, '<mark class="bg-[#004a77] text-[#c2e7ff] px-1 rounded font-bold">$1</mark>');
+    };
+
+    // 3. RENDER HISTORII OSTATNICH WYSZUKIWAŃ
+    window.renderRecentSearches = function() {
+        const listEl = document.getElementById('search-results-list');
+        if (!listEl) return;
+
+        const recent = getRecentSearches();
+        if (recent.length === 0) {
+            listEl.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-10 text-center">
+                    <p class="text-xs text-neutral-500 mb-1">Wpisz minimum 2 znaki...</p>
+                    <p class="text-[10px] text-neutral-600">Szukaj w zadaniach, apteczce, zdrowiu i listach</p>
+                </div>`;
+            return;
+        }
+
+        let html = `
+            <div class="mb-3 flex justify-between items-center px-1">
+                <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Ostatnio szukane</span>
+                <button class="js-clear-search-history text-[10px] text-neutral-500 hover:text-[#ffb4ab] cursor-pointer">Wyczyszcz ✕</button>
+            </div>`;
+
+        html += recent.map(r => `
+            <div class="js-search-result flex items-center gap-4 p-3 bg-[#1e1f20]/60 hover:bg-[#252627] border border-[#333537]/60 rounded-[14px] mb-1.5 cursor-pointer active:scale-95 transition-all"
+                 data-id="${r.id}"
+                 data-title="${window.esc(r.title)}"
+                 data-type="${window.esc(r.type)}"
+                 data-icon="${window.esc(r.icon)}"
+                 data-extra="${window.esc(r.extraData)}">
+                <div class="text-xl opacity-70">${r.icon || '🔍'}</div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-xs font-medium text-neutral-300 truncate">${window.esc(r.title)}</h3>
+                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest">${r.type}</p>
+                </div>
+                <span class="text-neutral-600 text-xs">↩</span>
+            </div>
+        `).join('');
+
+        listEl.innerHTML = html;
+    };
 
     window.openGlobalSearch = function() {
         const modal = document.getElementById('search-modal');
@@ -11,10 +94,8 @@ window.SearchModule = (() => {
         if (!modal) return;
         
         if (input) input.value = '';
-        const listEl = document.getElementById('search-results-list');
-        if (listEl) {
-            listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
-        }
+        
+        window.renderRecentSearches();
         
         modal.classList.remove('hidden');
         
@@ -43,20 +124,19 @@ window.SearchModule = (() => {
         }
     };
 
-    // WYSZUKIWANIE LOKALNE W RAM / APPSTORE (0 ms)
+    // WYSZUKIWANIE LOKALNE Z GŁĘBOKIM SZUKANIEM I HIGHLIGHTINGIEM (0 ms)
     window.performGlobalSearch = function(query) {
         const q = query.trim().toLowerCase();
         const listEl = document.getElementById('search-results-list');
         if (!listEl) return;
 
         if (q.length < 2) {
-            listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Wpisz minimum 2 znaki...</p></div>`;
+            window.renderRecentSearches();
             return;
         }
 
         if (searchTimeout) clearTimeout(searchTimeout);
 
-        // Niewielki debounce (50ms) wyłącznie dla zachowania płynności klawiatury
         searchTimeout = setTimeout(() => {
             try {
                 const state = window.AppStore.get() || {};
@@ -65,6 +145,7 @@ window.SearchModule = (() => {
                 const hTasks = state.hTasks || [];
                 const todos = state.todos || [];
                 const lists = state.checklists || [];
+                const checklistItems = state.checklistItems || [];
                 const pharmacy = window.allPharmacyItems || state.pharmacy || [];
 
                 let results = [];
@@ -84,35 +165,58 @@ window.SearchModule = (() => {
                     results.push({ id: t.id, title: t.title, type: 'Zadanie', icon: '📝', extraData: '' });
                 });
 
-                // 4. Checklisty / Listy zakupów
+                // 4. Checklisty / Listy (Główne)
                 lists.filter(l => !l.is_archived && l.title && l.title.toLowerCase().includes(q)).forEach(l => {
                     results.push({ id: l.id, title: l.title, type: 'Lista', icon: '🗂️', extraData: l.list_type || 'generic' });
                 });
 
-                // 5. Apteczka
+                // 5. GŁĘBOKIE WYSZUKIWARKA: Pozycje wewnątrz checklist
+                checklistItems.filter(ci => ci.content && ci.content.toLowerCase().includes(q)).forEach(ci => {
+                    const parentList = lists.find(l => String(l.id) === String(ci.checklist_id));
+                    const listTitle = parentList ? parentList.title : 'Lista';
+                    const listType = parentList ? parentList.list_type : 'generic';
+                    results.push({
+                        id: ci.checklist_id,
+                        title: ci.content,
+                        type: `W liście "${listTitle}"`,
+                        icon: '☑️',
+                        extraData: listType
+                    });
+                });
+
+                // 6. Apteczka (Nazwa oraz Przeznaczenie/Działanie)
                 pharmacy.filter(p => (p.name && p.name.toLowerCase().includes(q)) || (p.purpose && p.purpose.toLowerCase().includes(q))).forEach(p => {
-                    results.push({ id: p.id, title: p.name, type: 'Apteczka', icon: '💊', extraData: p.purpose || '' });
+                    const extra = p.purpose && p.purpose.toLowerCase().includes(q) ? `Przeznaczenie: ${p.purpose}` : (p.purpose || '');
+                    results.push({ id: p.id, title: p.name, type: 'Apteczka', icon: '💊', extraData: extra });
                 });
 
                 if (results.length === 0) {
-                    listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500">Brak wyników dla "${window.esc(q)}"</p></div>`;
+                    listEl.innerHTML = `
+                        <div class="flex justify-center py-10">
+                            <p class="text-xs text-neutral-500">Brak wyników dla "<span class="text-neutral-300 font-medium">${window.esc(q)}</span>"</p>
+                        </div>`;
                     return;
                 }
 
-                listEl.innerHTML = results.map(r => `
+                listEl.innerHTML = results.map(r => {
+                    const highlightedTitle = highlightText(r.title, q);
+                    const highlightedExtra = r.extraData ? highlightText(r.extraData, q) : '';
+
+                    return `
                     <div class="js-search-result flex items-center gap-4 p-4 bg-[#1e1f20] hover:bg-[#333537] border border-[#333537] rounded-[16px] mb-2 cursor-pointer active:scale-95 transition-all shadow-sm"
                          data-id="${r.id}"
                          data-title="${window.esc(r.title)}"
-                         data-type="${r.type}"
+                         data-type="${window.esc(r.type)}"
+                         data-icon="${window.esc(r.icon)}"
                          data-extra="${window.esc(r.extraData)}">
                         <div class="text-2xl">${r.icon}</div>
                         <div class="flex-1 min-w-0">
-                            <h3 class="text-sm font-medium text-neutral-200 truncate">${window.esc(r.title)}</h3>
-                            <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-0.5">${r.type}</p>
+                            <h3 class="text-sm font-medium text-neutral-200 truncate">${highlightedTitle}</h3>
+                            <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-0.5">${r.type}${highlightedExtra ? ` • ${highlightedExtra}` : ''}</p>
                         </div>
                         <span class="text-neutral-500 text-lg">→</span>
-                    </div>
-                `).join('');
+                    </div>`;
+                }).join('');
 
             } catch (error) {
                 console.error("Błąd wyszukiwania lokalnego:", error);
@@ -139,14 +243,23 @@ window.SearchModule = (() => {
             window.closeGlobalSearch();
         });
 
+        window.EventDispatcher.onClick('.js-clear-search-history', (e) => {
+            e.preventDefault();
+            window.clearRecentSearches();
+        });
+
         window.EventDispatcher.onClick('.js-search-result', (e, el) => {
             e.preventDefault();
-            window.closeGlobalSearch();
 
             const id = parseInt(el.dataset.id, 10);
             const type = el.dataset.type;
             const title = el.dataset.title;
+            const icon = el.dataset.icon || '🔍';
             const extra = el.dataset.extra;
+
+            saveToRecentSearches({ id, title, type, icon, extraData: extra });
+
+            window.closeGlobalSearch();
 
             if (type === 'Dom') {
                 window.switchView('home');
@@ -165,7 +278,7 @@ window.SearchModule = (() => {
                     }
                 }, 150);
             } 
-            else if (type === 'Lista') {
+            else if (type === 'Lista' || type.startsWith('W liście')) {
                 window.switchView('todo');
                 setTimeout(() => { if (typeof window.openChecklistScreen === 'function') window.openChecklistScreen(id, title, extra); }, 150); 
             }
