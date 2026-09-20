@@ -1,5 +1,5 @@
 // ==========================================
-// LOGIKA: TO-DO I CHECKLISTY 2.0 - LOCAL FIRST + UX (todo.js)
+// LOGIKA: TO-DO I CHECKLISTY 2.1 - MOBILE FIXED & CLOUD SYNC (todo.js)
 // ==========================================
 
 window.TodoModule = (() => {
@@ -21,7 +21,7 @@ window.TodoModule = (() => {
         'week': ['Ubrania na 7 dni', 'Kosmetyczka pełna', 'Ładowarka i powerbank', 'Dokumenty, portfel, bilety', 'Bielizna x8', 'Ręcznik', 'Apteczka', 'Klapki']
     };
 
-    // UX 5: SŁOWNIK INTELIGENTNYCH KATEGORII ZAKUPÓW
+    // SŁOWNIK INTELIGENTNYCH KATEGORII ZAKUPÓW
     const SHOPPING_CATEGORIES = [
         { name: '🥦 Warzywa i Owoce', keys: ['jabłk', 'banan', 'ziemniak', 'pomidor', 'cebul', 'marchew', 'owoc', 'warzyw', 'cytryn', 'czosnek', 'ogór', 'papryk', 'sałat', 'malin', 'truskaw'] },
         { name: '🥛 Nabiał i Jaja', keys: ['mlek', 'ser', 'jogurt', 'masł', 'śmietan', 'jaj', 'twaróg', 'kefir'] },
@@ -46,12 +46,11 @@ window.TodoModule = (() => {
             clearBtn.innerText = lType.clearLabel;
         }
 
-        // UX 3: Przycisk Reset do ponownego użycia listy
         const actionsContainer = clearBtn ? clearBtn.parentElement : null;
         if (actionsContainer && !document.getElementById('checklist-reset-btn')) {
             const resetBtn = document.createElement('button');
             resetBtn.id = 'checklist-reset-btn';
-            resetBtn.className = 'js-reset-checklist text-xs font-bold text-neutral-400 border border-[#333537] bg-[#1e1f20] px-3 py-1.5 rounded-full active:scale-95 transition-transform ml-2 cursor-pointer';
+            resetBtn.className = 'js-reset-checklist text-xs font-bold text-neutral-400 border border-[#333537] bg-[#1e1f20] px-3 py-1.5 rounded-full active:scale-95 transition-transform ml-2 cursor-pointer touch-manipulation';
             resetBtn.innerText = 'Zresetuj stan 🔄';
             actionsContainer.appendChild(resetBtn);
         }
@@ -89,13 +88,14 @@ window.TodoModule = (() => {
         }
     };
 
-    // UX 4: Szybkie zadanie bezpośrednio nad listą (0 ms)
+    // Szybkie zadanie bezpośrednio nad listą (0 ms)
     window.saveInlineTodo = async function() {
         const input = document.getElementById('inline-todo-input');
         if (!input) return;
         const title = input.value.trim();
         if (!title) return;
 
+        if (document.activeElement) document.activeElement.blur();
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
         input.value = ''; 
 
@@ -113,12 +113,20 @@ window.TodoModule = (() => {
         }));
         window.renderTodoUI();
 
-        const { data } = await window.supabaseClient.from('todos').insert([newTodoObj]).select().single();
-        if (data) {
+        const { data, error } = await window.supabaseClient.from('todos').insert([{
+            title: newTodoObj.title, user_id: newTodoObj.user_id, household_id: newTodoObj.household_id,
+            is_completed: false, is_archived: false, is_urgent: false, creator_name: newTodoObj.creator_name
+        }]).select().single();
+
+        if (error) {
+            window.showToast("Błąd zapisu w chmurze: " + error.message);
+            window.loadTodosAndLists(true);
+        } else if (data) {
             window.AppStore.set(state => ({
                 ...state,
-                todos: (state.todos || []).map(t => t.id === tempId ? data : t)
+                todos: (state.todos || []).map(t => sameId(t.id, tempId) ? data : t)
             }));
+            window.showToast("Zapisano ☁️");
         }
         if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     };
@@ -135,11 +143,13 @@ window.TodoModule = (() => {
         let todos = [...rawTodos];
         let html = '';
 
-        // Wstrzyknięcie UX 4: Inline Quick Add
+        // Inline Quick Add
         html += `
         <div class="mb-5 relative animate-fade-in">
             <input type="text" id="inline-todo-input" class="w-full bg-[#1e1f20] border border-[#333537] rounded-[16px] py-3.5 pl-4 pr-12 text-sm text-neutral-200 focus:outline-none focus:border-[#a8c7fa] transition-colors shadow-sm" placeholder="Dodaj szybkie zadanie...">
-            <button class="js-save-inline-todo absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-[#004a77] text-[#c2e7ff] rounded-full active:scale-90 transition-transform font-bold text-lg cursor-pointer">↑</button>
+            <button class="js-save-inline-todo absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-[#004a77] text-[#c2e7ff] rounded-full active:scale-90 transition-transform font-bold text-lg cursor-pointer touch-manipulation">
+                <span class="pointer-events-none">↑</span>
+            </button>
         </div>`;
 
         todos.sort((a, b) => {
@@ -158,7 +168,7 @@ window.TodoModule = (() => {
                     dateBadge = `<span class="text-[9px] px-1.5 py-0.5 rounded border border-[#004a77]/50 bg-[#004a77]/20 text-[#a8c7fa] ml-2 shrink-0">${st}</span>`;
                 }
 
-                // UX 1: Progress Bar kalkulacja
+                // Progress Bar kalkulacja
                 const cItems = allItems.filter(i => sameId(i.checklist_id, list.id));
                 const total = cItems.length;
                 const completed = cItems.filter(i => i.is_completed).length;
@@ -175,17 +185,17 @@ window.TodoModule = (() => {
                 return `
                 <div class="relative overflow-hidden mb-1.5 rounded-[16px] group animate-fade-in">
                     <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
-                        <button class="js-archive-checklist text-[#ffb4ab] text-xl active:scale-95 transition-transform" data-id="${list.id}">🗑️</button>
+                        <button class="js-archive-checklist text-[#ffb4ab] text-xl active:scale-95 transition-transform cursor-pointer touch-manipulation" data-id="${list.id}">🗑️</button>
                     </div>
-                    <div class="js-open-checklist swipe-front relative z-10 flex flex-col p-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 cursor-pointer w-full transition-transform" data-id="${list.id}" data-title="${window.esc(list.title)}" data-type="${list.list_type || 'generic'}">
-                        <div class="flex items-center justify-between min-w-0 w-full">
+                    <div class="js-open-checklist swipe-front relative z-10 flex flex-col p-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 cursor-pointer w-full transition-transform touch-manipulation" data-id="${list.id}" data-title="${window.esc(list.title)}" data-type="${list.list_type || 'generic'}">
+                        <div class="flex items-center justify-between min-w-0 w-full pointer-events-none">
                             <div class="flex items-center gap-3 min-w-0">
                                 <span class="text-lg shrink-0">${lType.icon}</span>
                                 <span class="text-sm font-bold text-[#c2e7ff] truncate">${window.esc(list.title)}</span>
                             </div>
                             ${dateBadge}
                         </div>
-                        ${progressHtml}
+                        <div class="pointer-events-none">${progressHtml}</div>
                     </div>
                 </div>`;
             }).join('');
@@ -207,25 +217,25 @@ window.TodoModule = (() => {
                 let avatarClass = window.getAvatarColor ? window.getAvatarColor(currentName) : 'bg-[#333537] border-[#737373] text-neutral-300';
                 if (isDone) avatarClass = 'bg-[#0f5223]/30 border-[#0f5223]/50 text-[#c4eed0]';
                 
-                let userBadge = `<div class="js-change-user w-6 h-6 rounded-full ${avatarClass} border text-[10px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform font-bold" data-type="${badgeType}" data-id="${todo.id}" data-username="${window.esc(currentName)}">${initial}</div>`;
+                let userBadge = `<div class="js-change-user w-6 h-6 rounded-full ${avatarClass} border text-[10px] flex items-center justify-center ml-2 shrink-0 cursor-pointer active:scale-90 transition-transform font-bold touch-manipulation" data-type="${badgeType}" data-id="${todo.id}" data-username="${window.esc(currentName)}"><span class="pointer-events-none">${initial}</span></div>`;
 
                 let urgentIcon = isUrgent ? '🚨' : '🔔';
                 let urgentClass = isUrgent ? 'text-[#ffb4ab] opacity-100 scale-110' : 'text-neutral-600 opacity-30 group-hover:opacity-60';
-                let urgentBtn = isDone ? '' : `<button class="js-toggle-todo-urgency p-1 text-sm shrink-0 active:scale-90 transition-all cursor-pointer ${urgentClass}" data-id="${todo.id}" data-urgent="${isUrgent}" title="Przełącz priorytet pilny">${urgentIcon}</button>`;
+                let urgentBtn = isDone ? '' : `<button class="js-toggle-todo-urgency p-1 text-sm shrink-0 active:scale-90 transition-all cursor-pointer touch-manipulation ${urgentClass}" data-id="${todo.id}" data-urgent="${isUrgent}" title="Przełącz priorytet pilny"><span class="pointer-events-none">${urgentIcon}</span></button>`;
 
                 let urgentBorderClass = (isUrgent && !isDone) ? 'border-l-4 border-l-[#ffb4ab]' : '';
 
                 return `
                 <div class="relative overflow-hidden mb-1.5 rounded-[16px] group animate-fade-in ${isDone ? 'opacity-50' : ''}">
                     <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-5">
-                        <button class="js-archive-todo text-[#ffb4ab] text-xl active:scale-95 transition-transform cursor-pointer" data-id="${todo.id}">🗑️</button>
+                        <button class="js-archive-todo text-[#ffb4ab] text-xl active:scale-95 transition-transform cursor-pointer touch-manipulation" data-id="${todo.id}">🗑️</button>
                     </div>
-                    <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] ${urgentBorderClass} cursor-pointer w-full transition-transform">
+                    <div class="swipe-front relative z-10 flex items-center justify-between p-3 bg-[#1e1f20] rounded-[16px] border border-[#333537] ${urgentBorderClass} cursor-pointer w-full transition-transform touch-manipulation">
                         <div class="js-edit-todo flex items-center gap-2 flex-1 min-w-0" data-id="${todo.id}" data-title="${window.esc(todo.title)}">
-                            <div class="js-toggle-todo w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#737373]'} flex items-center justify-center transition-colors shrink-0 cursor-pointer" data-id="${todo.id}" data-status="${isDone}">
-                                ${isDone ? '<span class="text-[#0f5223] text-xs font-bold">✓</span>' : ''}
+                            <div class="js-toggle-todo w-6 h-6 rounded-full border-2 ${isDone ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#737373]'} flex items-center justify-center transition-colors shrink-0 cursor-pointer touch-manipulation" data-id="${todo.id}" data-status="${isDone}">
+                                ${isDone ? '<span class="text-[#0f5223] text-xs font-bold pointer-events-none">✓</span>' : ''}
                             </div>
-                            <span class="text-sm truncate flex-1 ${isDone ? 'line-through text-neutral-500' : 'text-neutral-200'}">
+                            <span class="text-sm truncate flex-1 ${isDone ? 'line-through text-neutral-500' : 'text-neutral-200'} pointer-events-none">
                                 ${isUrgent && !isDone ? '<span class="text-[#ffb4ab] text-[10px] font-bold mr-1 align-middle uppercase tracking-widest bg-[#3c1414] px-1 py-0.5 rounded">Pilne</span>' : ''}${window.esc(todo.title)}
                             </span>
                             ${urgentBtn}
@@ -260,6 +270,7 @@ window.TodoModule = (() => {
     };
 
     window.saveNewTodo = async function() {
+        if (document.activeElement) document.activeElement.blur();
         const title = document.getElementById('new-todo-title').value.trim(); 
         if (!title) return;
 
@@ -278,11 +289,18 @@ window.TodoModule = (() => {
         window.closeNewTodoModal(); 
         window.showToast("Zadanie dodane!"); 
 
-        const { data } = await window.supabaseClient.from('todos').insert([newTodoObj]).select().single();
-        if (data) {
+        const { data, error } = await window.supabaseClient.from('todos').insert([{
+            title: newTodoObj.title, user_id: newTodoObj.user_id, household_id: newTodoObj.household_id,
+            is_completed: false, is_archived: false, is_urgent: isUrgent, creator_name: newTodoObj.creator_name
+        }]).select().single();
+
+        if (error) {
+            window.showToast("Błąd zapisu w chmurze");
+            window.loadTodosAndLists(true);
+        } else if (data) {
             window.AppStore.set(state => ({
                 ...state,
-                todos: (state.todos || []).map(t => t.id === tempId ? data : t)
+                todos: (state.todos || []).map(t => sameId(t.id, tempId) ? data : t)
             }));
         }
         if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
@@ -311,6 +329,7 @@ window.TodoModule = (() => {
     };
 
     window.saveNewChecklist = async function() {
+        if (document.activeElement) document.activeElement.blur();
         const title = document.getElementById('new-checklist-title').value.trim();
         const type = document.getElementById('new-checklist-type').value;
         const start = document.getElementById('new-checklist-start').value || null;
@@ -353,14 +372,14 @@ window.TodoModule = (() => {
         return items.map(item => `
             <div class="relative overflow-hidden mb-1 rounded-[12px] group animate-fade-in ${item.is_completed ? 'opacity-50' : ''}">
                 <div class="absolute inset-0 bg-rose-900/80 flex justify-end items-center pr-4">
-                    <button class="js-delete-checklist-item text-[#ffb4ab] text-lg active:scale-90 transition-transform cursor-pointer" data-id="${item.id}">🗑️</button>
+                    <button class="js-delete-checklist-item text-[#ffb4ab] text-lg active:scale-90 transition-transform cursor-pointer touch-manipulation" data-id="${item.id}">🗑️</button>
                 </div>
                 <div class="swipe-front relative z-10 flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] w-full transition-transform">
-                    <div class="js-toggle-checklist-item flex items-center gap-3 flex-1 cursor-pointer min-w-0" data-id="${item.id}" data-status="${item.is_completed}">
-                        <div class="w-5 h-5 rounded-full border-2 ${item.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#737373]'} flex items-center justify-center transition-colors shrink-0">
+                    <div class="js-toggle-checklist-item flex items-center gap-3 flex-1 cursor-pointer min-w-0 touch-manipulation" data-id="${item.id}" data-status="${item.is_completed}">
+                        <div class="w-5 h-5 rounded-full border-2 ${item.is_completed ? 'bg-[#c4eed0] border-[#c4eed0]' : 'border-[#737373]'} flex items-center justify-center transition-colors shrink-0 pointer-events-none">
                             ${item.is_completed ? '<span class="text-[#0f5223] text-[10px] font-bold">✓</span>' : ''}
                         </div>
-                        <span class="text-sm truncate flex-1 ${item.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'}">${window.esc(item.content)}</span>
+                        <span class="text-sm truncate flex-1 ${item.is_completed ? 'line-through text-neutral-500' : 'text-neutral-200'} pointer-events-none">${window.esc(item.content)}</span>
                     </div>
                 </div>
             </div>`).join('');
@@ -390,7 +409,7 @@ window.TodoModule = (() => {
 
         let html = '';
         
-        // UX 5: Inteligentne Grupowanie Zakupów
+        // Inteligentne Grupowanie Zakupów
         if (currentChecklistType === 'shopping') {
             const categorized = { '🛒 Pozostałe / Inne': [] };
             SHOPPING_CATEGORIES.forEach(c => categorized[c.name] = []);
@@ -414,28 +433,41 @@ window.TodoModule = (() => {
                 html += renderChecklistRows(catItems);
             }
         } else {
-            // Zwykła lista - zrobione lądują na dole
             items.sort((a, b) => (a.is_completed === b.is_completed ? 0 : a.is_completed ? 1 : -1));
             html += renderChecklistRows(items);
         }
 
         listEl.innerHTML = html;
+
+        // Podpięcie Enter do pola tekstowego pozycji checklisty
+        const itemInput = document.getElementById('new-checklist-item-input');
+        if (itemInput && !itemInput.dataset.hasEnter) {
+            itemInput.dataset.hasEnter = "true";
+            itemInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    window.saveChecklistItem();
+                }
+            });
+        }
     };
 
-    // UX 2: Wklejanie wielowierszowe (Bulk Add)
+    // Wklejanie wielowierszowe (Bulk Add) i Bezpośredni Zapis do Chmury
     window.saveChecklistItem = async function() {
         const input = document.getElementById('new-checklist-item-input'); 
+        if (!input) return;
         const contentRaw = input.value.trim();
         if (!contentRaw || !currentChecklistId) return; 
         
+        if (document.activeElement) document.activeElement.blur();
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
         input.value = ''; 
 
         const lines = contentRaw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        const hid = window.currentUser.household_id;
-        const uid = window.currentUser.user_id;
+        const hid = window.currentUser ? window.currentUser.household_id : null;
+        const uid = window.currentUser ? window.currentUser.user_id : null;
 
-        const newItems = lines.map(line => ({
+        const newItemsLocal = lines.map(line => ({
             id: Date.now() + Math.random(), 
             checklist_id: currentChecklistId,
             user_id: uid,
@@ -445,17 +477,34 @@ window.TodoModule = (() => {
             created_at: new Date().toISOString()
         }));
 
+        // 1. Instant local render
         window.AppStore.set(state => ({
             ...state,
-            checklistItems: [...(state.checklistItems || []), ...newItems]
+            checklistItems: [...(state.checklistItems || []), ...newItemsLocal]
         }));
         window.loadChecklistItems(); 
 
-        const payload = newItems.map(i => ({ checklist_id: i.checklist_id, user_id: i.user_id, household_id: i.household_id, content: i.content, is_completed: false }));
+        // 2. Pewny zapis w Supabase z weryfikacją błędów
+        const payload = newItemsLocal.map(i => ({ 
+            checklist_id: i.checklist_id, 
+            user_id: i.user_id, 
+            household_id: i.household_id, 
+            content: i.content, 
+            is_completed: false 
+        }));
+
         const { data, error } = await window.supabaseClient.from('checklist_items').insert(payload).select();
         
-        if (data && !error) {
+        if (error) {
+            console.error("Błąd zapisu do chmury:", error);
+            window.showToast("Błąd zapisu w chmurze: " + error.message);
             window.loadTodosAndLists(true); 
+        } else if (data) {
+            window.showToast("Zapisano ☁️");
+            window.AppStore.set(state => {
+                const filtered = (state.checklistItems || []).filter(i => !newItemsLocal.some(nl => sameId(nl.id, i.id)));
+                return { ...state, checklistItems: [...filtered, ...data] };
+            });
         }
     };
 
@@ -464,7 +513,7 @@ window.TodoModule = (() => {
         const newStatus = !currentStatus;
 
         window.AppStore.set(state => {
-            const updatedTodos = (state.todos || []).map(t => t.id === id ? { 
+            const updatedTodos = (state.todos || []).map(t => sameId(t.id, id) ? { 
                 ...t, 
                 is_completed: newStatus,
                 completed_at: newStatus ? new Date().toISOString() : null,
@@ -493,7 +542,7 @@ window.TodoModule = (() => {
         window.customConfirm("Zarchiwizować to zadanie?", async () => {
             window.AppStore.set(state => ({
                 ...state,
-                todos: (state.todos || []).filter(t => t.id !== id)
+                todos: (state.todos || []).filter(t => !sameId(t.id, id))
             }));
             window.renderTodoUI();
 
@@ -512,7 +561,7 @@ window.TodoModule = (() => {
         const newUrgent = !currentUrgent;
         
         window.AppStore.set(state => {
-            const updatedTodos = (state.todos || []).map(t => t.id === id ? { ...t, is_urgent: newUrgent } : t);
+            const updatedTodos = (state.todos || []).map(t => sameId(t.id, id) ? { ...t, is_urgent: newUrgent } : t);
             return { ...state, todos: updatedTodos };
         });
         window.renderTodoUI();
@@ -551,7 +600,7 @@ window.TodoModule = (() => {
                 circle.classList.toggle('bg-[#c4eed0]', isDone);
                 circle.classList.toggle('border-[#c4eed0]', isDone);
                 circle.classList.toggle('border-[#737373]', !isDone);
-                circle.innerHTML = isDone ? '<span class="text-[#0f5223] text-[10px] font-bold">✓</span>' : '';
+                circle.innerHTML = isDone ? '<span class="text-[#0f5223] text-[10px] font-bold pointer-events-none">✓</span>' : '';
             }
             
             const textSpan = el.querySelector('span.truncate');
@@ -594,7 +643,6 @@ window.TodoModule = (() => {
         });
     };
 
-    // UX 3: Resetowanie Listy (np. Walizki)
     window.resetChecklist = async function() {
         if (!currentChecklistId) return;
         window.customConfirm("Odznaczyć wszystkie elementy na tej liście?", async () => {
@@ -616,7 +664,7 @@ window.TodoModule = (() => {
         window.customConfirm("Zarchiwizować całą listę?", async () => {
             window.AppStore.set(state => ({
                 ...state,
-                checklists: (state.checklists || []).filter(l => l.id !== id)
+                checklists: (state.checklists || []).filter(l => !sameId(l.id, id))
             }));
             window.renderTodoUI();
             await window.supabaseClient.from('checklists').update({ is_archived: true }).eq('id', id);
@@ -629,52 +677,83 @@ window.TodoModule = (() => {
         window.EventDispatcher.onClick('.js-open-new-todo-modal', () => window.openNewTodoModal());
         window.EventDispatcher.onClick('.js-open-new-checklist', () => window.openNewChecklistModal());
 
-        // UX: Obsługa przycisków na widoku To-Do
-        window.EventDispatcher.onClick('.js-save-inline-todo', () => window.saveInlineTodo());
-        window.EventDispatcher.onClick('.js-reset-checklist', () => window.resetChecklist());
+        // Przyciski i akcje na listach z bezpieczną delegacją dla Mobile
+        window.EventDispatcher.onClick('.js-save-inline-todo', (e) => {
+            e.preventDefault();
+            window.saveInlineTodo();
+        });
+
+        window.EventDispatcher.onClick('.js-save-checklist-item', (e) => {
+            e.preventDefault();
+            window.saveChecklistItem();
+        });
+
+        window.EventDispatcher.onClick('.js-add-checklist-item', (e) => {
+            e.preventDefault();
+            window.saveChecklistItem();
+        });
+
+        window.EventDispatcher.onClick('.js-reset-checklist', (e) => {
+            e.preventDefault();
+            window.resetChecklist();
+        });
 
         window.EventDispatcher.onClick('.js-open-checklist', (e, el) => {
             e.preventDefault();
-            window.openChecklistScreen(el.dataset.id, el.dataset.title, el.dataset.type);
+            const targetEl = el.dataset.id ? el : el.closest('[data-id]');
+            if (targetEl) window.openChecklistScreen(targetEl.dataset.id, targetEl.dataset.title, targetEl.dataset.type);
         });
 
         window.EventDispatcher.onClick('.js-archive-checklist', (e, el) => {
             e.preventDefault();
             e.stopPropagation();
-            window.archiveChecklist(parseInt(el.dataset.id, 10));
+            const targetEl = el.dataset.id ? el : el.closest('[data-id]');
+            if (targetEl) window.archiveChecklist(parseInt(targetEl.dataset.id, 10));
         });
 
         window.EventDispatcher.onClick('.js-archive-todo', (e, el) => {
             e.preventDefault();
             e.stopPropagation();
-            window.archiveTodo(parseInt(el.dataset.id, 10));
+            const targetEl = el.dataset.id ? el : el.closest('[data-id]');
+            if (targetEl) window.archiveTodo(parseInt(targetEl.dataset.id, 10));
         });
 
         window.EventDispatcher.onClick('.js-toggle-todo', (e, el) => {
             e.stopPropagation();
-            const isDone = el.dataset.status === 'true';
-            window.toggleTodo(parseInt(el.dataset.id, 10), isDone);
+            const targetEl = el.dataset.id ? el : el.closest('[data-id]');
+            if (targetEl) {
+                const isDone = targetEl.dataset.status === 'true';
+                window.toggleTodo(parseInt(targetEl.dataset.id, 10), isDone);
+            }
         });
 
         window.EventDispatcher.onClick('.js-toggle-todo-urgency', (e, el) => {
             e.stopPropagation();
-            const isUrgent = el.dataset.urgent === 'true';
-            window.toggleTodoUrgency(parseInt(el.dataset.id, 10), isUrgent);
+            const targetEl = el.dataset.id ? el : el.closest('[data-id]');
+            if (targetEl) {
+                const isUrgent = targetEl.dataset.urgent === 'true';
+                window.toggleTodoUrgency(parseInt(targetEl.dataset.id, 10), isUrgent);
+            }
         });
 
         window.EventDispatcher.onClick('.js-change-user', (e, el) => {
             e.stopPropagation(); 
-            window.openChangeUserModal(el.dataset.type, el.dataset.id, el.dataset.username);
+            const targetEl = el.dataset.id ? el : el.closest('[data-id]');
+            if (targetEl) window.openChangeUserModal(targetEl.dataset.type, targetEl.dataset.id, targetEl.dataset.username);
         });
 
         window.EventDispatcher.onClick('.js-delete-checklist-item', (e, el) => {
             e.preventDefault();
-            window.deleteChecklistItem(parseInt(el.dataset.id, 10), el);
+            const targetEl = el.dataset.id ? el : el.closest('[data-id]');
+            if (targetEl) window.deleteChecklistItem(parseInt(targetEl.dataset.id, 10), targetEl);
         });
 
         window.EventDispatcher.onClick('.js-toggle-checklist-item', (e, el) => {
-            const isCompleted = el.dataset.status === 'true';
-            window.toggleChecklistItem(parseInt(el.dataset.id, 10), isCompleted, el);
+            const targetEl = el.dataset.id ? el : el.closest('[data-id]');
+            if (targetEl) {
+                const isCompleted = targetEl.dataset.status === 'true';
+                window.toggleChecklistItem(parseInt(targetEl.dataset.id, 10), isCompleted, targetEl);
+            }
         });
     } else {
         console.error("EventDispatcher nie jest załadowany!");
