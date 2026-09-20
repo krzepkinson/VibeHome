@@ -1,5 +1,5 @@
 // ==========================================
-// LOGIKA: ZUNIFIKOWANY KALENDARZ - LOCAL FIRST (calendar.js)
+// LOGIKA: ZUNIFIKOWANY KALENDARZ 2.0 - LOCAL FIRST + UX (calendar.js)
 // ==========================================
 
 window.CalendarModule = (() => {
@@ -16,13 +16,24 @@ window.CalendarModule = (() => {
     let currentYear = new Date().getFullYear();
     let eventsSetupDone = false; 
 
+    // Helpery
     const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 
     const getLocalDayStr = (dObj = new Date()) => {
+        if (isNaN(dObj.getTime())) return '';
         const y = dObj.getFullYear();
         const m = String(dObj.getMonth() + 1).padStart(2, '0');
         const d = String(dObj.getDate()).padStart(2, '0');
         return `${y}-${m}-${d}`;
+    };
+
+    const getAvatarHtml = (profileId) => {
+        if (!profileId) return '';
+        const p = appProfiles.find(x => sameId(x.id, profileId));
+        if (!p) return '';
+        const initial = p.name.charAt(0).toUpperCase();
+        const color = window.getAvatarColor ? window.getAvatarColor(p.name) : 'bg-[#333537] border-[#737373]';
+        return `<div class="w-6 h-6 rounded-full ${color} border border-white/10 text-white text-[10px] flex items-center justify-center shrink-0 ml-1 font-bold shadow-sm" title="${window.esc(p.name)}">${initial}</div>`;
     };
 
     async function init() {
@@ -37,7 +48,7 @@ window.CalendarModule = (() => {
 
         if (subtitle) subtitle.innerText = 'Gotowe';
 
-        // 2. Tło: Dociągnięcie ewentualnych braków z chmury
+        // 2. Tło: Dociągnięcie braków z chmury (odświeżenie danych)
         if (typeof window.loadDashboardOverview === 'function') {
             await window.loadDashboardOverview();
             buildEventsFromStore();
@@ -60,6 +71,7 @@ window.CalendarModule = (() => {
         // 1. Wydarzenia własne z kalendarza
         calEvents.forEach(ev => {
             const dateObj = new Date(ev.event_datetime);
+            if(isNaN(dateObj.getTime())) return;
             const timeStr = dateObj.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
             allEvents.push({
                 id: ev.id, type: 'Wydarzenie', title: `${ev.title} • ${timeStr}`, rawTitle: ev.title, rawDatetime: ev.event_datetime, icon: '🎟️',
@@ -87,10 +99,13 @@ window.CalendarModule = (() => {
                         date: getLocalDayStr(nextDateObj), color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
                     });
                 } else if (t.task_type === 'one_time' && t.event_date) {
-                    allEvents.push({
-                        id: t.id, type: 'Dom', title: t.name, icon: '🏠',
-                        date: t.event_date.split('T')[0], color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
-                    });
+                    const evDate = new Date(t.event_date);
+                    if(!isNaN(evDate.getTime())) {
+                        allEvents.push({
+                            id: t.id, type: 'Dom', title: t.name, icon: '🏠',
+                            date: getLocalDayStr(evDate), color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
+                        });
+                    }
                 }
             }
         });
@@ -109,11 +124,14 @@ window.CalendarModule = (() => {
                     }
                 });
             } else if (ht.task_type === 'one_time' && ht.event_date) {
-                allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '📅', subTaskId: ht.id, date: ht.event_date.split('T')[0], color: 'text-amber-500', bg: 'bg-[#f59e0b]', profileId: ht.profile_id, isDuration: false });
+                const evDate = new Date(ht.event_date);
+                if(!isNaN(evDate.getTime())) {
+                    allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '📅', subTaskId: ht.id, date: getLocalDayStr(evDate), color: 'text-amber-500', bg: 'bg-[#f59e0b]', profileId: ht.profile_id, isDuration: false });
+                }
             }
         });
 
-        // 4. Aktualizacja pigułek podfiltra w modalu
+        // 4. Pigułki podfiltra
         const pillsContainer = document.getElementById('cal-subfilter-pills');
         if (pillsContainer && hTasks.length > 0) {
             const grouped = {};
@@ -193,9 +211,18 @@ window.CalendarModule = (() => {
         if (monthView) monthView.classList.add('hidden');
         if (yearView) yearView.classList.add('hidden');
 
-        if (currentTab === 'agenda') { if (agendaView) agendaView.classList.remove('hidden'); renderAgenda(); } 
-        else if (currentTab === 'month') { if (monthView) monthView.classList.remove('hidden'); renderMonth(); } 
-        else if (currentTab === 'year') { if (yearView) yearView.classList.remove('hidden'); renderYearHeatmap(); }
+        if (currentTab === 'agenda') { 
+            if (agendaView) agendaView.classList.remove('hidden'); 
+            renderAgenda(); 
+        } 
+        else if (currentTab === 'month') { 
+            if (monthView) monthView.classList.remove('hidden'); 
+            renderMonth(); 
+        } 
+        else if (currentTab === 'year') { 
+            if (yearView) yearView.classList.remove('hidden'); 
+            renderYearHeatmap(); 
+        }
     }
 
     function renderAgenda() {
@@ -221,18 +248,26 @@ window.CalendarModule = (() => {
             }
             
             const durationTxt = e.isDuration ? `<span class="text-[8px] border border-[#ffb4ab]/30 px-1 ml-2 rounded text-neutral-400">Trwa od: ${e.endDate}</span>` : '';
-            const profileObj = e.profileId ? appProfiles.find(p => sameId(p.id, e.profileId)) : null;
-            const pTxt = profileObj ? ` • ${profileObj.name}` : '';
-            
-            const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 cursor-pointer" data-id="${e.id}">✏️</button>` : '';
+            const avatarHtml = getAvatarHtml(e.profileId);
+            const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 cursor-pointer ml-2" data-id="${e.id}">✏️</button>` : '';
+
+            // Szybkie odhaczanie (Quick Log) z kalendarza
+            let quickLogBtn = '';
+            if (e.type === 'Dom') {
+                quickLogBtn = `<button class="js-cal-quick-log w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0 cursor-pointer ml-2" data-id="${e.id}" data-module="task" title="Odhacz zadanie">✓</button>`;
+            } else if (e.type === 'Zdrowie' && !e.isDuration) {
+                quickLogBtn = `<button class="js-cal-quick-log w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0 cursor-pointer ml-2" data-id="${e.subTaskId || e.id}" data-module="health" title="Odhacz zdarzenie">✓</button>`;
+            }
 
             html += `
-            <div class="bg-[#1e1f20] p-4 rounded-[16px] border border-[#333537] flex items-center gap-4 mb-2 shadow-sm">
-                <span class="text-2xl">${e.icon}</span>
+            <div class="bg-[#1e1f20] p-4 rounded-[16px] border border-[#333537] flex items-center gap-2 mb-2 shadow-sm animate-fade-in">
+                <span class="text-2xl shrink-0 pr-1">${e.icon}</span>
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-bold ${e.color} truncate">${window.esc(e.title)} ${durationTxt}</p>
-                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}${pTxt}</p>
+                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}</p>
                 </div>
+                ${avatarHtml}
+                ${quickLogBtn}
                 ${editBtn}
             </div>`;
         });
@@ -248,6 +283,7 @@ window.CalendarModule = (() => {
         title.innerText = `${monthNames[currentMonth]} ${currentYear}`;
 
         let html = `<div class="grid grid-cols-7 gap-1 text-center mb-1"><div class="text-[10px] text-neutral-600 font-bold">Pn</div><div class="text-[10px] text-neutral-600 font-bold">Wt</div><div class="text-[10px] text-neutral-600 font-bold">Śr</div><div class="text-[10px] text-neutral-600 font-bold">Cz</div><div class="text-[10px] text-neutral-600 font-bold">Pt</div><div class="text-[10px] text-neutral-600 font-bold">So</div><div class="text-[10px] text-neutral-600 font-bold">Nd</div></div><div class="grid grid-cols-7 gap-1 text-sm">`;
+        
         const firstDay = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7;
         const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
         const events = getFilteredEvents(false); 
@@ -271,38 +307,10 @@ window.CalendarModule = (() => {
         }
         html += `</div>`;
         grid.innerHTML = html;
-    }
-
-    function showMonthDetails(dateStr) {
-        const container = document.getElementById('cal-month-details');
-        if (!container) return;
-
-        const dayEvents = getFilteredEvents(false).filter(e => e.date === dateStr || (e.isDuration && dateStr >= e.date && dateStr <= e.endDate));
-        const dateObj = new Date(dateStr);
-        const dateLabel = dateObj.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
-
-        if (dayEvents.length === 0) {
-            container.innerHTML = `<h3 class="text-[10px] font-bold text-[#a8c7fa] uppercase tracking-widest mb-4 sticky top-0 bg-[#131314]">${dateLabel}</h3><p class="text-neutral-500 text-xs text-center py-4">Brak zdarzeń tego dnia.</p>`;
-        } else {
-            let html = `<h3 class="text-[10px] font-bold text-[#a8c7fa] uppercase tracking-widest mb-4 sticky top-0 bg-[#131314]">${dateLabel}</h3>`;
-            dayEvents.forEach(e => {
-                const profileObj = e.profileId ? appProfiles.find(p => sameId(p.id, e.profileId)) : null;
-                const pTxt = profileObj ? ` • ${profileObj.name}` : '';
-                const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-7 h-7 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 ml-2 cursor-pointer" data-id="${e.id}">✏️</button>` : '';
-
-                html += `
-                <div class="border-l-2 border-[#333537] ml-2 pl-4 py-2 relative mb-2 flex items-center justify-between group">
-                    <div class="flex-1 min-w-0">
-                        <div class="absolute -left-[11px] top-3 w-5 h-5 bg-[#1e1f20] border border-[#333537] rounded-full text-[10px] flex items-center justify-center">${e.icon}</div>
-                        <p class="text-sm font-medium ${e.color} truncate">${window.esc(e.title)}</p>
-                        <p class="text-[9px] text-neutral-500 uppercase">${e.type}${pTxt}</p>
-                    </div>
-                    ${editBtn}
-                </div>`;
-            });
-            container.innerHTML = html;
-        }
-        if (window.innerWidth < 640) container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        
+        // Ukrywamy starą listę inline z poprzedniej wersji
+        const oldDetails = document.getElementById('cal-month-details');
+        if (oldDetails) oldDetails.classList.add('hidden');
     }
 
     function renderYearHeatmap() {
@@ -350,7 +358,7 @@ window.CalendarModule = (() => {
                     }
                 }
 
-                monthHtml += `<button class="js-cal-heatmap-day ${cellClass} flex items-center justify-center focus:outline-none active:scale-90 transition-transform cursor-pointer" data-date="${dateStr}">${innerNum}</button>`;
+                monthHtml += `<button class="js-cal-day-details ${cellClass} flex items-center justify-center focus:outline-none active:scale-90 transition-transform cursor-pointer" data-date="${dateStr}">${innerNum}</button>`;
             }
             monthHtml += `</div></div>`;
             html += monthHtml;
@@ -388,36 +396,56 @@ window.CalendarModule = (() => {
         }
     }
 
-    function openHeatmapModal(dateStr) {
+    // UX: WSPÓLNY MODAL DLA SZCZEGÓŁÓW DNIA (Miesiąc i Rok)
+    function openDayDetailsModal(dateStr) {
         const container = document.getElementById('cal-heatmap-modal-content');
         const title = document.getElementById('cal-heatmap-modal-title');
         if (!container || !title) return;
         
-        const dayEvents = getFilteredEvents(true).filter(e => e.date === dateStr);
-        if (dayEvents.length === 0) return; 
+        // Zbieramy wydarzenia dla tego dnia
+        const isHeatmap = (currentTab === 'year');
+        const dayEvents = getFilteredEvents(isHeatmap).filter(e => e.date === dateStr || (!isHeatmap && e.isDuration && dateStr >= e.date && dateStr <= e.endDate));
+        
+        if (dayEvents.length === 0 && isHeatmap) return; 
 
         const dateObj = new Date(dateStr);
         title.innerText = dateObj.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
         
         let html = '';
-        dayEvents.forEach(e => {
-            const profileObj = e.profileId ? appProfiles.find(p => sameId(p.id, e.profileId)) : null;
-            const pTxt = profileObj ? ` • ${profileObj.name}` : '';
-            const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 ml-2 cursor-pointer" data-id="${e.id}">✏️</button>` : '';
-            html += `
-            <div class="bg-[#131314] border border-[#333537] p-3 rounded-xl flex items-center justify-between group mb-2">
-                <div class="flex items-center gap-3 min-w-0">
-                    <span class="text-2xl">${e.icon}</span>
-                    <div class="min-w-0">
-                        <p class="text-sm font-bold ${e.color} truncate">${window.esc(e.title)}</p>
-                        <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}${pTxt}</p>
+        if (dayEvents.length === 0) {
+            html = `<p class="text-neutral-500 text-xs text-center py-6">Brak zdarzeń tego dnia.</p>`;
+        } else {
+            dayEvents.forEach(e => {
+                const avatarHtml = getAvatarHtml(e.profileId);
+                const editBtn = e.type === 'Wydarzenie' ? `<button class="js-cal-edit-event w-8 h-8 rounded-full bg-[#d946ef]/10 text-[#d946ef] border border-[#d946ef]/30 flex items-center justify-center text-xs active:scale-90 shrink-0 ml-2 cursor-pointer" data-id="${e.id}">✏️</button>` : '';
+                
+                let quickLogBtn = '';
+                if (e.type === 'Dom') {
+                    quickLogBtn = `<button class="js-cal-quick-log w-8 h-8 rounded-full bg-[#0f5223]/20 border border-[#0f5223]/50 text-[#c4eed0] flex items-center justify-center active:scale-90 text-base font-bold shrink-0 cursor-pointer ml-2" data-id="${e.id}" data-module="task" title="Odhacz zadanie">✓</button>`;
+                } else if (e.type === 'Zdrowie' && !e.isDuration) {
+                    quickLogBtn = `<button class="js-cal-quick-log w-8 h-8 rounded-full bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] flex items-center justify-center active:scale-90 text-base font-bold shrink-0 cursor-pointer ml-2" data-id="${e.subTaskId || e.id}" data-module="health" title="Odhacz zdarzenie">✓</button>`;
+                }
+
+                html += `
+                <div class="bg-[#131314] border border-[#333537] p-3 rounded-xl flex items-center justify-between group mb-2 animate-fade-in">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-2xl pr-1">${e.icon}</span>
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold ${e.color} truncate">${window.esc(e.title)}</p>
+                            <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-0.5">${e.type}</p>
+                        </div>
                     </div>
-                </div>
-                ${editBtn}
-            </div>`;
-        });
+                    <div class="flex items-center">
+                        ${avatarHtml}
+                        ${quickLogBtn}
+                        ${editBtn}
+                    </div>
+                </div>`;
+            });
+        }
         container.innerHTML = html;
 
+        // Otwieranie Modalu (wykorzystujemy Modal Heatmapy)
         const modal = document.getElementById('cal-heatmap-modal');
         const panel = document.getElementById('cal-heatmap-panel');
         if (modal && panel) {
@@ -426,7 +454,7 @@ window.CalendarModule = (() => {
         }
     }
 
-    function closeHeatmapModal() {
+    function closeDayDetailsModal() {
         const panel = document.getElementById('cal-heatmap-panel');
         const modal = document.getElementById('cal-heatmap-modal');
         if (panel && modal) {
@@ -478,7 +506,6 @@ window.CalendarModule = (() => {
         }
     }
 
-    // INSTANT LOCAL-FIRST: Zapis nowego/edytowanego wydarzenia w 0 ms
     async function saveEvent() {
         const id = document.getElementById('cal-event-id').value;
         const title = document.getElementById('cal-event-title').value.trim();
@@ -534,7 +561,6 @@ window.CalendarModule = (() => {
         if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     }
 
-    // INSTANT LOCAL-FIRST: Usuwanie wydarzenia z kalendarza
     function deleteEvent() {
         const id = document.getElementById('cal-event-id').value;
         if (!id) return;
@@ -546,10 +572,7 @@ window.CalendarModule = (() => {
 
             window.showToast("Wydarzenie usunięte!");
             closeEventModal();
-            closeHeatmapModal(); 
-            
-            const details = document.getElementById('cal-month-details');
-            if (details) details.innerHTML = `<p class="text-center text-neutral-500 text-xs mt-10">Wybierz dzień z kalendarza, aby zobaczyć szczegóły.</p>`;
+            closeDayDetailsModal(); 
             
             buildEventsFromStore();
             renderCurrentTab();
@@ -640,6 +663,7 @@ window.CalendarModule = (() => {
         renderCurrentTab();
     }
 
+    // GŁÓWNA REJESTRACJA ZDARZEŃ W MODULE
     function setupEvents() {
         if (eventsSetupDone) return;
         eventsSetupDone = true;
@@ -664,8 +688,23 @@ window.CalendarModule = (() => {
                 renderYearHeatmap();
             });
 
-            window.EventDispatcher.onClick('.js-cal-day-details', (e, el) => showMonthDetails(el.dataset.date));
-            window.EventDispatcher.onClick('.js-cal-heatmap-day', (e, el) => openHeatmapModal(el.dataset.date));
+            // Podgląd dnia - ujednolicony dla Miesiąca i Roku
+            window.EventDispatcher.onClick('.js-cal-day-details', (e, el) => openDayDetailsModal(el.dataset.date));
+            window.EventDispatcher.onClick('.js-cal-heatmap-day', (e, el) => openDayDetailsModal(el.dataset.date));
+
+            // Obsługa Quick Log z kalendarza (Dom i Zdrowie)
+            window.EventDispatcher.onClick('.js-cal-quick-log', (e, el) => {
+                e.stopPropagation();
+                const id = el.dataset.id;
+                const module = el.dataset.module;
+                if (module === 'task' && window.quickLogTaskDashboard) {
+                    window.quickLogTaskDashboard(id);
+                } else if (module === 'health' && window.quickLogHealthDashboard) {
+                    window.quickLogHealthDashboard(id);
+                } else {
+                    window.showToast("Aby odhaczyć, wejdź w zakładkę na pasku");
+                }
+            });
 
             window.EventDispatcher.onClick('.js-cal-multi-pill', (e, el) => toggleSubFilterPill(el.dataset.id));
 
@@ -675,12 +714,15 @@ window.CalendarModule = (() => {
             window.EventDispatcher.onClick('.js-cal-clear-subfilter', clearSubFilter);
 
             window.EventDispatcher.onClick('.js-cal-open-new-event', () => openEventModal(null));
-            window.EventDispatcher.onClick('.js-cal-edit-event', (e, el) => openEventModal(el.dataset.id));
+            window.EventDispatcher.onClick('.js-cal-edit-event', (e, el) => {
+                e.stopPropagation();
+                openEventModal(el.dataset.id);
+            });
             window.EventDispatcher.onClick('.js-cal-close-event', closeEventModal);
             window.EventDispatcher.onClick('.js-cal-save-event', saveEvent);
             window.EventDispatcher.onClick('.js-cal-delete-event', deleteEvent);
 
-            window.EventDispatcher.onClick('.js-cal-close-heatmap', closeHeatmapModal);
+            window.EventDispatcher.onClick('.js-cal-close-heatmap', closeDayDetailsModal);
             window.EventDispatcher.onClick('.js-cal-go-back', () => { if(typeof window.goBack === 'function') window.goBack(); });
             
             window.EventDispatcher.onClick('.js-cal-generate-pdf', () => window.showToast?.("Generowanie PDF w przygotowaniu! 📄"));
