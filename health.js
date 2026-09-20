@@ -1,5 +1,5 @@
 // ==========================================
-// LOGIKA: ZDROWIE 2.0 - LOCAL FIRST (health.js)
+// LOGIKA: ZDROWIE 2.0 - LOCAL FIRST + UX (health.js)
 // ==========================================
 
 window.HealthModule = (() => {
@@ -30,8 +30,31 @@ window.HealthModule = (() => {
         return `${y}-${m}-${d}`;
     };
 
+    // UX 3: HELPER TRENDU POMIARÓW (Gorączka / Waga / Wzrost)
+    const getMeasurementTrendHtml = (allMeas, currentMeas) => {
+        const sameType = (allMeas || [])
+            .filter(m => sameId(m.profile_id, currentMeas.profile_id) && m.measurement_type === currentMeas.measurement_type)
+            .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        
+        const currIdx = sameType.findIndex(m => sameId(m.id, currentMeas.id));
+        if (currIdx === -1 || currIdx >= sameType.length - 1) return '';
+        
+        const prevVal = sameType[currIdx + 1].value;
+        const diff = currentMeas.value - prevVal;
+        
+        if (diff > 0) {
+            const isFever = currentMeas.measurement_type.toLowerCase().includes('temp') || currentMeas.measurement_type.toLowerCase().includes('gorąc');
+            const color = isFever ? 'text-[#ffb4ab]' : 'text-neutral-300';
+            return `<span class="${color} font-bold text-xs ml-1.5" title="Poprzednio: ${prevVal} ${currentMeas.unit || ''}">↑ (+${diff.toFixed(1)})</span>`;
+        } else if (diff < 0) {
+            const isFever = currentMeas.measurement_type.toLowerCase().includes('temp') || currentMeas.measurement_type.toLowerCase().includes('gorąc');
+            const color = isFever ? 'text-[#c4eed0]' : 'text-neutral-300';
+            return `<span class="${color} font-bold text-xs ml-1.5" title="Poprzednio: ${prevVal} ${currentMeas.unit || ''}">↓ (${diff.toFixed(1)})</span>`;
+        }
+        return '<span class="text-neutral-500 font-bold text-xs ml-1.5" title="Bez zmian">=</span>';
+    };
+
     window.initHealthModule = async function() {
-        // Przywrócenie ostatnio wybranego profilu z pamięci urządzenia
         try {
             const savedProfile = localStorage.getItem('bento_health_active_profile');
             if (savedProfile) currentProfileId = savedProfile;
@@ -46,7 +69,6 @@ window.HealthModule = (() => {
 
         window.renderHealthUI();
 
-        // Tło: dociągnięcie świeżych danych z serwera
         if (typeof window.loadDashboardOverview === 'function') {
             await window.loadDashboardOverview(); 
             window.renderHealthUI();
@@ -65,7 +87,6 @@ window.HealthModule = (() => {
         const state = window.AppStore.get() || {};
         const profiles = state.profiles || [];
         
-        // Bezpieczne wyszukiwanie profilu odporne na typ danych
         let profile = profiles.find(p => sameId(p.id, currentProfileId));
         if (!profile && profiles.length > 0) {
             profile = profiles[0];
@@ -151,7 +172,25 @@ window.HealthModule = (() => {
 
         let activeHtml = '';
         if (currentlyActive.length > 0) {
-            activeHtml += currentlyActive.map(item => window.UI.renderHealthActiveTask(item.task, item.log)).join('');
+            activeHtml += currentlyActive.map(item => {
+                const start = new Date(item.log.start_date); start.setHours(0,0,0,0);
+                const diff = Math.floor((today - start) / 86400000);
+                const label = diff === 0 ? 'Zaczęło się dziś' : `Trwa od ${diff} dni`;
+                
+                // UX 1: Przycisk 💬 do szybkiego notowania w aktywnej infekcji
+                return `
+                <div class="flex items-center justify-between p-3 bg-rose-900/10 border border-rose-900/30 rounded-xl mb-1.5">
+                    <div class="flex-1 min-w-0 pr-2 js-open-health-settings cursor-pointer" data-id="${item.task.id}">
+                        <h3 class="text-sm font-medium text-rose-200 truncate">🤒 ${window.esc(item.task.name)}</h3>
+                        <p class="text-[10px] text-rose-400/80 mt-0.5">${label}</p>
+                        ${item.log.notes ? `<p class="text-[10px] text-neutral-400 mt-1 italic line-clamp-2 bg-[#131314]/40 p-1.5 rounded">${window.esc(item.log.notes)}</p>` : ''}
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button class="js-open-quick-health-note w-8 h-8 rounded-full bg-rose-900/30 text-rose-200 border border-rose-800/40 flex items-center justify-center active:scale-90 text-xs cursor-pointer" data-id="${item.log.id}" title="Dodaj notatkę / objaw">💬</button>
+                        <button class="js-close-health-log w-8 h-8 rounded-full bg-rose-900/50 text-rose-100 flex items-center justify-center active:scale-90 border border-rose-800/70 shadow-inner text-xs font-bold cursor-pointer" data-id="${item.log.id}" title="Zakończ chorobę">■</button>
+                    </div>
+                </div>`;
+            }).join('');
         }
         if (inactiveDuration.length > 0) {
             activeHtml += inactiveDuration.map(t => `
@@ -228,7 +267,115 @@ window.HealthModule = (() => {
         }
     };
 
-    // INSTANT LOCAL-FIRST: Rejestrowanie wykonania zdarzenia w 0 ms
+    // UX 1: SZYBKA NOTATKA DO TRWAJĄCEJ SYTUACJI
+    window.openQuickHealthNoteModal = function(logId) {
+        const state = window.AppStore.get() || {};
+        const log = (state.hLogs || []).find(l => sameId(l.id, logId));
+        if (!log) return;
+
+        window.customPrompt ? window.customPrompt("Dodaj wpis / objaw z godzina:", "", async (noteText) => {
+            if (!noteText || !noteText.trim()) return;
+            const timeStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+            const entry = `[${timeStr}] ${noteText.trim()}`;
+            const updatedNotes = log.notes ? `${log.notes}\n${entry}` : entry;
+
+            // 1. Instant update w AppStore
+            window.AppStore.set(prevState => ({
+                ...prevState,
+                hLogs: (prevState.hLogs || []).map(l => sameId(l.id, logId) ? { ...l, notes: updatedNotes } : l)
+            }));
+            window.renderHealthUI();
+            window.showToast("Zapisano notatkę!");
+
+            // 2. Chmura
+            const { error } = await window.supabaseClient.from('health_logs').update({ notes: updatedNotes }).eq('id', logId);
+            if (error) { window.showToast("Błąd chmury: " + error.message); window.refreshHealthData(); }
+        }) : (function() {
+            const txt = prompt("Dodaj wpis do historii (np. Podano syrop):");
+            if (txt) {
+                const timeStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+                const updatedNotes = log.notes ? `${log.notes}\n[${timeStr}] ${txt.trim()}` : `[${timeStr}] ${txt.trim()}`;
+                window.AppStore.set(prevState => ({
+                    ...prevState,
+                    hLogs: (prevState.hLogs || []).map(l => sameId(l.id, logId) ? { ...l, notes: updatedNotes } : l)
+                }));
+                window.renderHealthUI();
+                window.supabaseClient.from('health_logs').update({ notes: updatedNotes }).eq('id', logId);
+            }
+        })();
+    };
+
+    // UX 2: RAPORT DLA LEKARZA (7 LUB 14 DNI)
+    window.openDoctorReport = function(days = 14) {
+        const state = window.AppStore.get() || {};
+        const profiles = state.profiles || [];
+        const profile = profiles.find(p => sameId(p.id, currentProfileId));
+        if (!profile) { window.showToast("Wybierz profil pacjenta!"); return; }
+
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+
+        const allTasks = (state.hTasks || []).filter(t => sameId(t.profile_id, currentProfileId));
+        const allLogs = (state.hLogs || []).filter(l => allTasks.some(t => sameId(t.id, l.health_task_id)) && new Date(l.start_date) >= cutoffDate);
+        const allMeas = (state.hMeasurements || []).filter(m => sameId(m.profile_id, currentProfileId) && new Date(m.created_at) >= cutoffDate);
+
+        let reportHtml = `
+        <div id="doctor-report-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div class="bg-[#18191a] border border-[#333537] rounded-[24px] w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+                <div class="p-5 border-b border-[#333537] flex justify-between items-center bg-[#1e1f20]">
+                    <div>
+                        <h2 class="text-base font-bold text-neutral-100">📋 Raport medyczny (${days} dni)</h2>
+                        <p class="text-xs text-[#a8c7fa] font-medium">Pacjent: ${window.esc(profile.name)}</p>
+                    </div>
+                    <button class="js-close-doctor-report w-8 h-8 rounded-full bg-[#333537] text-neutral-300 flex items-center justify-center active:scale-90 cursor-pointer">✕</button>
+                </div>
+                <div class="p-5 overflow-y-auto space-y-6 text-xs leading-relaxed">
+                    
+                    <!-- 1. POMIARY -->
+                    <div>
+                        <h3 class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 border-b border-[#333537] pb-1">Pomiary i Gorączka</h3>
+                        ${allMeas.length === 0 ? '<p class="text-neutral-500 italic">Brak pomiarów w podanym okresie.</p>' : `
+                        <div class="space-y-1.5">
+                            ${allMeas.sort((a,b)=> new Date(b.created_at) - new Date(a.created_at)).map(m => `
+                                <div class="flex justify-between items-center bg-[#1e1f20] p-2.5 rounded-xl border border-[#333537]">
+                                    <span class="text-neutral-300 font-medium">${m.measurement_type}: <strong class="text-[#c2e7ff]">${m.value} ${m.unit || ''}</strong></span>
+                                    <span class="text-[10px] text-neutral-500">${new Date(m.created_at).toLocaleString('pl-PL', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})}</span>
+                                </div>
+                            `).join('')}
+                        </div>`}
+                    </div>
+
+                    <!-- 2. PRZEBIEG CHORÓB I NOTATKI -->
+                    <div>
+                        <h3 class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 border-b border-[#333537] pb-1">Choroby i oś czasu podanych leków/notatek</h3>
+                        ${allLogs.length === 0 ? '<p class="text-neutral-500 italic">Brak zarejestrowanych epizodów.</p>' : `
+                        <div class="space-y-3">
+                            ${allLogs.sort((a,b)=> new Date(b.start_date) - new Date(a.start_date)).map(l => {
+                                const t = allTasks.find(x => sameId(x.id, l.health_task_id));
+                                return `
+                                <div class="bg-[#1e1f20] p-3 rounded-xl border border-[#333537]">
+                                    <div class="flex justify-between font-bold text-rose-300 mb-1">
+                                        <span>🤒 ${window.esc(t ? t.name : 'Zdarzenie')}</span>
+                                        <span class="text-[10px] text-neutral-500 font-normal">${new Date(l.start_date).toLocaleDateString('pl-PL')} ${new Date(l.start_date).toLocaleTimeString('pl-PL', {hour:'2-digit', minute:'2-digit'})}</span>
+                                    </div>
+                                    ${l.notes ? `<div class="bg-[#131314] p-2 rounded-lg text-[11px] text-neutral-300 font-mono whitespace-pre-wrap border border-[#333537]/50 mt-1">${window.esc(l.notes)}</div>` : '<p class="text-[10px] text-neutral-500 italic">Brak dodatkowych notatek.</p>'}
+                                </div>`;
+                            }).join('')}
+                        </div>`}
+                    </div>
+
+                </div>
+                <div class="p-4 border-t border-[#333537] bg-[#1e1f20] flex justify-end">
+                    <button class="js-close-doctor-report bg-[#e3e3e3] text-[#131314] font-bold py-2.5 px-6 rounded-full active:scale-95 transition-transform cursor-pointer">Zamknij</button>
+                </div>
+            </div>
+        </div>`;
+
+        const existing = document.getElementById('doctor-report-modal');
+        if (existing) existing.remove();
+        document.body.insertAdjacentHTML('beforeend', reportHtml);
+    };
+
     window.startHealthLog = async function(taskId, type) {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
         if (document.activeElement) document.activeElement.blur();
@@ -246,7 +393,6 @@ window.HealthModule = (() => {
             user_name: window.currentUser ? window.currentUser.name : 'Ja'
         };
 
-        // 1. Natychmiastowy zapis w lokalnym AppStore
         window.AppStore.set(state => ({
             ...state,
             hLogs: [newLog, ...(state.hLogs || [])]
@@ -254,7 +400,6 @@ window.HealthModule = (() => {
         window.renderHealthUI();
         window.showToast("Zapisano!");
 
-        // 2. Wysyłka do chmury w tle
         const { data, error } = await window.supabaseClient.from('health_logs').insert([{ 
             health_task_id: taskId, start_date: now, end_date: newLog.end_date, 
             user_id: newLog.user_id, household_id: newLog.household_id, user_name: newLog.user_name 
@@ -282,14 +427,12 @@ window.HealthModule = (() => {
         }
     };
 
-    // INSTANT LOCAL-FIRST: Zakończenie trwającej sytuacji w 0 ms
     window.closeHealthLog = async function(logId) {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
         if (document.activeElement) document.activeElement.blur();
 
         const now = new Date().toISOString();
 
-        // 1. Natychmiastowa aktualizacja ekranu
         window.AppStore.set(state => ({
             ...state,
             hLogs: (state.hLogs || []).map(l => sameId(l.id, logId) ? { ...l, end_date: now } : l)
@@ -297,7 +440,6 @@ window.HealthModule = (() => {
         window.renderHealthUI();
         window.showToast("Zakończono");
 
-        // 2. Synchronizacja w tle
         const { error } = await window.supabaseClient.from('health_logs')
             .update({ end_date: now })
             .eq('id', logId);
@@ -493,7 +635,6 @@ window.HealthModule = (() => {
         });
     };
 
-    // SZYBKIE PRZEŁĄCZANIE PROFILU (BEZ BLOKAD I ZAPAMIĘTANE NA STAŁE)
     window.selectHealthProfile = function(id) { 
         if (!id) return;
         currentProfileId = id; 
@@ -503,7 +644,6 @@ window.HealthModule = (() => {
         } catch (e) {}
 
         if (typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
-        
         window.renderHealthUI();
     };
 
@@ -884,13 +1024,15 @@ window.HealthModule = (() => {
             
             let timelineItems = [];
 
+            // UX 3: Trendy w pomiarach (strzałki ↑ / ↓)
             measurements.forEach(m => {
+                const trendHtml = getMeasurementTrendHtml(allMeas, m);
                 timelineItems.push({
                     id: m.id,
                     type: 'measurement',
                     date: new Date(m.created_at),
                     title: `Pomiar: ${m.measurement_type}`,
-                    desc: `Wynik: <span class="text-[#c2e7ff] font-bold">${m.value} ${m.unit || ''}</span>${m.notes ? `<br><span class="text-[10px] opacity-70">${window.esc(m.notes)}</span>` : ''}`,
+                    desc: `Wynik: <span class="text-[#c2e7ff] font-bold">${m.value} ${m.unit || ''}</span>${trendHtml}${m.notes ? `<br><span class="text-[10px] opacity-70">${window.esc(m.notes)}</span>` : ''}`,
                     icon: '📏',
                     color: 'text-[#c2e7ff]',
                     bg: 'bg-[#004a77]/10 border-[#004a77]/30'
@@ -911,7 +1053,7 @@ window.HealthModule = (() => {
                     type: 'log',
                     date: new Date(l.start_date),
                     title: task.name,
-                    desc: `<span class="text-neutral-400">Pacjent:</span> ${window.esc(profile ? profile.name : 'Nieznany')}<br><span class="text-neutral-400">Wpisał(a):</span> ${window.esc(wykonawca)}<br><span class="text-[10px] text-neutral-500">${szczegoly}</span>`,
+                    desc: `<span class="text-neutral-400">Pacjent:</span> ${window.esc(profile ? profile.name : 'Nieznany')}<br><span class="text-neutral-400">Wpisał(a):</span> ${window.esc(wykonawca)}<br><span class="text-[10px] text-neutral-500">${szczegoly}</span>${l.notes ? `<div class="mt-1 bg-[#131314]/60 p-2 rounded text-[11px] text-neutral-300 font-mono whitespace-pre-wrap">${window.esc(l.notes)}</div>` : ''}`,
                     icon: task.task_type === 'duration' ? '🤒' : '🔄',
                     color: task.task_type === 'duration' ? 'text-[#ffb4ab]' : 'text-[#c4eed0]',
                     bg: task.task_type === 'duration' ? 'bg-[#3c1414]/30 border-[#8c1d18]/40' : 'bg-[#0f5223]/10 border-[#0f5223]/30'
@@ -925,7 +1067,14 @@ window.HealthModule = (() => {
                 return;
             }
 
-            let html = '';
+            // UX 2: Przycisk raportu dla lekarza na szczycie Książeczki
+            let html = `
+            <div class="flex justify-end mb-2">
+                <button class="js-open-doctor-report bg-[#004a77]/20 border border-[#004a77]/50 text-[#a8c7fa] text-xs px-3 py-1.5 rounded-full font-medium active:scale-95 transition-transform flex items-center gap-1.5 cursor-pointer">
+                    📋 Raport dla lekarza
+                </button>
+            </div>`;
+            
             let lastMonthYear = '';
             
             timelineItems.forEach(item => {
@@ -1015,6 +1164,14 @@ window.HealthModule = (() => {
         window.EventDispatcher.onClick('.js-open-pharmacy', () => window.openPharmacyScreen());
         window.EventDispatcher.onClick('.js-toggle-profile-switcher', () => window.toggleProfileSwitcher());
         window.EventDispatcher.onClick('.js-open-health-fab-menu', () => window.openHealthFabMenu());
+
+        // UX 1 & 2 Handlery
+        window.EventDispatcher.onClick('.js-open-quick-health-note', (e, el) => window.openQuickHealthNoteModal(el.dataset.id));
+        window.EventDispatcher.onClick('.js-open-doctor-report', () => window.openDoctorReport(14));
+        window.EventDispatcher.onClick('.js-close-doctor-report', () => {
+            const reportModal = document.getElementById('doctor-report-modal');
+            if (reportModal) reportModal.remove();
+        });
 
         window.EventDispatcher.onClick('.js-select-health-profile', (e, el) => window.selectHealthProfile(el.dataset.id));
         window.EventDispatcher.onClick('.js-close-health-log', (e, el) => window.closeHealthLog(el.dataset.id));
