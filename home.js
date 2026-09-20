@@ -1,5 +1,5 @@
 // ==========================================
-// LOGIKA: DOM - LOCAL FIRST (home.js)
+// LOGIKA: DOM 2.0 - LOCAL FIRST + UX GESTURES (home.js)
 // ==========================================
 
 window.HomeModule = (() => {
@@ -28,11 +28,7 @@ window.HomeModule = (() => {
         if (window.activeView !== 'home') {
             window.switchView('home'); 
         } else {
-            window.history.pushState(
-                { view: 'home', roomFilter: room }, 
-                '', 
-                '/?view=home'
-            );
+            window.history.pushState({ view: 'home', roomFilter: room }, '', '/?view=home');
             window.loadDashboard();
         }
     };
@@ -58,10 +54,10 @@ window.HomeModule = (() => {
             if (list) list.classList.remove('hidden');
         }
 
-        // 1. INSTANT RENDER z AppStore (0 ms)
+        // INSTANT RENDER z AppStore (0 ms)
         window.renderHomeUI();
 
-        // 2. Tło: Dociągnięcie danych z Supabase w razie potrzeby
+        // Tło: Dociągnięcie danych z Supabase w razie potrzeby
         const state = window.AppStore.get() || {};
         if (!state.tasks || state.tasks.length === 0) {
             if (typeof window.loadDashboardOverview === 'function') {
@@ -105,7 +101,7 @@ window.HomeModule = (() => {
                 if (!roomStats[rName]) roomStats[rName] = { icon: '📦', total: 0, overdue: 0 };
                 roomStats[rName].total++;
                 
-                const taskLogs = logs.filter(l => sameId(l.task_id, task.id));
+                const taskLogs = logs.filter(l => sameId(l.task_id, task.id)).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
                 if (task.interval_days && task.interval_days > 0) {
                     if (taskLogs.length === 0) {
                         roomStats[rName].overdue++; 
@@ -131,14 +127,42 @@ window.HomeModule = (() => {
                     <p class="text-[9px] text-[#c2e7ff]/70 mt-0.5 uppercase tracking-widest">${tasks.length} zadań</p>
                 </div>`;
 
-            Object.entries(roomStats).sort((a,b) => (a[0] === 'Inne' ? 1 : b[0] === 'Inne' ? -1 : a[0].localeCompare(b[0]))).forEach(([roomName, stats]) => {
+            // UX: Pokoje Smart (Dynamiczne sortowanie po ilości zaległości)
+            const sortedRooms = Object.entries(roomStats).sort((a, b) => {
+                if (a[0] === 'Inne') return 1;
+                if (b[0] === 'Inne') return -1;
+                if (b[1].overdue !== a[1].overdue) return b[1].overdue - a[1].overdue; // Zaległe na początek
+                if (b[1].total !== a[1].total) return b[1].total - a[1].total;
+                return a[0].localeCompare(b[0]);
+            });
+
+            sortedRooms.forEach(([roomName, stats]) => {
                 const badge = stats.overdue > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${stats.overdue}</div>` : '';
+                
+                // UX: Dynamiczna zmiana koloru zabrudzonych pokoi
+                let bgClass = 'bg-[#1e1f20]';
+                let borderClass = 'border-[#333537]';
+                let iconOpacity = 'opacity-80';
+                let nameColor = 'text-neutral-200';
+                
+                if (stats.overdue >= 3) {
+                    bgClass = 'bg-rose-900/30';
+                    borderClass = 'border-rose-900/50';
+                    nameColor = 'text-rose-200 font-bold';
+                    iconOpacity = 'opacity-100 scale-110 drop-shadow-md';
+                } else if (stats.overdue > 0) {
+                    bgClass = 'bg-[#3c1414]/30';
+                    borderClass = 'border-[#ffb4ab]/20';
+                    nameColor = 'text-[#ffb4ab]';
+                }
+
                 html += `
-                    <div class="js-filter-room relative bg-[#1e1f20] p-4 rounded-[20px] border border-[#333537] cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24" data-room="${window.esc(roomName)}">
-                        ${badge}<div class="text-2xl mb-1 opacity-80">${window.esc(stats.icon)}</div><h3 class="text-xs font-medium text-neutral-200">${window.esc(roomName)}</h3>
+                    <div class="js-filter-room relative ${bgClass} p-4 rounded-[20px] border ${borderClass} cursor-pointer active:scale-95 transition-all duration-300 flex flex-col items-center justify-center text-center h-24" data-room="${window.esc(roomName)}">
+                        ${badge}<div class="text-2xl mb-1 ${iconOpacity} transition-all duration-300">${window.esc(stats.icon)}</div><h3 class="text-xs ${nameColor} transition-colors duration-300">${window.esc(roomName)}</h3>
                         <p class="text-[9px] text-neutral-500 mt-0.5 uppercase tracking-widest">${stats.total} zadań</p>
                     </div>`;
             });
+            
             if (list) list.innerHTML = html + `</div>`;
             return;
         }
@@ -146,7 +170,7 @@ window.HomeModule = (() => {
         let tasksToDisplay = roomFilter === 'Wszystkie' ? tasks : tasks.filter(t => (t.room || 'Inne') === roomFilter);
 
         let scored = tasksToDisplay.map(t => {
-            const taskLogs = logs.filter(l => sameId(l.task_id, t.id));
+            const taskLogs = logs.filter(l => sameId(l.task_id, t.id)).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
             const lastLog = taskLogs[0]; 
             let daysRemaining;
             
@@ -219,7 +243,7 @@ window.HomeModule = (() => {
         if (modal) modal.classList.add('hidden');
     };
 
-    // INSTANT LOCAL-FIRST: Zapis nowego wykonania sprzątania w 0 ms
+    // INSTANT LOCAL-FIRST: Zapis nowego logu po wyborze z okienka
     window.saveNewLog = async function() {
         if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
         if (document.activeElement) document.activeElement.blur();
@@ -228,25 +252,39 @@ window.HomeModule = (() => {
         const dStr = document.getElementById('add-log-date').value; 
         const nt = document.getElementById('add-log-notes').value;
         
-        const state = window.AppStore.get() || {};
-        const taskObj = (state.tasks || []).find(t => sameId(t.id, taskId));
-        
         if (!dStr) { window.showToast("Wprowadź datę i godzinę!"); return; }
         const finalDate = parseLocalDatetime(dStr).toISOString();
+
+        window.closeAddLogModal(); 
+        await executeTaskLog(taskId, finalDate, nt);
+    };
+
+    // UX: SZYBKIE ZAKOŃCZENIE ZADANIA (Swipe to Complete / Przesunięcie w prawo)
+    window.quickCompleteHomeTask = async function(taskId) {
+        if (typeof window.triggerHaptic === 'function') window.triggerHaptic();
+        const finalDate = new Date().toISOString();
+        await executeTaskLog(taskId, finalDate, '');
+    };
+
+    // Wewnętrzna funkcja realizująca logowanie w 0 ms
+    async function executeTaskLog(taskId, finalDate, notes) {
+        const state = window.AppStore.get() || {};
+        const taskObj = (state.tasks || []).find(t => sameId(t.id, taskId));
+        if (!taskObj) return;
 
         const tempLogId = Date.now();
         const newLog = {
             id: tempLogId,
             task_id: taskId,
-            activity_name: taskObj ? taskObj.name : 'Zadanie',
+            activity_name: taskObj.name,
             created_at: finalDate,
-            notes: nt,
+            notes: notes,
             user_id: window.currentUser ? window.currentUser.user_id : null,
             household_id: window.currentUser ? window.currentUser.household_id : null,
             user_name: window.currentUser ? window.currentUser.name : 'Ja'
         };
 
-        // 1. Natychmiastowy update w AppStore i przerysowanie
+        // 1. Zapis w pamięci i natychmiastowy render
         window.AppStore.set(prevState => {
             const updatedLogs = [newLog, ...(prevState.logs || [])];
             let updatedTasks = prevState.tasks || [];
@@ -259,16 +297,14 @@ window.HomeModule = (() => {
             return { ...prevState, logs: updatedLogs, tasks: updatedTasks };
         });
 
-        window.closeAddLogModal(); 
-        window.showToast("Zapisano log!");
+        window.showToast("Wykonano! ✨");
         window.renderHomeUI();
 
-        // 2. Synchronizacja z chmurą w tle
+        // 2. Tło: Supabase
         const { data, error } = await window.supabaseClient.from('activity_logs').insert([{ 
             task_id: taskId, activity_name: newLog.activity_name, 
-            created_at: finalDate, notes: nt, 
-            user_id: newLog.user_id, 
-            household_id: newLog.household_id, user_name: newLog.user_name 
+            created_at: finalDate, notes: notes, 
+            user_id: newLog.user_id, household_id: newLog.household_id, user_name: newLog.user_name 
         }]).select().single();
 
         if (error) {
@@ -291,7 +327,96 @@ window.HomeModule = (() => {
         }
 
         if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
-    };
+    }
+
+    // UX: NATYWNA OBSŁUGA GESTÓW SWIPE (W Prawo: Zrobione / W Lewo: Ustawienia)
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let swipeElement = null;
+    let isSwiping = false;
+    let swipeMoved = false;
+
+    document.addEventListener('touchstart', (e) => {
+        if (window.activeView !== 'home') return;
+        const card = e.target.closest('.js-swipe-item');
+        if (!card) return;
+        
+        if (e.target.closest('button') || e.target.closest('.js-add-log')) return;
+        
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        swipeElement = card;
+        isSwiping = false;
+        swipeMoved = false;
+        card.style.transition = 'none';
+    }, {passive: true});
+
+    document.addEventListener('touchmove', (e) => {
+        if (!swipeElement || window.activeView !== 'home') return;
+        const diffX = e.touches[0].clientX - touchStartX;
+        const diffY = e.touches[0].clientY - touchStartY;
+
+        if (!isSwiping) {
+            if (Math.abs(diffY) > Math.abs(diffX) + 5) {
+                swipeElement.style.transition = 'transform 0.3s ease';
+                swipeElement.style.transform = 'translateX(0px)';
+                swipeElement = null;
+                return;
+            }
+            if (Math.abs(diffX) > 10) isSwiping = true;
+        }
+
+        if (isSwiping) {
+            swipeMoved = true;
+            let tx = diffX;
+            if (tx < -80) tx = -80 + (tx + 80) * 0.2; // Oporność na ustawienia
+            if (tx > 120) tx = 120 + (tx - 120) * 0.2; // Oporność na zrobione
+            swipeElement.style.transform = `translateX(${tx}px)`;
+            
+            // Wygaszanie kafelka na zielono podczas pociągnięcia w prawo
+            if (tx > 40) {
+                swipeElement.style.backgroundColor = 'rgba(15, 82, 35, 0.4)';
+                swipeElement.style.borderColor = 'rgba(196, 238, 208, 0.5)';
+            } else {
+                swipeElement.style.backgroundColor = '';
+                swipeElement.style.borderColor = '';
+            }
+        }
+    }, {passive: true});
+
+    document.addEventListener('touchend', (e) => {
+        if (!swipeElement || window.activeView !== 'home') return;
+        
+        const diffX = e.changedTouches[0].clientX - touchStartX;
+        
+        if (isSwiping && swipeMoved) {
+            swipeElement.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
+            
+            if (diffX > 75) {
+                // Odhaczenie (Odlatuje w prawo)
+                swipeElement.style.transform = `translateX(120%)`; 
+                const id = swipeElement.dataset.id;
+                setTimeout(() => window.quickCompleteHomeTask(id), 250);
+            } else if (diffX < -40) {
+                // Ustawienia (Zostaje na -80px)
+                swipeElement.style.backgroundColor = '';
+                swipeElement.style.borderColor = '';
+                swipeElement.style.transform = `translateX(-80px)`;
+            } else {
+                // Sprężysty powrót do 0
+                swipeElement.style.backgroundColor = '';
+                swipeElement.style.borderColor = '';
+                swipeElement.style.transform = `translateX(0px)`;
+            }
+        } else {
+            swipeElement.style.transition = 'transform 0.3s ease';
+            swipeElement.style.transform = `translateX(0px)`;
+        }
+        
+        swipeElement = null;
+        isSwiping = false;
+        swipeMoved = false;
+    });
 
     window.openNewTaskModal = function() {
         window.loadAndShowModal('new-task-modal', '/modals/new-task.html', () => {
@@ -308,7 +433,6 @@ window.HomeModule = (() => {
         if (modal) modal.classList.add('hidden');
     };
 
-    // INSTANT LOCAL-FIRST: Tworzenie nowej czynności w 0 ms
     window.saveNewTask = async function() {
         if (document.activeElement) document.activeElement.blur();
 
@@ -328,7 +452,6 @@ window.HomeModule = (() => {
             next_due_at: initialDue, is_archived: false
         };
 
-        // 1. Zapis w pamięci urządzenia i natychmiastowe przerysowanie
         window.AppStore.set(prevState => ({
             ...prevState,
             tasks: [newTask, ...(prevState.tasks || [])]
@@ -338,7 +461,6 @@ window.HomeModule = (() => {
         window.showToast("Dodano czynność!"); 
         window.renderHomeUI();
 
-        // 2. Synchronizacja z baza Supabase w tle
         const { data, error } = await window.supabaseClient.from('tasks').insert([{ 
             name: n, interval_days: i, remind_days_before: remind, push_enabled: true, show_in_history: true, 
             room: r, user_id: newTask.user_id, household_id: newTask.household_id, next_due_at: initialDue
@@ -386,7 +508,6 @@ window.HomeModule = (() => {
         if (!id || !dateStr) { window.showToast("Wprowadź datę i godzinę!"); return; }
         const finalDate = parseLocalDatetime(dateStr).toISOString();
 
-        // Instant local update
         window.AppStore.set(prevState => ({
             ...prevState,
             logs: (prevState.logs || []).map(l => sameId(l.id, id) ? { ...l, created_at: finalDate, notes: notes } : l)
@@ -409,7 +530,6 @@ window.HomeModule = (() => {
 
     window.deleteTaskFromHome = function(id, name) {
         window.customConfirm(`Czy na pewno usunąć "${name}"?`, async () => {
-            // Instant local update
             window.AppStore.set(prevState => ({
                 ...prevState,
                 tasks: (prevState.tasks || []).filter(t => !sameId(t.id, id))
