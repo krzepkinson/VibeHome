@@ -1,13 +1,1 @@
-<div id="new-room-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
-    <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
-        <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Nowe pomieszczenie</h3>
-        <div class="flex gap-2 mb-4">
-            <input type="text" id="new-room-icon" placeholder="🏠" maxlength="2" class="w-16 text-center p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-xl focus:outline-none focus:border-[#a8c7fa]">
-            <input type="text" id="new-room-name" maxlength="30" placeholder="Nazwa (np. Garaż)" class="flex-1 p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-        </div>
-        <div class="flex gap-3 mt-4">
-            <button class="js-close-new-room flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-            <button class="js-save-new-room flex-1 bg-[#e3e3e3] text-[#131314] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Dodaj</button>
-        </div>
-    </div>
-</div>
+<div id="new-room-modal" class="ux-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="new-room-title"><div class="ux-dialog-panel"><header class="ux-dialog-header"><h2 class="ux-dialog-title" id="new-room-title">Dodaj pomieszczenie</h2><button type="button" class="ux-icon-btn js-close-new-room" aria-label="Zamknij"><span data-icon="close"></span></button></header><form id="new-room-form"><label class="ux-field" for="new-room-name">Nazwa</label><input id="new-room-name" class="ux-input" maxlength="80" required placeholder="np. Kuchnia"><input id="new-room-icon" type="hidden" value="room"><div class="ux-actions"><button type="button" class="ux-btn ghost js-close-new-room">Anuluj</button><button type="submit" class="ux-btn primary js-save-new-room">Zapisz</button></div></form></div></div>

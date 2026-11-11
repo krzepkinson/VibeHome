@@ -1,20 +1,12 @@
-<div id="edit-log-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex justify-center items-center p-4">
-    <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
-        <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Edytuj zadanie</h3>
+<div id="edit-log-modal" class="ux-modal hidden" role="dialog" aria-modal="true" aria-labelledby="edit-log-title">
+    <section class="ux-sheet">
+        <header class="ux-header"><h2 id="edit-log-title" class="ux-title">Zmień zapis wykonania</h2><button type="button" class="ux-icon-btn js-close-edit-log" aria-label="Zamknij"><span data-icon="close"></span></button></header>
+        <form id="edit-log-form" onsubmit="event.preventDefault();window.saveEditLog()">
         <input type="hidden" id="edit-log-id">
-        <div class="space-y-4">
-            <div>
-                <label class="block text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5 font-bold pl-1">Data i godzina wykonania</label>
-                <input type="datetime-local" id="edit-log-date" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]">
-            </div>
-            <div>
-                <label class="block text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5 font-bold pl-1">Notatka (opcjonalnie)</label>
-                <input type="text" id="edit-log-notes" maxlength="150" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none">
-            </div>
-        </div>
-        <div class="flex gap-3 mt-6">
-            <button class="js-close-edit-log flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-            <button class="js-save-edit-log flex-1 bg-[#a8c7fa] text-[#004a77] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button>
-        </div>
-    </div>
+        <label class="ux-field" for="edit-log-date">Data i godzina wykonania</label><input type="datetime-local" id="edit-log-date" class="ux-input" required>
+        <label class="ux-field" for="edit-log-notes">Notatka (opcjonalnie)</label><textarea id="edit-log-notes" maxlength="4000" class="ux-input" rows="3"></textarea>
+        <p id="edit-log-error" class="ux-error" role="alert"></p>
+        <div class="ux-actions"><button type="button" class="ux-btn ghost js-close-edit-log">Anuluj</button><button type="submit" class="ux-btn primary">Zapisz</button></div>
+        </form>
+    </section>
 </div>

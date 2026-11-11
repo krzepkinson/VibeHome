@@ -1,10 +1,1 @@
-<div id="new-profile-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
-    <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm p-6 shadow-2xl">
-        <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Dodaj domownika</h3>
-        <input type="text" id="new-profile-name" maxlength="50" placeholder="Imię" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm mb-6 focus:outline-none focus:border-[#a8c7fa]">
-        <div class="flex gap-3">
-            <button class="js-close-new-profile flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-            <button class="js-save-new-profile flex-1 bg-[#444746] text-[#e3e3e3] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button>
-        </div>
-    </div>
-</div>
+<div id="new-profile-modal" class="ux-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="new-profile-title"><div class="ux-dialog-panel"><header class="ux-dialog-header"><h2 class="ux-dialog-title" id="new-profile-title">Dodaj osobę</h2><button type="button" class="ux-icon-btn js-close-new-profile" aria-label="Zamknij"><span data-icon="close"></span></button></header><form id="new-profile-form"><label class="ux-field" for="new-profile-name">Imię</label><input id="new-profile-name" class="ux-input" maxlength="50" required autocomplete="given-name"><div class="ux-actions"><button type="button" class="ux-btn ghost js-close-new-profile">Anuluj</button><button type="submit" class="ux-btn primary js-save-new-profile">Zapisz</button></div></form></div></div>

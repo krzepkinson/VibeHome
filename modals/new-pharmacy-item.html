@@ -1,22 +1,15 @@
-<div id="new-pharmacy-item-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4">
-    <div class="bg-[#1e1f20] rounded-[28px] border border-[#333537] w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
-        <h3 class="text-base font-medium text-neutral-100 mb-4 tracking-wide">Dodaj do apteczki</h3>
-        <div class="space-y-3">
-            <div class="flex gap-2">
-                <input type="text" id="pharmacy-item-name" maxlength="100" placeholder="Nazwa leku (np. Ibum Forte)" class="min-w-0 flex-1 p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-                <button type="button" class="js-scan-pharmacy-barcode w-12 shrink-0 rounded-[18px] bg-[#004a77]/40 border border-[#004a77]/60 text-[#c2e7ff] text-xl touch-manipulation" data-name-input="pharmacy-item-name" data-ean-input="pharmacy-item-ean" data-scanner-element="pharmacy-scanner-new" aria-label="Skanuj kod kreskowy">📷</button>
-            </div>
-            <div id="pharmacy-scanner-new" class="hidden overflow-hidden rounded-[18px] border border-[#333537] bg-black"></div>
-            <input type="text" id="pharmacy-item-ean" inputmode="numeric" autocomplete="off" maxlength="13" placeholder="Kod EAN (opcjonalnie)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-            <div>
-                <label class="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1 pl-1">Data ważności (Miesiąc / Rok)</label>
-                <input type="month" id="pharmacy-item-exp" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none [color-scheme:dark]">
-            </div>
-            <input type="text" id="pharmacy-item-purpose" maxlength="150" placeholder="Na co to jest? (opcjonalnie)" class="w-full p-3 rounded-[20px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#a8c7fa]">
-        </div>
-        <div class="flex gap-3 mt-6">
-            <button class="js-close-new-pharmacy-item flex-1 text-neutral-300 font-medium py-3 text-sm rounded-full hover:bg-[#333537] transition-colors">Anuluj</button>
-            <button class="js-save-new-pharmacy-item flex-1 bg-[#a8c7fa] text-[#004a77] font-medium py-3 text-sm rounded-full active:scale-95 transition-transform">Zapisz</button>
-        </div>
-    </div>
+<div id="new-pharmacy-item-modal" class="ux-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="new-pharmacy-title">
+  <div class="ux-dialog-panel">
+    <div class="ux-between"><h2 id="new-pharmacy-title" class="ux-title">Dodaj do apteczki</h2><button type="button" class="ux-icon-btn js-close-new-pharmacy-item" aria-label="Zamknij"><span data-ux-icon="close"></span></button></div>
+    <p class="ux-row-meta">Wspólna apteczka domu</p>
+    <label class="ux-form-field" for="pharmacy-item-name">Nazwa leku lub suplementu</label>
+    <div class="ux-actions"><input id="pharmacy-item-name" class="ux-input" type="text" maxlength="150" placeholder="Np. Apap"><button type="button" class="ux-btn js-scan-pharmacy-barcode" data-name-input="pharmacy-item-name" data-ean-input="pharmacy-item-ean" data-scanner-element="pharmacy-scanner-new"><span data-ux-icon="scan"></span> Skanuj</button></div>
+    <div id="pharmacy-scanner-new" class="hidden overflow-hidden rounded-xl bg-black"></div>
+    <label class="ux-form-field" for="pharmacy-item-purpose">Opis / substancja czynna / zastosowanie</label>
+    <textarea id="pharmacy-item-purpose" class="ux-input" rows="3" maxlength="4000" placeholder="Np. Paracetamol — przeciwbólowo i przeciwgorączkowo"></textarea>
+    <p class="ux-row-meta">Opis jest uwzględniany w wyszukiwaniu.</p>
+    <label class="ux-form-field" for="pharmacy-item-ean">Kod kreskowy (opcjonalnie)</label><input id="pharmacy-item-ean" class="ux-input" type="text" inputmode="numeric" autocomplete="off" maxlength="13">
+    <label class="ux-form-field" for="pharmacy-item-exp">Ważność tego opakowania (opcjonalnie)</label><input id="pharmacy-item-exp" class="ux-input" type="month">
+    <div class="ux-actions"><button type="button" class="ux-btn ghost js-close-new-pharmacy-item">Anuluj</button><button type="button" class="ux-btn primary js-save-new-pharmacy-item">Zapisz opakowanie</button></div>
+  </div>
 </div>
