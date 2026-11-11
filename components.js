@@ -43,7 +43,15 @@ window.UI = {
     },
 
     renderHomeTaskCard: function(item) {
-        const status = window.getCompactStatus(item.last?.created_at, item.t.interval_days);
+        let status = window.getCompactStatus(item.last?.created_at, item.t.interval_days);
+        if (!item.last && item.t.next_due_at) {
+            const days = item.daysRemaining;
+            status = {
+                color: days < 0 ? 'text-[#ffb4ab]' : days === 0 ? 'text-amber-200' : 'text-[#c4eed0]',
+                label: Number(item.t.interval_days) > 0 ? `Co ${item.t.interval_days} dni` : 'Zadanie jednorazowe',
+                tooltip: days < 0 ? `${Math.abs(days)} dni po terminie` : days === 0 ? 'Termin dziś' : `Pierwszy termin za ${days} dni`
+            };
+        }
         const roomBadge = (window.HomeModule?.getRoomFilter?.() || window.currentRoomFilter) === 'Wszystkie' ? 
             `<span class="bg-[#004a77]/30 text-[#a8c7fa] px-2 py-0.5 rounded-md text-[9px] uppercase tracking-widest ml-2">${window.esc(item.t.room || 'Inne')}</span>` : '';
 

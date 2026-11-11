@@ -36,10 +36,12 @@ window.DashboardModule = (() => {
             if (!hid) return;
 
             try {
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                const rangeStart = new Date();
+                rangeStart.setDate(rangeStart.getDate() - 90);
+                const rangeEnd = new Date();
+                rangeEnd.setDate(rangeEnd.getDate() + 365);
 
-                const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes, measRes] = await Promise.all([
+                const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes, measRes, pharmacyRes] = await Promise.all([
                     window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
                     window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
                     window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
@@ -48,11 +50,12 @@ window.DashboardModule = (() => {
                     window.supabaseClient.from('profiles').select('*').eq('household_id', hid),
                     window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name'),
                     window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false),
-                    window.supabaseClient.from('calendar_events').select('*').eq('household_id', hid).gte('event_datetime', thirtyDaysAgo.toISOString()).order('event_datetime', { ascending: true }).limit(100),
-                    window.supabaseClient.from('health_measurements').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100)
+                    window.supabaseClient.from('calendar_events').select('*').eq('household_id', hid).gte('event_datetime', rangeStart.toISOString()).lte('event_datetime', rangeEnd.toISOString()).order('event_datetime', { ascending: true }).limit(100),
+                    window.supabaseClient.from('health_measurements').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100),
+                    window.supabaseClient.from('pharmacy_items').select('*').eq('household_id', hid).order('expiration_date', { ascending: true, nullsFirst: false }).limit(200)
                 ]);
 
-                const failedResult = [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes, measRes]
+                const failedResult = [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes, measRes, pharmacyRes]
                     .find(result => result.error);
                 if (failedResult) throw failedResult.error;
 
@@ -67,7 +70,8 @@ window.DashboardModule = (() => {
                     rooms: roomsRes.data || [],
                     checklists: listsRes.data || [],
                     calendarEvents: eventsRes.data || [],
-                    hMeasurements: measRes.data || []
+                    hMeasurements: measRes.data || [],
+                    pharmacy: pharmacyRes.data || []
                 }));
                 
                 window.dashboardCacheTime = Date.now();
@@ -82,35 +86,194 @@ window.DashboardModule = (() => {
     window.renderDashboardUI = function() {
         const state = window.AppStore.get() || {};
         const today = new Date(); today.setHours(0, 0, 0, 0);
-        const todayStr = getLocalDayStr(today);
-
-        const greetingEl = document.getElementById('dashboard-greeting');
-        if (greetingEl && window.currentUser && window.currentUser.name) {
-            greetingEl.innerText = `Dzień dobry, ${window.currentUser.name}!`;
-        }
-
-        const logsMap = new Map();
-        (state.logs || []).forEach(l => { 
-            if (!logsMap.has(l.task_id)) logsMap.set(l.task_id, []); 
-            logsMap.get(l.task_id).push(l); 
-        });
-
-        const hLogsMap = new Map();
-        (state.hLogs || []).forEach(l => { 
-            if (!hLogsMap.has(l.health_task_id)) hLogsMap.set(l.health_task_id, []); 
-            hLogsMap.get(l.health_task_id).push(l); 
-        });
-
-        _renderTodaySection(state, today, todayStr, logsMap, hLogsMap);
-        _renderHomeWidget(state, today, logsMap);
-        _renderHealthWidget(state, today, hLogsMap);
-        _renderTodoWidget(state);
-        _renderHorizonSection(state, today, hLogsMap);
+        _renderCompactOverview(state, today);
         
         const overlay = document.getElementById('dashboard-history-overlay');
         if (overlay && !overlay.classList.contains('hidden')) {
             _renderHistoryOverlay(state);
         }
+    };
+
+    let dashboardFilter = 'all';
+
+    function _renderCompactOverview(state, today) {
+        const listEl = document.getElementById('dashboard-overview-list');
+        if (!listEl) return;
+
+        const horizonEl = document.getElementById('dashboard-horizon');
+        const horizonDays = Math.max(1, parseInt(horizonEl?.value || '90', 10) || 90);
+        const todayTime = today.getTime();
+        const horizonEnd = new Date(today);
+        horizonEnd.setDate(horizonEnd.getDate() + horizonDays);
+        horizonEnd.setHours(23, 59, 59, 999);
+
+        const logsByTask = new Map();
+        (state.logs || []).forEach(log => {
+            const key = String(log.task_id);
+            if (!logsByTask.has(key)) logsByTask.set(key, []);
+            logsByTask.get(key).push(log);
+        });
+        const logsByHealthTask = new Map();
+        (state.hLogs || []).forEach(log => {
+            const key = String(log.health_task_id);
+            if (!logsByHealthTask.has(key)) logsByHealthTask.set(key, []);
+            logsByHealthTask.get(key).push(log);
+        });
+
+        const entries = [];
+        const addEntry = entry => {
+            if (!entry.date || isNaN(entry.date.getTime())) return;
+            if (!entry.overdue && entry.date > horizonEnd) return;
+            if (dashboardFilter === 'home' && entry.domain !== 'home') return;
+            if (dashboardFilter === 'health' && entry.domain !== 'health') return;
+            entries.push(entry);
+        };
+
+        (state.tasks || []).filter(task => !task.is_archived).forEach(task => {
+            const taskLogs = logsByTask.get(String(task.id)) || [];
+            const latestLog = taskLogs.reduce((latest, log) => {
+                const logDate = new Date(log.created_at);
+                return !latest || logDate > latest ? logDate : latest;
+            }, null);
+            let dueDate = null;
+            if (Number(task.interval_days) > 0) {
+                dueDate = latestLog ? new Date(latestLog) : new Date(task.next_due_at || task.created_at || today);
+                if (latestLog) dueDate.setDate(dueDate.getDate() + Number(task.interval_days));
+            } else if (task.next_due_at) {
+                if (taskLogs.length > 0) return;
+                dueDate = new Date(task.next_due_at);
+            } else if (task.created_at && taskLogs.length === 0) {
+                dueDate = new Date(task.created_at);
+            } else if (taskLogs.length > 0) {
+                return;
+            }
+            if (dueDate) dueDate.setHours(0, 0, 0, 0);
+            if (!dueDate) return;
+            addEntry({
+                id: task.id,
+                title: task.name,
+                subtitle: [task.room || 'Dom', Number(task.interval_days) > 0 ? `co ${task.interval_days} dni` : 'zadanie'].join(' · '),
+                date: dueDate,
+                domain: 'home',
+                view: 'home',
+                icon: '🏠',
+                overdue: dueDate.getTime() < todayTime
+            });
+        });
+
+        (state.hTasks || []).filter(task => !task.is_archived && task.task_type === 'one_time' && task.event_date && String(task.category || '').toLowerCase() !== 'suplementacja').forEach(task => {
+            const taskLogs = logsByHealthTask.get(String(task.id)) || [];
+            if (taskLogs.length) return;
+            const dueDate = new Date(task.event_date);
+            dueDate.setHours(0, 0, 0, 0);
+            const profile = (state.profiles || []).find(item => String(item.id) === String(task.profile_id));
+            addEntry({
+                id: task.id,
+                title: task.name,
+                subtitle: profile ? `Zdrowie · ${profile.name}` : 'Zdrowie · wydarzenie',
+                date: dueDate,
+                domain: 'health',
+                view: 'health',
+                icon: '♡',
+                overdue: dueDate.getTime() < todayTime
+            });
+        });
+
+        (state.hTasks || []).filter(task => !task.is_archived && task.task_type === 'cyclical' && Number(task.interval_days) > 0 && String(task.category || '').toLowerCase() !== 'suplementacja').forEach(task => {
+            const taskLogs = logsByHealthTask.get(String(task.id)) || [];
+            const latestLog = taskLogs.reduce((latest, log) => {
+                const logDate = new Date(log.start_date);
+                return !latest || logDate > latest ? logDate : latest;
+            }, null);
+            const dueDate = latestLog ? new Date(latestLog) : new Date(task.next_due_at || task.created_at || today);
+            if (latestLog) dueDate.setDate(dueDate.getDate() + Number(task.interval_days));
+            dueDate.setHours(0, 0, 0, 0);
+            const profile = (state.profiles || []).find(item => String(item.id) === String(task.profile_id));
+            addEntry({
+                id: task.id,
+                title: task.name,
+                subtitle: profile ? `Kontrola · ${profile.name} · co ${task.interval_days} dni` : `Kontrola · co ${task.interval_days} dni`,
+                date: dueDate,
+                domain: 'health',
+                view: 'health',
+                icon: '♡',
+                overdue: dueDate.getTime() < todayTime
+            });
+        });
+
+        (state.calendarEvents || []).forEach(event => {
+            const dueDate = new Date(event.event_datetime);
+            if (!isNaN(dueDate.getTime()) && dueDate.getTime() < todayTime) return;
+            addEntry({
+                id: event.id,
+                title: event.title,
+                subtitle: 'Wydarzenie · kalendarz',
+                date: dueDate,
+                domain: 'health',
+                view: 'calendar',
+                icon: '▦',
+                overdue: false
+            });
+        });
+
+        (state.pharmacy || []).forEach(item => {
+            if (!item.expiration_date) return;
+            const dueDate = new Date(`${item.expiration_date}T00:00:00`);
+            addEntry({
+                id: item.id,
+                title: item.name,
+                subtitle: item.purpose ? `Apteczka · ${item.purpose}` : 'Apteczka · termin ważności',
+                date: dueDate,
+                domain: 'health',
+                view: 'pharmacy-screen',
+                icon: '💊',
+                overdue: dueDate.getTime() < todayTime,
+                isExpiry: true
+            });
+        });
+
+        entries.sort((a, b) => a.date - b.date || a.title.localeCompare(b.title, 'pl'));
+        const overdueCount = entries.filter(entry => entry.overdue).length;
+        const next30Count = entries.filter(entry => !entry.overdue && entry.date.getTime() <= todayTime + 30 * 86400000).length;
+        const overdueEl = document.getElementById('dashboard-overdue-count');
+        const upcomingEl = document.getElementById('dashboard-upcoming-count');
+        if (overdueEl) overdueEl.textContent = `${overdueCount} zaległych`;
+        if (upcomingEl) upcomingEl.textContent = `${next30Count} w 30 dni`;
+
+        const formatDate = date => {
+            const diff = Math.floor((new Date(date).setHours(0, 0, 0, 0) - todayTime) / 86400000);
+            if (diff < 0) return `${Math.abs(diff)} d po terminie`;
+            if (diff === 0) return 'Dziś';
+            if (diff === 1) return 'Jutro';
+            if (diff < 14) return `Za ${diff} dni`;
+            return date.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
+        };
+        const renderRows = rows => rows.map(entry => `
+            <button class="js-compact-overview-item w-full min-h-[50px] grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 text-left border-b border-[#333537]" data-view="${entry.view}" data-id="${entry.id}">
+                <span class="w-6 h-6 rounded-lg bg-[#1e1f20] text-neutral-300 flex items-center justify-center text-xs" aria-hidden="true">${entry.icon}</span>
+                <span class="min-w-0">
+                    <span class="block text-sm text-neutral-100 truncate">${window.esc(entry.title)}</span>
+                    <span class="block text-xs text-neutral-400 truncate">${window.esc(entry.subtitle)}</span>
+                </span>
+                <span class="text-xs whitespace-nowrap ${entry.overdue ? 'text-[#ffb4ab]' : 'text-neutral-400'}">${formatDate(entry.date)}</span>
+            </button>`).join('');
+
+        const overdueRows = entries.filter(entry => entry.overdue);
+        const upcomingRows = entries.filter(entry => !entry.overdue);
+        let html = '';
+        if (overdueRows.length) {
+            html += `<h2 class="pt-3 pb-1 text-xs font-medium text-[#ffb4ab]">Wymaga uwagi <span class="text-neutral-500">${overdueRows.length}</span></h2>`;
+            html += renderRows(overdueRows);
+        }
+        if (upcomingRows.length) {
+            html += `<h2 class="pt-3 pb-1 text-xs font-medium text-neutral-300">Nadchodzi <span class="text-neutral-500">${upcomingRows.length}</span></h2>`;
+            html += renderRows(upcomingRows);
+        }
+        listEl.innerHTML = html || `<p class="py-5 text-sm text-neutral-400">Brak spraw w tym horyzoncie.</p>`;
+    }
+
+    window.setDashboardHorizon = function() {
+        window.renderDashboardUI();
     };
 
     // --- RENDEROWANIE: ZADANIA NA DZIŚ ---
@@ -884,6 +1047,24 @@ window.DashboardModule = (() => {
     if (window.EventDispatcher) {
         
         window.EventDispatcher.onClick('.js-open-search', () => window.openGlobalSearch());
+        window.EventDispatcher.onClick('.js-dashboard-filter', (e, el) => {
+            dashboardFilter = el.dataset.filter || 'all';
+            document.querySelectorAll('.js-dashboard-filter').forEach(button => {
+                const active = button.dataset.filter === dashboardFilter;
+                button.classList.toggle('text-[#c4eed0]', active);
+                button.classList.toggle('border-[#9dd7b0]', active);
+                button.classList.toggle('text-neutral-400', !active);
+                button.classList.toggle('border-transparent', !active);
+                button.setAttribute('aria-pressed', String(active));
+            });
+            window.renderDashboardUI();
+        });
+
+        window.EventDispatcher.onClick('.js-compact-overview-item', (e, el) => {
+            const view = el.dataset.view;
+            if (view === 'pharmacy-screen') window.openPharmacyScreen?.();
+            else window.switchView(view || 'dashboard');
+        });
 
         window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {
             const chevron = el.querySelector('.js-chevron');
@@ -941,6 +1122,10 @@ window.DashboardModule = (() => {
         window.EventDispatcher.onClick('.js-dash-delete-event', (e, el) => {
             e.stopPropagation();
             window.quickDeleteEventDashboard(el.dataset.id);
+        });
+
+        document.addEventListener('change', event => {
+            if (event.target?.id === 'dashboard-horizon') window.setDashboardHorizon();
         });
         
     } else {

@@ -203,6 +203,7 @@ window.HealthModule = (() => {
     window.renderHealthSections = function() {
         const state = window.AppStore.get() || {};
         const hTasks = (state.hTasks || []).filter(t => sameId(t.profile_id, currentProfileId) && !t.is_archived);
+        const visibleTasks = hTasks.filter(t => String(t.category || '').toLowerCase() !== 'suplementacja');
         const hLogs = state.hLogs || [];
         
         const activeList = document.getElementById('health-active-list');
@@ -210,7 +211,7 @@ window.HealthModule = (() => {
         const routineList = document.getElementById('health-routine-list');
         const today = new Date(); today.setHours(0,0,0,0);
 
-        const activeTasks = hTasks.filter(t => t.task_type === 'duration');
+        const activeTasks = visibleTasks.filter(t => t.task_type === 'duration');
         const currentlyActive = [];
         const inactiveDuration = [];
         activeTasks.forEach(t => {
@@ -257,7 +258,7 @@ window.HealthModule = (() => {
         }
         if (activeList) activeList.innerHTML = activeHtml;
 
-        const upcoming = hTasks.filter(t => {
+        const upcoming = visibleTasks.filter(t => {
             if (t.task_type !== 'one_time' || !t.event_date) return false;
             const evDate = new Date(t.event_date); evDate.setHours(0,0,0,0);
             const isDone = hLogs.some(l => sameId(l.health_task_id, t.id));
@@ -278,11 +279,12 @@ window.HealthModule = (() => {
         }
 
         if (routineList) {
-            routineList.innerHTML = hTasks.filter(t => t.task_type === 'cyclical').map(t => {
+            const checkupRoutines = visibleTasks.filter(t => t.task_type === 'cyclical');
+            routineList.innerHTML = checkupRoutines.map(t => {
                 const taskLogs = hLogs.filter(l => sameId(l.health_task_id, t.id));
                 const statusHtml = window.getHealthStatusString(t, null, taskLogs);
                 return window.UI.renderHealthRoutineTask(t, statusHtml);
-            }).join('') || window.UI.renderEmptyState("Brak zaplanowanych rutyn", "");
+            }).join('') || `<p class="text-xs text-neutral-400 py-3">Brak zaplanowanych kontroli cyklicznych.</p>`;
         }
     };
 
@@ -511,7 +513,7 @@ window.HealthModule = (() => {
             const defaultCat = { 
                 duration: 'Infekcja', 
                 one_time: 'Zabieg', 
-                cyclical: 'Suplementacja' 
+                cyclical: 'Inne' 
             }[defaultType] || 'Inne';
             
             const catEl = document.getElementById('h-task-category');
@@ -754,7 +756,10 @@ window.HealthModule = (() => {
 
                     const knownItem = window.allPharmacyItems.find(item => String(item.ean || '') === ean);
                     if (knownItem) {
-                        if (nameInput) nameInput.value = knownItem.name;
+                        if (nameInput) {
+                            nameInput.value = knownItem.name;
+                            nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
                         window.showToast('Rozpoznano zapisany lek.');
                         return;
                     }
@@ -769,7 +774,10 @@ window.HealthModule = (() => {
 
                         if (error) throw error;
                         if (data?.length) {
-                            if (nameInput) nameInput.value = data[0].name;
+                            if (nameInput) {
+                                nameInput.value = data[0].name;
+                                nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
                             window.showToast('Rozpoznano zapisany lek.');
                         } else {
                             window.showToast('Nowy kod. Wpisz nazwę leku — apteczka zapamięta to powiązanie.');
@@ -789,6 +797,8 @@ window.HealthModule = (() => {
             window.showToast('Nie udało się uruchomić aparatu. Sprawdź zgodę na aparat albo wpisz kod ręcznie.');
         }
     };
+
+    window.stopPharmacyBarcodeScan = stopPharmacyBarcodeScanner;
     
     window.loadPharmacyItems = async function() {
         const listEl = document.getElementById('pharmacy-list');

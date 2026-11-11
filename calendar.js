@@ -41,9 +41,7 @@ window.CalendarModule = (() => {
         if (subtitle) subtitle.innerText = 'Wczytywanie...';
 
         // 1. Instant render z AppStore (0 ms)
-        buildEventsFromStore();
-        renderProfilePills();
-        renderCurrentTab();
+        refreshFromStore();
         setupEvents();
 
         if (subtitle) subtitle.innerText = 'Gotowe';
@@ -55,6 +53,12 @@ window.CalendarModule = (() => {
             renderProfilePills();
             renderCurrentTab();
         }
+    }
+
+    function refreshFromStore() {
+        buildEventsFromStore();
+        renderProfilePills();
+        renderCurrentTab();
     }
 
     function buildEventsFromStore() {
@@ -89,7 +93,7 @@ window.CalendarModule = (() => {
             if (isTaskAssigned) {
                 if (t.interval_days && t.interval_days > 0) {
                     const taskLogs = logs.filter(l => sameId(l.task_id, t.id)).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-                    let nextDateObj = new Date();
+                    let nextDateObj = new Date(t.next_due_at || t.created_at || new Date());
                     if (taskLogs.length > 0) {
                         nextDateObj = new Date(taskLogs[0].created_at);
                         nextDateObj.setDate(nextDateObj.getDate() + t.interval_days);
@@ -98,9 +102,10 @@ window.CalendarModule = (() => {
                         id: t.id, type: 'Dom', title: t.name, icon: '🏠',
                         date: getLocalDayStr(nextDateObj), color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
                     });
-                } else if (t.task_type === 'one_time' && t.event_date) {
-                    const evDate = new Date(t.event_date);
-                    if(!isNaN(evDate.getTime())) {
+                } else if (t.next_due_at) {
+                    const taskLogs = logs.filter(l => sameId(l.task_id, t.id));
+                    const evDate = new Date(t.next_due_at);
+                    if (!taskLogs.length && !isNaN(evDate.getTime())) {
                         allEvents.push({
                             id: t.id, type: 'Dom', title: t.name, icon: '🏠',
                             date: getLocalDayStr(evDate), color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
@@ -112,6 +117,7 @@ window.CalendarModule = (() => {
 
         // 3. Zdrowie
         hTasks.forEach(ht => {
+            if (String(ht.category || '').toLowerCase() === 'suplementacja') return;
             if (ht.task_type === 'duration') {
                 const taskLogs = hLogs.filter(l => sameId(l.health_task_id, ht.id));
                 taskLogs.forEach(l => {
@@ -128,6 +134,15 @@ window.CalendarModule = (() => {
                 if(!isNaN(evDate.getTime())) {
                     allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '📅', subTaskId: ht.id, date: getLocalDayStr(evDate), color: 'text-amber-500', bg: 'bg-[#f59e0b]', profileId: ht.profile_id, isDuration: false });
                 }
+            } else if (ht.task_type === 'cyclical' && Number(ht.interval_days) > 0 && String(ht.category || '').toLowerCase() !== 'suplementacja') {
+                const taskLogs = hLogs.filter(log => sameId(log.health_task_id, ht.id)).sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+                const nextDate = taskLogs.length ? new Date(taskLogs[0].start_date) : new Date(ht.next_due_at || ht.created_at || new Date());
+                if (taskLogs.length) nextDate.setDate(nextDate.getDate() + Number(ht.interval_days));
+                allEvents.push({
+                    id: ht.id, type: 'Zdrowie', title: ht.name, icon: '♡', subTaskId: ht.id,
+                    date: getLocalDayStr(nextDate), color: 'text-amber-500', bg: 'bg-[#f59e0b]',
+                    profileId: ht.profile_id, isDuration: false
+                });
             }
         });
 
@@ -136,6 +151,7 @@ window.CalendarModule = (() => {
         if (pillsContainer && hTasks.length > 0) {
             const grouped = {};
             hTasks.forEach(ht => {
+                if (String(ht.category || '').toLowerCase() === 'suplementacja') return;
                 const cat = ht.category || 'Inne';
                 if (!grouped[cat]) grouped[cat] = [];
                 grouped[cat].push(ht);
@@ -739,6 +755,7 @@ window.CalendarModule = (() => {
 
     return { 
         init, 
+        refresh: refreshFromStore,
         setFilter,
         setProfileFilter
     };

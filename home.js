@@ -77,10 +77,10 @@ window.HomeModule = (() => {
 
         if (tasks.length === 0 && !roomFilter) {
             if (list) {
-                list.innerHTML = window.UI.renderEmptyState("Twój dom jest pusty", "Dodaj pierwszą czynność, by zacząć dbać o przestrzeń.") + `
+                list.innerHTML = window.UI.renderEmptyState("Brak zaplanowanych zadań", "Dodaj krótkie zadanie albo ustaw termin w planie domu.") + `
                 <div class="flex justify-center -mt-10">
-                    <button class="js-open-new-task-modal bg-[#004a77] text-[#c2e7ff] font-bold py-4 px-8 rounded-full shadow-lg active:scale-95 transition-all flex items-center gap-2 cursor-pointer">
-                        <span class="text-xl pb-1">+</span> Dodaj pierwszą czynność
+                    <button class="js-open-quick-add min-h-11 px-4 bg-[#c4eed0] text-[#133323] font-medium rounded-full transition-all flex items-center gap-2 cursor-pointer text-sm">
+                        <span class="text-base">+</span> Dodaj
                     </button>
                 </div>`;
             }
@@ -104,8 +104,12 @@ window.HomeModule = (() => {
                 const taskLogs = logs.filter(l => sameId(l.task_id, task.id)).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
                 if (task.interval_days && task.interval_days > 0) {
                     if (taskLogs.length === 0) {
-                        roomStats[rName].overdue++; 
-                        totalOverdueAll++;
+                        const dueDate = new Date(task.next_due_at || task.created_at || today);
+                        dueDate.setHours(0, 0, 0, 0);
+                        if (dueDate < today) {
+                            roomStats[rName].overdue++;
+                            totalOverdueAll++;
+                        }
                     } else {
                         const nextDate = new Date(taskLogs[0].created_at);
                         nextDate.setDate(nextDate.getDate() + task.interval_days);
@@ -115,16 +119,23 @@ window.HomeModule = (() => {
                             totalOverdueAll++;
                         }
                     }
+                } else if (!taskLogs.length && task.next_due_at) {
+                    const dueDate = new Date(task.next_due_at);
+                    dueDate.setHours(0, 0, 0, 0);
+                    if (dueDate < today) {
+                        roomStats[rName].overdue++;
+                        totalOverdueAll++;
+                    }
                 }
             });
 
-            let html = `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">`;
-            const allBadge = totalOverdueAll > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${totalOverdueAll}</div>` : '';
+            let html = `<div class="flex flex-col mt-2">`;
+            const allBadge = totalOverdueAll > 0 ? `<span class="ml-2 shrink-0 rounded-full bg-[#3c1414] text-[#ffb4ab] px-2 py-1 text-[10px]">${totalOverdueAll} zaległych</span>` : '';
             
             html += `
-                <div class="js-filter-room relative bg-[#004a77]/20 p-4 rounded-[20px] border border-[#004a77]/50 cursor-pointer active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24" data-room="Wszystkie">
-                    ${allBadge}<div class="text-2xl mb-1 opacity-80">🗂️</div><h3 class="text-xs font-medium text-[#c2e7ff]">Wszystkie</h3>
-                    <p class="text-[9px] text-[#c2e7ff]/70 mt-0.5 uppercase tracking-widest">${tasks.length} zadań</p>
+                <div class="js-filter-room min-h-12 flex items-center gap-3 px-3 py-2 bg-[#004a77]/20 rounded-xl border border-[#004a77]/50 cursor-pointer active:opacity-70" data-room="Wszystkie">
+                    <span class="w-7 text-center text-lg opacity-80">🗂️</span><h3 class="flex-1 text-sm font-medium text-[#c2e7ff]">Wszystkie</h3>
+                    <span class="text-[10px] text-[#c2e7ff]/70">${tasks.length} zadań</span>${allBadge}
                 </div>`;
 
             // UX: Pokoje Smart (Dynamiczne sortowanie po ilości zaległości)
@@ -137,19 +148,17 @@ window.HomeModule = (() => {
             });
 
             sortedRooms.forEach(([roomName, stats]) => {
-                const badge = stats.overdue > 0 ? `<div class="absolute top-2 right-2 bg-[#ffb4ab] text-[#3c1414] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">${stats.overdue}</div>` : '';
+                const badge = stats.overdue > 0 ? `<span class="ml-2 shrink-0 rounded-full bg-[#3c1414] text-[#ffb4ab] px-2 py-1 text-[10px]">${stats.overdue} zaległych</span>` : '';
                 
                 // UX: Dynamiczna zmiana koloru zabrudzonych pokoi
                 let bgClass = 'bg-[#1e1f20]';
                 let borderClass = 'border-[#333537]';
-                let iconOpacity = 'opacity-80';
                 let nameColor = 'text-neutral-200';
                 
                 if (stats.overdue >= 3) {
                     bgClass = 'bg-rose-900/30';
                     borderClass = 'border-rose-900/50';
                     nameColor = 'text-rose-200 font-bold';
-                    iconOpacity = 'opacity-100 scale-110 drop-shadow-md';
                 } else if (stats.overdue > 0) {
                     bgClass = 'bg-[#3c1414]/30';
                     borderClass = 'border-[#ffb4ab]/20';
@@ -157,9 +166,9 @@ window.HomeModule = (() => {
                 }
 
                 html += `
-                    <div class="js-filter-room relative ${bgClass} p-4 rounded-[20px] border ${borderClass} cursor-pointer active:scale-95 transition-all duration-300 flex flex-col items-center justify-center text-center h-24" data-room="${window.esc(roomName)}">
-                        ${badge}<div class="text-2xl mb-1 ${iconOpacity} transition-all duration-300">${window.esc(stats.icon)}</div><h3 class="text-xs ${nameColor} transition-colors duration-300">${window.esc(roomName)}</h3>
-                        <p class="text-[9px] text-neutral-500 mt-0.5 uppercase tracking-widest">${stats.total} zadań</p>
+                    <div class="js-filter-room min-h-12 flex items-center gap-3 px-3 py-2 ${bgClass} rounded-xl border ${borderClass} cursor-pointer active:opacity-70 transition-colors" data-room="${window.esc(roomName)}">
+                        <span class="w-7 text-center text-lg">${window.esc(stats.icon)}</span><h3 class="flex-1 text-sm ${nameColor}">${window.esc(roomName)}</h3>
+                        <span class="text-[10px] text-neutral-500">${stats.total}</span>${badge}
                     </div>`;
             });
             
@@ -175,10 +184,20 @@ window.HomeModule = (() => {
             let daysRemaining;
             
             if (!t.interval_days || t.interval_days === 0) {
-                daysRemaining = taskLogs.length > 0 ? 999999 : 0; 
+                if (taskLogs.length > 0) {
+                    daysRemaining = 999999;
+                } else if (t.next_due_at) {
+                    const dueDate = new Date(t.next_due_at);
+                    dueDate.setHours(0, 0, 0, 0);
+                    daysRemaining = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
+                } else {
+                    daysRemaining = 0;
+                }
             } else {
                 if (!lastLog) {
-                    daysRemaining = -999999;
+                    const dueDate = new Date(t.next_due_at || t.created_at || today);
+                    dueDate.setHours(0, 0, 0, 0);
+                    daysRemaining = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
                 } else {
                     const lastDate = new Date(lastLog.created_at);
                     lastDate.setHours(0,0,0,0);
