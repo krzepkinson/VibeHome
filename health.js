@@ -4,12 +4,60 @@
 
 window.HealthModule = (() => {
     let currentProfileId = null; 
+    let pharmacyScanner = null;
+    let pharmacyScannerScriptPromise = null;
+    let pharmacyScannerHandled = false;
+    let activePharmacyScannerElementId = null;
 
     // Bezpieczne porównywanie identyfikatorów bez względu na ich typ (String / Number)
     const sameId = (a, b) => a != null && b != null && String(a) === String(b);
     const activeProfileStorageKey = () => {
         const userId = window.currentUser?.user_id;
         return userId ? `bento_health_active_profile:${encodeURIComponent(String(userId))}` : null;
+    };
+
+    const loadBarcodeScannerLibrary = () => {
+        if (window.Html5Qrcode && window.Html5QrcodeSupportedFormats) return Promise.resolve();
+        if (pharmacyScannerScriptPromise) return pharmacyScannerScriptPromise;
+
+        pharmacyScannerScriptPromise = new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+            script.async = true;
+            script.crossOrigin = 'anonymous';
+            script.onload = () => {
+                if (window.Html5Qrcode && window.Html5QrcodeSupportedFormats) resolve();
+                else {
+                    pharmacyScannerScriptPromise = null;
+                    reject(new Error('Biblioteka skanera nie została uruchomiona.'));
+                }
+            };
+            script.onerror = () => {
+                script.remove();
+                pharmacyScannerScriptPromise = null;
+                reject(new Error('Nie udało się pobrać biblioteki skanera.'));
+            };
+            document.head.appendChild(script);
+        });
+        return pharmacyScannerScriptPromise;
+    };
+
+    const stopPharmacyBarcodeScanner = async () => {
+        const scanner = pharmacyScanner;
+        const elementId = activePharmacyScannerElementId;
+        pharmacyScanner = null;
+        activePharmacyScannerElementId = null;
+
+        if (scanner) {
+            try { await scanner.stop(); } catch (e) {}
+            try { scanner.clear(); } catch (e) {}
+        }
+
+        const element = elementId ? document.getElementById(elementId) : null;
+        if (element) {
+            element.innerHTML = '';
+            element.classList.add('hidden');
+        }
     };
 
     const formatLocalDatetime = (isoStr) => {
@@ -665,6 +713,82 @@ window.HealthModule = (() => {
     window.allPharmacyItems = [];
     window.openPharmacyScreen = function() { window.goForward('pharmacy-screen'); window.loadPharmacyItems(); };
     window.closePharmacyScreen = function() { window.goBack(); };
+
+    window.startPharmacyBarcodeScan = async function(nameInputId, eanInputId, scannerElementId) {
+        if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+            window.showToast('Skanowanie wymaga HTTPS i przeglądarki z obsługą aparatu.');
+            return;
+        }
+
+        const scannerElement = document.getElementById(scannerElementId);
+        if (!scannerElement) return;
+
+        await stopPharmacyBarcodeScanner();
+        activePharmacyScannerElementId = scannerElementId;
+        pharmacyScannerHandled = false;
+        scannerElement.classList.remove('hidden');
+
+        try {
+            await loadBarcodeScannerLibrary();
+            const formats = window.Html5QrcodeSupportedFormats;
+            const supportedFormats = [formats.EAN_13, formats.EAN_8, formats.UPC_A, formats.UPC_E]
+                .filter(format => format !== undefined);
+            pharmacyScanner = new window.Html5Qrcode(scannerElementId, { formatsToSupport: supportedFormats });
+            await pharmacyScanner.start(
+                { facingMode: 'environment' },
+                { fps: 10, qrbox: { width: 280, height: 140 } },
+                async (decodedText) => {
+                    if (pharmacyScannerHandled) return;
+                    pharmacyScannerHandled = true;
+
+                    const ean = String(decodedText || '').trim();
+                    const nameInput = document.getElementById(nameInputId);
+                    const eanInput = document.getElementById(eanInputId);
+                    await stopPharmacyBarcodeScanner();
+
+                    if (!/^(?:\d{8}|\d{12}|\d{13})$/.test(ean)) {
+                        window.showToast('Odczytany kod nie wygląda na EAN. Spróbuj ponownie.');
+                        return;
+                    }
+                    if (eanInput) eanInput.value = ean;
+
+                    const knownItem = window.allPharmacyItems.find(item => String(item.ean || '') === ean);
+                    if (knownItem) {
+                        if (nameInput) nameInput.value = knownItem.name;
+                        window.showToast('Rozpoznano zapisany lek.');
+                        return;
+                    }
+
+                    try {
+                        const { data, error } = await window.supabaseClient
+                            .from('pharmacy_items')
+                            .select('name')
+                            .eq('household_id', window.currentUser.household_id)
+                            .eq('ean', ean)
+                            .limit(1);
+
+                        if (error) throw error;
+                        if (data?.length) {
+                            if (nameInput) nameInput.value = data[0].name;
+                            window.showToast('Rozpoznano zapisany lek.');
+                        } else {
+                            window.showToast('Nowy kod. Wpisz nazwę leku — apteczka zapamięta to powiązanie.');
+                            nameInput?.focus();
+                        }
+                    } catch (error) {
+                        console.warn('Nie udało się sprawdzić kodu EAN w apteczce:', error);
+                        window.showToast('Kod odczytano. Wpisz nazwę ręcznie; sprawdź, czy dodano kolumnę ean w Supabase.');
+                        nameInput?.focus();
+                    }
+                },
+                () => {}
+            );
+        } catch (error) {
+            console.warn('Nie udało się uruchomić skanera:', error);
+            await stopPharmacyBarcodeScanner();
+            window.showToast('Nie udało się uruchomić aparatu. Sprawdź zgodę na aparat albo wpisz kod ręcznie.');
+        }
+    };
     
     window.loadPharmacyItems = async function() {
         const listEl = document.getElementById('pharmacy-list');
@@ -728,12 +852,14 @@ window.HealthModule = (() => {
     window.openNewPharmacyItemModal = function() { 
         window.loadAndShowModal('new-pharmacy-item-modal', '/modals/new-pharmacy-item.html', () => {
             document.getElementById('pharmacy-item-name').value = ''; 
+            document.getElementById('pharmacy-item-ean').value = '';
             document.getElementById('pharmacy-item-exp').value = ''; 
             document.getElementById('pharmacy-item-purpose').value = '';
         });
     };
     
     window.closeNewPharmacyItemModal = function() { 
+        stopPharmacyBarcodeScanner();
         const modal = document.getElementById('new-pharmacy-item-modal');
         if (modal) modal.classList.add('hidden'); 
     };
@@ -742,9 +868,12 @@ window.HealthModule = (() => {
         if (document.activeElement) document.activeElement.blur();
         
         const name = document.getElementById('pharmacy-item-name').value.trim();
+        const ean = document.getElementById('pharmacy-item-ean').value.trim() || null;
         const expRaw = document.getElementById('pharmacy-item-exp').value || null; 
         const purpose = document.getElementById('pharmacy-item-purpose').value.trim() || null;
         if (!name) { window.showToast("Podaj nazwę leku!"); return; }
+        if (ean && !/^(?:\d{8}|\d{12}|\d{13})$/.test(ean)) { window.showToast('Kod powinien mieć 8, 12 lub 13 cyfr.'); return; }
+        await stopPharmacyBarcodeScanner();
         
         let expDateSQL = null;
         if (expRaw) {
@@ -756,7 +885,8 @@ window.HealthModule = (() => {
         }
 
         const { error } = await window.supabaseClient.from('pharmacy_items').insert([{
-            household_id: window.currentUser.household_id, user_id: window.currentUser.user_id, name: name, expiration_date: expDateSQL, purpose: purpose
+            household_id: window.currentUser.household_id, user_id: window.currentUser.user_id,
+            name: name, expiration_date: expDateSQL, purpose: purpose, ean: ean
         }]);
         
         if (error) { window.showToast("Błąd zapisu: " + error.message); return; }
@@ -770,6 +900,7 @@ window.HealthModule = (() => {
         window.loadAndShowModal('edit-pharmacy-item-modal', '/modals/edit-pharmacy-item.html', () => {
             document.getElementById('edit-pharmacy-id').value = item.id;
             document.getElementById('edit-pharmacy-name').value = item.name;
+            document.getElementById('edit-pharmacy-ean').value = item.ean || '';
             document.getElementById('edit-pharmacy-purpose').value = item.purpose || '';
             if (item.expiration_date) {
                 document.getElementById('edit-pharmacy-exp').value = item.expiration_date.substring(0, 7); 
@@ -780,6 +911,7 @@ window.HealthModule = (() => {
     };
 
     window.closeEditPharmacyModal = function() { 
+        stopPharmacyBarcodeScanner();
         const modal = document.getElementById('edit-pharmacy-item-modal');
         if (modal) modal.classList.add('hidden'); 
     };
@@ -789,10 +921,13 @@ window.HealthModule = (() => {
         
         const id = document.getElementById('edit-pharmacy-id').value;
         const name = document.getElementById('edit-pharmacy-name').value.trim();
+        const ean = document.getElementById('edit-pharmacy-ean').value.trim() || null;
         const expRaw = document.getElementById('edit-pharmacy-exp').value || null;
         const purpose = document.getElementById('edit-pharmacy-purpose').value.trim() || null;
 
         if (!name) { window.showToast("Podaj nazwę leku!"); return; }
+        if (ean && !/^(?:\d{8}|\d{12}|\d{13})$/.test(ean)) { window.showToast('Kod powinien mieć 8, 12 lub 13 cyfr.'); return; }
+        await stopPharmacyBarcodeScanner();
 
         let expDateSQL = null;
         if (expRaw) {
@@ -804,7 +939,7 @@ window.HealthModule = (() => {
         }
 
         const { error } = await window.supabaseClient.from('pharmacy_items')
-            .update({ name: name, expiration_date: expDateSQL, purpose: purpose })
+            .update({ name: name, expiration_date: expDateSQL, purpose: purpose, ean: ean })
             .eq('id', id);
 
         if (error) { window.showToast("Błąd zapisu: " + error.message); return; }
@@ -1214,6 +1349,10 @@ window.HealthModule = (() => {
         
         window.EventDispatcher.onClick('.js-close-new-pharmacy-item', () => window.closeNewPharmacyItemModal());
         window.EventDispatcher.onClick('.js-save-new-pharmacy-item', () => window.saveNewPharmacyItem());
+        window.EventDispatcher.onClick('.js-scan-pharmacy-barcode', (e, el) => {
+            e.preventDefault();
+            window.startPharmacyBarcodeScan(el.dataset.nameInput, el.dataset.eanInput, el.dataset.scannerElement);
+        });
 
         window.EventDispatcher.onClick('.js-close-new-measurement', () => window.closeNewMeasurementModal());
         window.EventDispatcher.onClick('.js-save-new-measurement', () => window.saveNewMeasurement());
