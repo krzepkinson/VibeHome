@@ -178,6 +178,7 @@ window.SearchModule = (() => {
         if (searchTimeout) clearTimeout(searchTimeout);
 
         searchTimeout = setTimeout(async () => {
+            let localResults = [];
             try {
                 // ETAP 1: Szukanie lokalne w 0ms (To co już mamy w RAM)
                 const state = window.AppStore.get() || {};
@@ -185,8 +186,6 @@ window.SearchModule = (() => {
                 const hTasks = state.hTasks || [];
                 const todos = state.todos || [];
                 const lists = state.checklists || [];
-
-                let localResults = [];
 
                 tasks.filter(t => !t.is_archived && t.name && t.name.toLowerCase().includes(q)).forEach(t => {
                     localResults.push({ id: t.id, title: t.name, type: 'Dom', icon: '🏠', extraData: t.room || 'Inne' });
@@ -201,12 +200,38 @@ window.SearchModule = (() => {
                     localResults.push({ id: l.id, title: l.title, type: 'Lista', icon: '🗂️', extraData: l.list_type || 'generic' });
                 });
 
+                const checklistItems = state.checklistItems || [];
+                checklistItems.filter(item => item.content && item.content.toLowerCase().includes(q)).forEach(item => {
+                    const parentList = lists.find(list => String(list.id) === String(item.checklist_id));
+                    localResults.push({
+                        id: item.checklist_id,
+                        title: item.content,
+                        type: `W liście "${parentList?.title || 'Nieznana lista'}"`,
+                        icon: '☑️',
+                        extraData: parentList?.list_type || 'generic'
+                    });
+                });
+                (state.pharmacy || []).filter(item =>
+                    (item.name && item.name.toLowerCase().includes(q))
+                    || (item.purpose && item.purpose.toLowerCase().includes(q))
+                ).forEach(item => {
+                    const extra = item.purpose && item.purpose.toLowerCase().includes(q) ? `Opis: ${item.purpose}` : (item.purpose || '');
+                    localResults.push({ id: item.id, title: item.name, type: 'Apteczka', icon: '💊', extraData: extra });
+                });
+
                 // Rysujemy natychmiastowe wyniki z flagą isFetching = true
                 renderResults(localResults, q, true);
 
                 // ETAP 2: Głębokie Szukanie w Chmurze (Zwraca wyniki w ułamek sekundy)
                 const hid = window.currentUser ? window.currentUser.household_id : null;
                 if (!hid) {
+                    renderResults(localResults, q, false);
+                    return;
+                }
+
+                const isFresh = Number(state.lastSyncedAt || 0) > 0
+                    && Date.now() - Number(state.lastSyncedAt) <= window.CONFIG.CACHE_TTL;
+                if (isFresh || !navigator.onLine) {
                     renderResults(localResults, q, false);
                     return;
                 }
@@ -265,8 +290,7 @@ window.SearchModule = (() => {
 
             } catch (error) {
                 console.error("Błąd wyszukiwania hybrydowego:", error);
-                const listEl = document.getElementById('search-results-list');
-                if (listEl) listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-[#ffb4ab]">Brak sieci - wyniki mogą być niekompletne.</p></div>`;
+                renderResults(localResults, q, false);
             }
         }, 150); // Minimalne opóźnienie 150ms przed wysłaniem zapytania do serwera (Debounce)
     };
@@ -294,10 +318,11 @@ window.SearchModule = (() => {
             window.clearRecentSearches();
         });
 
-        window.EventDispatcher.onClick('.js-search-result', (e, el) => {
+        window.EventDispatcher.onClick('.js-search-result', async (e, el) => {
             e.preventDefault();
 
-            const id = parseInt(el.dataset.id, 10);
+            const rawId = el.dataset.id || '';
+            const id = /^\d+$/.test(rawId) ? Number(rawId) : rawId;
             const type = el.dataset.type;
             const title = el.dataset.title;
             const icon = el.dataset.icon || '🔍';
@@ -309,27 +334,25 @@ window.SearchModule = (() => {
             window.closeGlobalSearch();
 
             if (type === 'Dom') {
-                window.switchView('home');
+                await window.switchView('home');
                 if (typeof window.filterHomeByRoom === 'function') window.filterHomeByRoom(extra);
-                setTimeout(() => { if (typeof window.openSettingsScreen === 'function') window.openSettingsScreen(id); }, 150);
+                if (typeof window.openSettingsScreen === 'function') await window.openSettingsScreen(id);
             } 
             else if (type === 'Zdrowie') {
-                window.switchView('health');
-                setTimeout(() => { if (typeof window.openHealthSettingsScreen === 'function') window.openHealthSettingsScreen(id); }, 150);
+                await window.switchView('health');
+                if (typeof window.openHealthSettingsScreen === 'function') await window.openHealthSettingsScreen(id);
             } 
             else if (type === 'Zadanie') {
-                window.switchView('todo');
-                setTimeout(() => {
-                    if (typeof window.openEditTodoModal === 'function') window.openEditTodoModal(id, title);
-                }, 150);
+                await window.switchView('todo');
+                if (typeof window.openEditTodoModal === 'function') await window.openEditTodoModal(id, title);
             } 
             else if (type === 'Lista' || type.startsWith('W liście')) {
-                window.switchView('todo');
-                setTimeout(() => { if (typeof window.openChecklistScreen === 'function') window.openChecklistScreen(id, title, extra); }, 150); 
+                await window.switchView('todo');
+                if (typeof window.openChecklistScreen === 'function') await window.openChecklistScreen(id, title, extra);
             }
             else if (type === 'Apteczka') {
-                if (typeof window.openPharmacyScreen === 'function') window.openPharmacyScreen(); 
-                setTimeout(() => { if (typeof window.openEditPharmacyModal === 'function') window.openEditPharmacyModal(id); }, 200); 
+                if (typeof window.openPharmacyScreen === 'function') await window.openPharmacyScreen();
+                if (typeof window.openEditPharmacyModal === 'function') await window.openEditPharmacyModal(id);
             }
         });
     } else {

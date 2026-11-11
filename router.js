@@ -23,27 +23,34 @@ window.Router = (() => {
         // GŁÓWNE WIDOKI
         'auth':      { onEnter: null },
         'dashboard': { file: 'dashboard.html', onEnter: (forceRefresh = false) => window.loadDashboardOverview?.(forceRefresh) },
-        'home':      { file: 'home.html', onEnter: () => window.loadDashboard?.() },
-        'health':    { file: 'health.html', onEnter: () => window.initHealthModule?.() },
-        'todo':      { file: 'todo.html', onEnter: () => window.initTodoModule?.() },
-        'settings':  { file: 'settings.html', onEnter: () => window.initSettingsModule?.() },
+        'home':      { file: 'home.html', onEnter: (forceRefresh = false) => window.loadDashboard?.(forceRefresh) },
+        'health':    { file: 'health.html', onEnter: (forceRefresh = false) => window.initHealthModule?.(forceRefresh) },
+        'todo':      { file: 'todo.html', onEnter: (forceRefresh = false) => window.initTodoModule?.(forceRefresh) },
+        'settings':  { file: 'settings.html', onEnter: (forceRefresh = false) => window.initSettingsModule?.(forceRefresh) },
         
         // EKRANY PODRZĘDNE
-        'archive-screen': { file: 'archive.html', onEnter: () => window.loadArchiveData?.() },
-        'pharmacy-screen': { file: 'pharmacy.html', onEnter: () => window.loadPharmacyItems?.() },
-        'health-book-screen': { file: 'health-book.html', onEnter: () => window.loadHealthBook?.() },
-        'stats-screen': { file: 'stats.html', onEnter: () => window.loadStats?.() },
-        'checklist-screen': { file: 'checklist.html', onEnter: () => window.initChecklistUI?.() },
+        'archive-screen': { file: 'archive.html', onEnter: (forceRefresh = false) => window.loadArchiveData?.(forceRefresh) },
+        'pharmacy-screen': { file: 'pharmacy.html', onEnter: (forceRefresh = false) => window.loadPharmacyItems?.(forceRefresh) },
+        'health-book-screen': { file: 'health-book.html', onEnter: async (forceRefresh = false) => {
+            window.loadHealthBook?.();
+            await window.loadDashboardOverview?.(forceRefresh);
+            window.loadHealthBook?.();
+        } },
+        'stats-screen': { file: 'stats.html', onEnter: (forceRefresh = false) => window.loadStats?.(forceRefresh) },
+        'checklist-screen': { file: 'checklist.html', onEnter: (forceRefresh = false) => window.initChecklistUI?.(forceRefresh) },
         'settings-rooms-screen': { file: 'settings-rooms.html', onEnter: () => window.loadAppRooms?.() },
         'settings-profiles-screen': { file: 'settings-profiles.html', onEnter: () => window.loadAppProfiles?.() },
         'edit-profile-screen': { file: 'edit-profile.html', onEnter: null },
         'settings-screen': { file: 'task-settings.html', onEnter: null },
-        'calendar': { file: 'calendar.html', onEnter: () => window.CalendarModule?.init() },
+        'calendar': { file: 'calendar.html', onEnter: (forceRefresh = false) => window.CalendarModule?.init(forceRefresh) },
         'health-settings-screen': { file: 'health-settings.html', onEnter: null }
     };
 
     let activeView = 'auth';
     let loadedViews = new Map();
+    const pendingViewLoads = new Map();
+    const pendingModalLoads = new Map();
+    let navigationRequestId = 0;
 
     // POMOCNICZE: Bezpieczny odczyt i zapis w localStorage
     const getCachedHtml = (key) => {
@@ -54,9 +61,53 @@ window.Router = (() => {
         try { localStorage.setItem(key, html); } catch (e) {}
     };
 
+    const loadViewTemplate = (viewName, config) => {
+        const cacheKey = VIEW_CACHE_PREFIX + viewName;
+        const cachedHtml = getCachedHtml(cacheKey);
+        if (cachedHtml) return Promise.resolve(cachedHtml);
+        if (pendingViewLoads.has(viewName)) return pendingViewLoads.get(viewName);
+
+        const promise = fetch(withVersion(`/views/${config.file}`))
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.text();
+            })
+            .then(html => {
+                setCachedHtml(cacheKey, html);
+                return html;
+            })
+            .finally(() => pendingViewLoads.delete(viewName));
+
+        pendingViewLoads.set(viewName, promise);
+        return promise;
+    };
+
+    const loadModalTemplate = (modalId, modalPath) => {
+        const cacheKey = MODAL_CACHE_PREFIX + modalId;
+        const cachedHtml = getCachedHtml(cacheKey);
+        if (cachedHtml) return Promise.resolve(cachedHtml);
+        if (pendingModalLoads.has(modalId)) return pendingModalLoads.get(modalId);
+
+        const promise = fetch(withVersion(modalPath))
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.text();
+            })
+            .then(html => {
+                setCachedHtml(cacheKey, html);
+                return html;
+            })
+            .finally(() => pendingModalLoads.delete(modalId));
+
+        pendingModalLoads.set(modalId, promise);
+        return promise;
+    };
+
     // 1. SILNIK PRZEŁĄCZANIA WIDOKÓW
     window.switchView = async function(viewName, pushToHistory = true) {
         if (activeView === viewName && viewName !== 'auth') return;
+
+        const requestId = ++navigationRequestId;
 
         const config = viewConfig[viewName];
         if (!config) {
@@ -64,61 +115,54 @@ window.Router = (() => {
             return;
         }
 
-        // Ukrywamy wszystkie ekrany
-        document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
-        
-        // --- WIDOK Z PLIKU / LOCAL STORAGE ---
+        let targetScreen = null;
+
         if (config.file) {
             const container = document.getElementById('view-container');
-            const cacheKey = VIEW_CACHE_PREFIX + viewName;
-
             if (!loadedViews.has(viewName)) {
-                let html = getCachedHtml(cacheKey);
-
-                // Jeśli brak w pamięci podręcznej urządzenia, pobieramy przez sieć
-                if (!html) {
-                    try {
-                        const appVersion = (window.CONFIG && window.CONFIG.VERSION) ? window.CONFIG.VERSION : Date.now();
-                        const response = await fetch(`/views/${config.file}?v=${appVersion}`);
-                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                        html = await response.text();
-                        setCachedHtml(cacheKey, html);
-                    } catch (err) {
+                let html;
+                try {
+                    html = await loadViewTemplate(viewName, config);
+                } catch (err) {
+                    if (requestId === navigationRequestId) {
                         console.error(`Błąd ładowania ${config.file}:`, err);
-                        window.showToast?.("Brak połączenia - widok niedostępny");
-                        window.switchView('dashboard', false); 
-                        return;
+                        window.showToast?.('Nie udało się otworzyć widoku. Sprawdź połączenie i spróbuj ponownie.');
                     }
-                } else {
-                    // Cicha aktualizacja w tle jeśli jest zasięg
-                    fetch(withVersion(`/views/${config.file}`)).then(r => r.ok ? r.text() : null).then(freshHtml => {
-                        if (html && freshHtml) setCachedHtml(cacheKey, freshHtml);
-                    }).catch(() => {});
+                    return;
                 }
+
+                if (requestId !== navigationRequestId) return;
 
                 const wrapper = document.createElement('div');
                 wrapper.id = `view-${viewName}`;
                 wrapper.className = 'screen-view transition-all duration-300';
                 wrapper.innerHTML = html;
-                
-                if (container) container.appendChild(wrapper);
+                if (!container) return;
+                container.appendChild(wrapper);
                 loadedViews.set(viewName, wrapper);
             }
-            loadedViews.get(viewName).classList.remove('hidden');
-        } 
-        // --- WIDOK WBUDOWANY W INDEX.HTML ---
-        else {
+            targetScreen = loadedViews.get(viewName);
+        } else {
             const targetId = config.screenId || `view-${viewName}`;
-            const targetScreen = document.getElementById(targetId) || document.getElementById(viewName);
+            targetScreen = document.getElementById(targetId) || document.getElementById(viewName);
             
             if (!targetScreen) {
                 console.error(`Router: Brak wbudowanego widoku o ID: ${targetId}`);
                 return;
             }
-            targetScreen.classList.remove('hidden');
         }
 
-        window.scrollTo(0, 0);
+        if (requestId !== navigationRequestId || !targetScreen) return;
+
+        // Zmieniamy ekran dopiero po przygotowaniu celu, żeby wolne pobranie
+        // szablonu nie zostawiało użytkownika z pustym ekranem.
+        document.querySelectorAll('.screen-view').forEach(el => {
+            if (el !== targetScreen) el.classList.add('hidden');
+        });
+        targetScreen.classList.remove('hidden');
+
+        const mainScreen = document.getElementById('main-screen');
+        if (mainScreen) mainScreen.scrollTop = 0;
 
         if (pushToHistory && viewName !== 'auth') {
             const newUrl = viewName === 'dashboard' ? '/' : `/?view=${viewName}`;
@@ -141,40 +185,40 @@ window.Router = (() => {
         window.activeView = viewName;
 
         if (typeof config.onEnter === 'function') {
-            config.onEnter();
+            try {
+                const result = config.onEnter();
+                if (result && typeof result.catch === 'function') {
+                    result.catch(err => console.error(`Błąd inicjalizacji widoku ${viewName}:`, err));
+                }
+            } catch (err) {
+                console.error(`Błąd inicjalizacji widoku ${viewName}:`, err);
+            }
         }
     };
 
     // 2. PANCERNY SILNIK MODALI OFFLINE
     window.loadAndShowModal = async function(modalId, modalPath, onReadyCallback) {
         let modalEl = document.getElementById(modalId);
-        const cacheKey = MODAL_CACHE_PREFIX + modalId;
 
         if (!modalEl) {
-            let html = getCachedHtml(cacheKey);
-
-            if (!html) {
-                try {
-                    const response = await fetch(modalPath);
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    html = await response.text();
-                    setCachedHtml(cacheKey, html);
-                } catch (err) {
-                    console.error(`Błąd pobierania modala ${modalPath}:`, err);
-                    window.showToast?.("Tryb offline - brak szablonu formularza");
-                    return;
-                }
-            } else {
-                // Cicha aktualizacja w tle
-                fetch(withVersion(modalPath)).then(r => r.ok ? r.text() : null).then(freshHtml => {
-                    if (freshHtml) setCachedHtml(cacheKey, freshHtml);
-                }).catch(() => {});
+            let html;
+            try {
+                html = await loadModalTemplate(modalId, modalPath);
+            } catch (err) {
+                console.error(`Błąd pobierania modala ${modalPath}:`, err);
+                window.showToast?.('Nie udało się otworzyć formularza. Spróbuj ponownie.');
+                return;
             }
 
-            const wrapper = document.createElement('div');
-            wrapper.innerHTML = html;
-            modalEl = wrapper.firstElementChild;
-            document.body.appendChild(modalEl);
+            // Inne szybkie dotknięcie mogło zakończyć to samo pobieranie.
+            modalEl = document.getElementById(modalId);
+            if (!modalEl) {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = html;
+                modalEl = wrapper.firstElementChild;
+                if (!modalEl) return;
+                document.body.appendChild(modalEl);
+            }
         }
 
         modalEl.classList.remove('hidden');
@@ -185,18 +229,26 @@ window.Router = (() => {
         }
     };
 
+    window.prefetchModalTemplate = function(modalId, modalPath) {
+        if (getCachedHtml(MODAL_CACHE_PREFIX + modalId)) return;
+        loadModalTemplate(modalId, modalPath).catch(() => {});
+    };
+
     // 3. CICHE POBIERANIE WSZYSTKICH EKRANÓW I FORMULARZY W TLE (Prefetching)
     window.prefetchAllViewsAndModals = async function() {
         if (!navigator.onLine) return;
 
-        // Pobieramy widoki
+        [
+            ['new-pharmacy-item-modal', '/modals/new-pharmacy-item.html'],
+            ['edit-pharmacy-item-modal', '/modals/edit-pharmacy-item.html']
+        ].forEach(([modalId, modalPath]) => window.prefetchModalTemplate(modalId, modalPath));
+
+        // Pobieramy szablony widoków bez blokowania bieżącego ekranu.
         Object.entries(viewConfig).forEach(([vName, cfg]) => {
             if (cfg.file) {
                 const cacheKey = VIEW_CACHE_PREFIX + vName;
                 if (!getCachedHtml(cacheKey)) {
-                    fetch(withVersion(`/views/${cfg.file}`)).then(r => r.ok ? r.text() : null).then(html => {
-                        if (html) setCachedHtml(cacheKey, html);
-                    }).catch(() => {});
+                    loadViewTemplate(vName, cfg).catch(() => {});
                 }
             }
         });
@@ -211,7 +263,7 @@ window.Router = (() => {
     };
     
     window.goForward = function(viewName) { 
-        window.switchView(viewName); 
+        return window.switchView(viewName); 
     };
 
     window.refreshCurrentView = function(forceRefresh = false) {

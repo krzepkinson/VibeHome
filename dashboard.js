@@ -4,7 +4,11 @@
 
 window.DashboardModule = (() => {
 
-    window.dashboardCacheTime = 0;
+    window.dashboardCacheTime = Number(window.AppStore?.get()?.lastSyncedAt || 0);
+    let syncPromise = null;
+    let syncHouseholdId = null;
+    let syncUserId = null;
+    let cacheRevision = 0;
 
     const getLocalDayStr = (dObj = new Date()) => {
         if (!dObj || isNaN(dObj.getTime())) return '';
@@ -14,73 +18,118 @@ window.DashboardModule = (() => {
         return `${y}-${m}-${d}`;
     };
 
-    window.invalidateDashboardCache = function() { 
-        window.dashboardCacheTime = 0; 
+    window.invalidateDashboardCache = function() {
+        cacheRevision++;
+        window.dashboardCacheTime = 0;
+        window.AppStore?.set(state => ({ ...state, lastSyncedAt: 0, lastSyncAttemptAt: 0 }));
+    };
+
+    const fetchAllRows = async (table, configureQuery, pageSize = 500, orderBy = 'id') => {
+        const allRows = [];
+        for (let offset = 0; ; offset += pageSize) {
+            let query = configureQuery(window.supabaseClient.from(table).select('*'));
+            query = query.order(orderBy, { ascending: true }).range(offset, offset + pageSize - 1);
+            const { data, error } = await query;
+            if (error) throw error;
+            const page = data || [];
+            allRows.push(...page);
+            if (page.length < pageSize) return allRows;
+        }
     };
 
     window.loadDashboardOverview = async function(forceRefresh = false) {
+        // Zawsze rysuj lokalny stan przed jakimkolwiek oczekiwaniem na sieć.
+        window.renderDashboardUI();
         const now = Date.now();
-        if (forceRefresh || (now - window.dashboardCacheTime > window.CONFIG.CACHE_TTL)) {
-            
-            const state = window.AppStore.get() || {};
-            
-            if (!state.tasks || state.tasks.length === 0) {
-                const containers = ['widget-home-content', 'widget-health-content', 'widget-todo-content'];
-                containers.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.innerHTML = `<p class="text-neutral-500 text-xs text-center py-4 animate-pulse">Ładowanie...</p>`;
-                });
-            }
-            
-            const hid = window.currentUser ? window.currentUser.household_id : null; 
-            if (!hid) return;
+        const state = window.AppStore.get() || {};
+        window.dashboardCacheTime = Number(state.lastSyncedAt || 0);
+        if (!forceRefresh && now - window.dashboardCacheTime <= window.CONFIG.CACHE_TTL) return;
+        const hasLocalData = window.dashboardCacheTime > 0
+            || ['tasks', 'logs', 'profiles', 'rooms', 'todos', 'hTasks', 'hLogs', 'pharmacy', 'hMeasurements', 'checklists', 'checklistItems', 'calendarEvents']
+                .some(key => Array.isArray(state[key]) && state[key].length > 0);
+        if (!forceRefresh && hasLocalData && !navigator.onLine) return;
+        const lastAttemptAt = Number(state.lastSyncAttemptAt || 0);
+        if (!forceRefresh && lastAttemptAt > window.dashboardCacheTime
+            && now - lastAttemptAt < 15000) return;
+        const hid = window.currentUser?.household_id;
+        const uid = window.currentUser?.user_id || window.currentUser?.id;
+        if (!hid) return;
+        if (syncPromise) {
+            if (syncHouseholdId === hid && syncUserId === uid) return syncPromise;
+            await syncPromise.catch(() => {});
+            return window.loadDashboardOverview(forceRefresh);
+        }
 
+        syncHouseholdId = hid;
+        syncUserId = uid;
+        const revisionAtStart = cacheRevision;
+        let resyncAfterward = false;
+        syncPromise = (async () => {
             try {
-                const rangeStart = new Date();
-                rangeStart.setDate(rangeStart.getDate() - 90);
-                const rangeEnd = new Date();
-                rangeEnd.setDate(rangeEnd.getDate() + 365);
-
-                const [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes, measRes, pharmacyRes] = await Promise.all([
-                    window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-                    window.supabaseClient.from('activity_logs').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(200),
-                    window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', false),
-                    window.supabaseClient.from('health_logs').select('*').eq('household_id', hid).order('start_date', { ascending: false }).limit(200),
-                    window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }).limit(100),
-                    window.supabaseClient.from('profiles').select('*').eq('household_id', hid),
-                    window.supabaseClient.from('rooms').select('*').eq('household_id', hid).order('name'),
-                    window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false),
-                    window.supabaseClient.from('calendar_events').select('*').eq('household_id', hid).gte('event_datetime', rangeStart.toISOString()).lte('event_datetime', rangeEnd.toISOString()).order('event_datetime', { ascending: true }).limit(100),
-                    window.supabaseClient.from('health_measurements').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100),
-                    window.supabaseClient.from('pharmacy_items').select('*').eq('household_id', hid).order('expiration_date', { ascending: true, nullsFirst: false }).limit(200)
+                const householdQuery = table => query => query.eq('household_id', hid);
+                const [tasks, logs, hTasks, hLogs, todos, profiles, rooms, checklists, checklistItems, calendarEvents, hMeasurements, pharmacy] = await Promise.all([
+                    fetchAllRows('tasks', q => q.eq('household_id', hid)),
+                    fetchAllRows('activity_logs', householdQuery('activity_logs')),
+                    fetchAllRows('health_tasks', q => q.eq('household_id', hid)),
+                    fetchAllRows('health_logs', householdQuery('health_logs')),
+                    fetchAllRows('todos', q => q.eq('household_id', hid)),
+                    fetchAllRows('profiles', householdQuery('profiles')),
+                    fetchAllRows('rooms', householdQuery('rooms'), 500, 'name'),
+                    fetchAllRows('checklists', q => q.eq('household_id', hid)),
+                    fetchAllRows('checklist_items', householdQuery('checklist_items')),
+                    fetchAllRows('calendar_events', householdQuery('calendar_events')),
+                    fetchAllRows('health_measurements', householdQuery('health_measurements')),
+                    fetchAllRows('pharmacy_items', q => q.eq('household_id', hid).order('expiration_date', { ascending: true, nullsFirst: false }))
                 ]);
 
-                const failedResult = [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes, measRes, pharmacyRes]
-                    .find(result => result.error);
-                if (failedResult) throw failedResult.error;
+                if (window.currentUser?.household_id !== hid
+                    || (window.currentUser?.user_id || window.currentUser?.id) !== uid) return;
+                if (cacheRevision !== revisionAtStart) {
+                    resyncAfterward = true;
+                    return;
+                }
 
+                logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                hLogs.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+                todos.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                profiles.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+                rooms.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+                checklists.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                checklistItems.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                calendarEvents.sort((a, b) => new Date(a.event_datetime) - new Date(b.event_datetime));
+                hMeasurements.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+                const syncedAt = Date.now();
                 window.AppStore.set(current => ({
-                    ...current,
-                    tasks: tasksRes.data || [],
-                    logs: logsRes.data || [],
-                    hTasks: hTasksRes.data || [],
-                    hLogs: hLogsRes.data || [],
-                    todos: todoRes.data || [],
-                    profiles: profilesRes.data || [],
-                    rooms: roomsRes.data || [],
-                    checklists: listsRes.data || [],
-                    calendarEvents: eventsRes.data || [],
-                    hMeasurements: measRes.data || [],
-                    pharmacy: pharmacyRes.data || []
+                    ...current, tasks, logs, hTasks, hLogs, todos, profiles, rooms,
+                    checklists, checklistItems, calendarEvents, hMeasurements, pharmacy,
+                    lastSyncedAt: syncedAt, lastSyncAttemptAt: syncedAt
                 }));
-                
-                window.dashboardCacheTime = Date.now();
+                window.dashboardCacheTime = syncedAt;
+                window.allPharmacyItems = pharmacy;
+                window.renderDashboardUI();
+                if (window.activeView === 'pharmacy-screen') window.renderPharmacyList?.();
+                if (window.activeView === 'todo') window.renderTodoUI?.();
+                if (window.activeView === 'home') window.renderHomeUI?.();
+                if (window.activeView === 'health') window.renderHealthUI?.();
+                if (window.activeView === 'calendar') window.CalendarModule?.refresh?.();
             } catch (err) {
-                console.error("Dashboard fetch error:", err);
-                window.showToast("Tryb offline - ładuję z pamięci urządzenia");
+                console.error('Dashboard sync error:', err);
+                window.AppStore.set(current => ({ ...current, lastSyncAttemptAt: Date.now() }));
+                if (cacheRevision !== revisionAtStart) resyncAfterward = true;
+                if (!navigator.onLine) window.showToast('Offline — korzystasz z danych zapisanych na telefonie');
+            } finally {
+                syncPromise = null;
+                syncHouseholdId = null;
+                syncUserId = null;
+                if (resyncAfterward && window.currentUser?.household_id === hid
+                    && (window.currentUser?.user_id || window.currentUser?.id) === uid) {
+                    setTimeout(() => window.loadDashboardOverview(true), 0);
+                }
             }
-        }
-        window.renderDashboardUI();
+        })();
+
+        return syncPromise;
     };
 
     window.renderDashboardUI = function() {
@@ -93,6 +142,10 @@ window.DashboardModule = (() => {
             _renderHistoryOverlay(state);
         }
     };
+
+    window.addEventListener('online', () => {
+        if (window.currentUser) window.loadDashboardOverview(true);
+    });
 
     let dashboardFilter = 'all';
 
@@ -119,6 +172,8 @@ window.DashboardModule = (() => {
             if (!logsByHealthTask.has(key)) logsByHealthTask.set(key, []);
             logsByHealthTask.get(key).push(log);
         });
+        logsByTask.forEach(items => items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+        logsByHealthTask.forEach(items => items.sort((a, b) => new Date(b.start_date) - new Date(a.start_date)));
 
         const entries = [];
         const addEntry = entry => {
@@ -767,9 +822,12 @@ window.DashboardModule = (() => {
         const hMeas = state.hMeasurements || []; 
         const profiles = state.profiles || [];
         const todos = state.todos || [];
+        const taskById = new Map(tasks.map(task => [String(task.id), task]));
+        const healthTaskById = new Map(hTasks.map(task => [String(task.id), task]));
+        const profileById = new Map(profiles.map(profile => [String(profile.id), profile]));
 
         logs.forEach(l => { 
-            const t = tasks.find(x => x.id === l.task_id); 
+            const t = taskById.get(String(l.task_id));
             if (!t || t.show_in_history !== false) {
                 historyItems.push({ 
                     table: 'activity_logs', id: l.id, title: l.activity_name, 
@@ -780,9 +838,9 @@ window.DashboardModule = (() => {
         });
         
         hLogs.forEach(l => { 
-            const ht = hTasks.find(x => x.id === l.health_task_id); 
+            const ht = healthTaskById.get(String(l.health_task_id));
             if (!ht || ht.show_in_history !== false) { 
-                const profile = profiles.find(p => p.id === ht?.profile_id); 
+                const profile = profileById.get(String(ht?.profile_id));
                 const title = (ht ? ht.name : 'Zdarzenie') + (profile ? ` (${profile.name})` : ''); 
                 historyItems.push({ 
                     table: 'health_logs', id: l.id, title, 
@@ -793,7 +851,7 @@ window.DashboardModule = (() => {
         });
 
         hMeas.forEach(m => {
-            const profile = profiles.find(p => p.id === m.profile_id);
+            const profile = profileById.get(String(m.profile_id));
             const title = `Pomiar: ${m.measurement_type}` + (profile ? ` (${profile.name})` : '');
             historyItems.push({
                 table: 'health_measurements', id: m.id, title,
@@ -1062,8 +1120,8 @@ window.DashboardModule = (() => {
 
         window.EventDispatcher.onClick('.js-compact-overview-item', (e, el) => {
             const view = el.dataset.view;
-            if (view === 'pharmacy-screen') window.openPharmacyScreen?.();
-            else window.switchView(view || 'dashboard');
+            if (view === 'pharmacy-screen') return window.openPharmacyScreen?.();
+            return window.switchView(view || 'dashboard');
         });
 
         window.EventDispatcher.onClick('.js-toggle-widget', (e, el) => {

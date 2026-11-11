@@ -8,6 +8,7 @@ window.HealthModule = (() => {
     let pharmacyScannerScriptPromise = null;
     let pharmacyScannerHandled = false;
     let activePharmacyScannerElementId = null;
+    let healthBookVisibleLimit = 100;
 
     // Bezpieczne porównywanie identyfikatorów bez względu na ich typ (String / Number)
     const sameId = (a, b) => a != null && b != null && String(a) === String(b);
@@ -83,15 +84,8 @@ window.HealthModule = (() => {
     };
 
     // Helper trendu pomiarów (Gorączka / Waga / Wzrost)
-    const getMeasurementTrendHtml = (allMeas, currentMeas) => {
-        const sameType = (allMeas || [])
-            .filter(m => sameId(m.profile_id, currentMeas.profile_id) && m.measurement_type === currentMeas.measurement_type)
-            .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-        
-        const currIdx = sameType.findIndex(m => sameId(m.id, currentMeas.id));
-        if (currIdx === -1 || currIdx >= sameType.length - 1) return '';
-        
-        const prevVal = sameType[currIdx + 1].value;
+    const getMeasurementTrendHtml = (prevVal, currentMeas) => {
+        if (prevVal == null) return '';
         const diff = currentMeas.value - prevVal;
         
         if (diff > 0) {
@@ -106,7 +100,7 @@ window.HealthModule = (() => {
         return '<span class="text-neutral-500 font-bold text-xs ml-1.5" title="Bez zmian">=</span>';
     };
 
-    window.initHealthModule = async function() {
+    window.initHealthModule = async function(forceRefresh = false) {
         try {
             const key = activeProfileStorageKey();
             const savedProfile = key ? localStorage.getItem(key) : null;
@@ -124,7 +118,7 @@ window.HealthModule = (() => {
         window.renderHealthUI();
 
         if (typeof window.loadDashboardOverview === 'function') {
-            await window.loadDashboardOverview(); 
+            await window.loadDashboardOverview(forceRefresh); 
             window.renderHealthUI();
         }
     };
@@ -713,7 +707,7 @@ window.HealthModule = (() => {
     // ==========================================
 
     window.allPharmacyItems = [];
-    window.openPharmacyScreen = function() { window.goForward('pharmacy-screen'); window.loadPharmacyItems(); };
+    window.openPharmacyScreen = function() { return window.goForward('pharmacy-screen'); };
     window.closePharmacyScreen = function() { window.goBack(); };
 
     window.startPharmacyBarcodeScan = async function(nameInputId, eanInputId, scannerElementId) {
@@ -800,15 +794,18 @@ window.HealthModule = (() => {
 
     window.stopPharmacyBarcodeScan = stopPharmacyBarcodeScanner;
     
-    window.loadPharmacyItems = async function() {
+    window.loadPharmacyItems = async function(forceRefresh = false) {
         const listEl = document.getElementById('pharmacy-list');
         if (!listEl) return;
-        listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Szukam leków...</p>`;
-        
-        const { data, error } = await window.supabaseClient.from('pharmacy_items').select('*').eq('household_id', window.currentUser.household_id).order('expiration_date', { ascending: true, nullsFirst: false });
-        if (error) { listEl.innerHTML = `<p class="text-center text-[#ffb4ab] text-xs py-10">Błąd pobierania bazy leków.</p>`; return; }
-        window.allPharmacyItems = data || [];
+        window.prefetchModalTemplate?.('new-pharmacy-item-modal', '/modals/new-pharmacy-item.html');
+        window.prefetchModalTemplate?.('edit-pharmacy-item-modal', '/modals/edit-pharmacy-item.html');
+        window.allPharmacyItems = window.AppStore.get()?.pharmacy || [];
         window.renderPharmacyList();
+        if (typeof window.loadDashboardOverview === 'function') {
+            await window.loadDashboardOverview(forceRefresh);
+            window.allPharmacyItems = window.AppStore.get()?.pharmacy || [];
+            window.renderPharmacyList();
+        }
     };
 
     window.renderPharmacyList = function() {
@@ -860,7 +857,7 @@ window.HealthModule = (() => {
     };
 
     window.openNewPharmacyItemModal = function() { 
-        window.loadAndShowModal('new-pharmacy-item-modal', '/modals/new-pharmacy-item.html', () => {
+        return window.loadAndShowModal('new-pharmacy-item-modal', '/modals/new-pharmacy-item.html', () => {
             document.getElementById('pharmacy-item-name').value = ''; 
             document.getElementById('pharmacy-item-ean').value = '';
             document.getElementById('pharmacy-item-exp').value = ''; 
@@ -894,20 +891,21 @@ window.HealthModule = (() => {
             }
         }
 
-        const { error } = await window.supabaseClient.from('pharmacy_items').insert([{
+        const { data, error } = await window.supabaseClient.from('pharmacy_items').insert([{
             household_id: window.currentUser.household_id, user_id: window.currentUser.user_id,
             name: name, expiration_date: expDateSQL, purpose: purpose, ean: ean
-        }]);
+        }]).select().single();
         
         if (error) { window.showToast("Błąd zapisu: " + error.message); return; }
-        window.closeNewPharmacyItemModal(); window.showToast("Lek dodany!"); window.loadPharmacyItems();
+        window.AppStore.set(state => ({ ...state, pharmacy: [data, ...(state.pharmacy || [])] }));
+        window.closeNewPharmacyItemModal(); window.showToast("Lek dodany!"); window.invalidateDashboardCache?.(); window.loadPharmacyItems();
     };
 
     window.openEditPharmacyModal = function(id) {
         const item = window.allPharmacyItems.find(p => sameId(p.id, id));
         if (!item) return;
 
-        window.loadAndShowModal('edit-pharmacy-item-modal', '/modals/edit-pharmacy-item.html', () => {
+        return window.loadAndShowModal('edit-pharmacy-item-modal', '/modals/edit-pharmacy-item.html', () => {
             document.getElementById('edit-pharmacy-id').value = item.id;
             document.getElementById('edit-pharmacy-name').value = item.name;
             document.getElementById('edit-pharmacy-ean').value = item.ean || '';
@@ -948,14 +946,22 @@ window.HealthModule = (() => {
             }
         }
 
-        const { error } = await window.supabaseClient.from('pharmacy_items')
+        const { data, error } = await window.supabaseClient.from('pharmacy_items')
             .update({ name: name, expiration_date: expDateSQL, purpose: purpose, ean: ean })
-            .eq('id', id);
+            .eq('id', id)
+            .select()
+            .single();
 
         if (error) { window.showToast("Błąd zapisu: " + error.message); return; }
+
+        window.AppStore.set(state => ({
+            ...state,
+            pharmacy: (state.pharmacy || []).map(item => sameId(item.id, id) ? data : item)
+        }));
         
         window.closeEditPharmacyModal(); 
         window.showToast("Lek zaktualizowany!"); 
+        window.invalidateDashboardCache?.();
         window.loadPharmacyItems();
     };
 
@@ -963,8 +969,10 @@ window.HealthModule = (() => {
         window.customConfirm("Usunąć ten lek?", async () => {
             const { error } = await window.supabaseClient.from('pharmacy_items').delete().eq('id', id);
             if (error) { window.showToast("Błąd usuwania: " + error.message); return; }
+            window.AppStore.set(state => ({ ...state, pharmacy: (state.pharmacy || []).filter(item => !sameId(item.id, id)) }));
             window.showToast("Lek wyrzucony!"); 
             window.closeEditPharmacyModal();
+            window.invalidateDashboardCache?.();
             window.loadPharmacyItems();
         });
     };
@@ -1008,7 +1016,10 @@ window.HealthModule = (() => {
         if (window.activeView === 'health-book-screen') window.loadHealthBook();
     };
 
-    window.openHealthBook = function() { window.goForward('health-book-screen'); window.loadHealthBook(); };
+    window.openHealthBook = function() {
+        healthBookVisibleLimit = 100;
+        return window.goForward('health-book-screen');
+    };
     window.closeHealthBook = function() { window.goBack(); };
 
     window.deleteHealthBookItem = function(id, type) {
@@ -1163,12 +1174,26 @@ window.HealthModule = (() => {
 
             const measurements = allMeas.filter(m => sameId(m.profile_id, currentProfileId));
             const tasks = allTasks.filter(t => sameId(t.profile_id, currentProfileId));
-            const profileLogs = allLogs.filter(l => tasks.some(t => sameId(t.id, l.health_task_id)));
+            const taskById = new Map(tasks.map(task => [String(task.id), task]));
+            const profileLogs = allLogs.filter(log => taskById.has(String(log.health_task_id)));
+            const measurementGroups = new Map();
+            allMeas.forEach(measurement => {
+                const key = `${measurement.profile_id}::${measurement.measurement_type}`;
+                if (!measurementGroups.has(key)) measurementGroups.set(key, []);
+                measurementGroups.get(key).push(measurement);
+            });
+            const previousMeasurementById = new Map();
+            measurementGroups.forEach(group => {
+                group.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                for (let i = 0; i < group.length - 1; i++) {
+                    previousMeasurementById.set(String(group[i].id), group[i + 1].value);
+                }
+            });
             
             let timelineItems = [];
 
             measurements.forEach(m => {
-                const trendHtml = getMeasurementTrendHtml(allMeas, m);
+                const trendHtml = getMeasurementTrendHtml(previousMeasurementById.get(String(m.id)), m);
                 timelineItems.push({
                     id: m.id,
                     type: 'measurement',
@@ -1182,7 +1207,7 @@ window.HealthModule = (() => {
             });
 
             profileLogs.forEach(l => {
-                const task = tasks.find(t => sameId(t.id, l.health_task_id)); 
+                const task = taskById.get(String(l.health_task_id));
                 if (!task) return;
 
                 const wykonawca = l.user_name || 'Domownik';
@@ -1217,8 +1242,9 @@ window.HealthModule = (() => {
             </div>`;
             
             let lastMonthYear = '';
+            const visibleItems = timelineItems.slice(0, healthBookVisibleLimit);
             
-            timelineItems.forEach(item => {
+            visibleItems.forEach(item => {
                 const monthYear = item.date.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' });
                 if (monthYear !== lastMonthYear) {
                     html += `<div class="sticky top-0 bg-[#131314]/90 backdrop-blur-md z-10 py-2 border-b border-[#333537] mb-4 mt-6"><h3 class="text-xs font-bold text-neutral-400 uppercase tracking-widest pl-2">${monthYear}</h3></div>`;
@@ -1241,6 +1267,11 @@ window.HealthModule = (() => {
                     </div>
                 </div>`;
             });
+
+            if (timelineItems.length > visibleItems.length) {
+                const remaining = timelineItems.length - visibleItems.length;
+                html += `<button class="js-health-book-more w-full min-h-11 mt-3 rounded-full border border-[#333537] text-neutral-300 text-xs font-medium active:opacity-70">Pokaż ${Math.min(100, remaining)} starszych wpisów (${remaining} pozostało)</button>`;
+            }
             tl.innerHTML = html;
 
         } catch (err) {
@@ -1335,11 +1366,16 @@ window.HealthModule = (() => {
         
         window.EventDispatcher.onClick('.js-open-edit-pharmacy', (e, el) => {
             if (e.target.closest('.js-delete-pharmacy-item')) return;
-            window.openEditPharmacyModal(el.dataset.id);
+            return window.openEditPharmacyModal(el.dataset.id);
         });
         
         window.EventDispatcher.onClick('.js-delete-health-book-item', (e, el) => {
             window.deleteHealthBookItem(el.dataset.id, el.dataset.type);
+        });
+
+        window.EventDispatcher.onClick('.js-health-book-more', () => {
+            healthBookVisibleLimit += 100;
+            window.loadHealthBook();
         });
 
         window.EventDispatcher.onClick('.js-edit-health-book-item', (e, el) => {

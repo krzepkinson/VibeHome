@@ -36,7 +36,7 @@ window.CalendarModule = (() => {
         return `<div class="w-6 h-6 rounded-full ${color} border border-white/10 text-white text-[10px] flex items-center justify-center shrink-0 ml-1 font-bold shadow-sm" title="${window.esc(p.name)}">${initial}</div>`;
     };
 
-    async function init() {
+    async function init(forceRefresh = false) {
         const subtitle = document.getElementById('calendar-subtitle');
         if (subtitle) subtitle.innerText = 'Wczytywanie...';
 
@@ -48,7 +48,7 @@ window.CalendarModule = (() => {
 
         // 2. Tło: Dociągnięcie braków z chmury (odświeżenie danych)
         if (typeof window.loadDashboardOverview === 'function') {
-            await window.loadDashboardOverview();
+            await window.loadDashboardOverview(forceRefresh);
             buildEventsFromStore();
             renderProfilePills();
             renderCurrentTab();
@@ -71,6 +71,22 @@ window.CalendarModule = (() => {
         const hTasks = (state.hTasks || []).filter(t => !t.is_archived);
         const hLogs = state.hLogs || [];
         const calEvents = state.calendarEvents || [];
+        const logsByTask = new Map();
+        const hLogsByTask = new Map();
+        logs.forEach(log => {
+            if (log.task_id == null) return;
+            const key = String(log.task_id);
+            if (!logsByTask.has(key)) logsByTask.set(key, []);
+            logsByTask.get(key).push(log);
+        });
+        hLogs.forEach(log => {
+            if (log.health_task_id == null) return;
+            const key = String(log.health_task_id);
+            if (!hLogsByTask.has(key)) hLogsByTask.set(key, []);
+            hLogsByTask.get(key).push(log);
+        });
+        logsByTask.forEach(items => items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+        hLogsByTask.forEach(items => items.sort((a, b) => new Date(b.start_date) - new Date(a.start_date)));
 
         // 1. Wydarzenia własne z kalendarza
         calEvents.forEach(ev => {
@@ -92,7 +108,7 @@ window.CalendarModule = (() => {
 
             if (isTaskAssigned) {
                 if (t.interval_days && t.interval_days > 0) {
-                    const taskLogs = logs.filter(l => sameId(l.task_id, t.id)).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+                    const taskLogs = logsByTask.get(String(t.id)) || [];
                     let nextDateObj = new Date(t.next_due_at || t.created_at || new Date());
                     if (taskLogs.length > 0) {
                         nextDateObj = new Date(taskLogs[0].created_at);
@@ -103,7 +119,7 @@ window.CalendarModule = (() => {
                         date: getLocalDayStr(nextDateObj), color: 'text-blue-400', bg: 'bg-[#3b82f6]', profileId: null, isDuration: false
                     });
                 } else if (t.next_due_at) {
-                    const taskLogs = logs.filter(l => sameId(l.task_id, t.id));
+                    const taskLogs = logsByTask.get(String(t.id)) || [];
                     const evDate = new Date(t.next_due_at);
                     if (!taskLogs.length && !isNaN(evDate.getTime())) {
                         allEvents.push({
@@ -119,7 +135,7 @@ window.CalendarModule = (() => {
         hTasks.forEach(ht => {
             if (String(ht.category || '').toLowerCase() === 'suplementacja') return;
             if (ht.task_type === 'duration') {
-                const taskLogs = hLogs.filter(l => sameId(l.health_task_id, ht.id));
+                const taskLogs = hLogsByTask.get(String(ht.id)) || [];
                 taskLogs.forEach(l => {
                     let start = new Date(l.start_date); 
                     let end = l.end_date ? new Date(l.end_date) : new Date();
@@ -135,7 +151,7 @@ window.CalendarModule = (() => {
                     allEvents.push({ id: ht.id, type: 'Zdrowie', title: ht.name, icon: '📅', subTaskId: ht.id, date: getLocalDayStr(evDate), color: 'text-amber-500', bg: 'bg-[#f59e0b]', profileId: ht.profile_id, isDuration: false });
                 }
             } else if (ht.task_type === 'cyclical' && Number(ht.interval_days) > 0 && String(ht.category || '').toLowerCase() !== 'suplementacja') {
-                const taskLogs = hLogs.filter(log => sameId(log.health_task_id, ht.id)).sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+                const taskLogs = hLogsByTask.get(String(ht.id)) || [];
                 const nextDate = taskLogs.length ? new Date(taskLogs[0].start_date) : new Date(ht.next_due_at || ht.created_at || new Date());
                 if (taskLogs.length) nextDate.setDate(nextDate.getDate() + Number(ht.interval_days));
                 allEvents.push({

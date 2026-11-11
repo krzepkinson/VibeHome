@@ -38,15 +38,14 @@ window.SettingsModule = (() => {
         }
     };
 
-    window.initSettingsModule = function() {
+    window.initSettingsModule = async function(forceRefresh = false) {
         const hidLabel = document.getElementById('household-id-label');
         if (hidLabel && window.currentUser) hidLabel.innerText = window.currentUser.household_id; 
         
         const nameInput = document.getElementById('settings-user-name');
         if (nameInput && window.currentUser?.name) nameInput.value = window.currentUser.name; 
         
-        window.loadAppRooms(); 
-        window.loadAppProfiles(); 
+        await Promise.all([window.loadAppRooms(forceRefresh), window.loadAppProfiles(forceRefresh)]);
         window.checkNotificationStatus(); 
     };
 
@@ -72,8 +71,8 @@ window.SettingsModule = (() => {
             window.currentUser.name = name; 
             window.showToast("Imię zaktualizowane w pełni!"); 
             
-            if (typeof window.loadAppProfiles === 'function') window.loadAppProfiles();
             if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+            if (typeof window.loadAppProfiles === 'function') window.loadAppProfiles();
         }
     };
 
@@ -119,15 +118,17 @@ window.SettingsModule = (() => {
     };
 
     // --- ZARZĄDZANIE POMIESZCZENIAMI ---
-    window.fetchRoomsFromDB = async function() {
-        const { data } = await window.supabaseClient.from('rooms').select('*').eq('household_id', window.currentUser.household_id).order('name');
-        appRooms = data || []; return appRooms;
+    window.fetchRoomsFromDB = async function(forceRefresh = false) {
+        await window.loadDashboardOverview?.(forceRefresh);
+        appRooms = (window.AppStore.get()?.rooms || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+        return appRooms;
     };
 
-    window.loadAppRooms = async function() {
+    window.loadAppRooms = async function(forceRefresh = false) {
         const listEl = document.getElementById('settings-rooms-list'); 
         if(!listEl) return;
-        await window.fetchRoomsFromDB();
+        const render = () => {
+        appRooms = (window.AppStore.get()?.rooms || []).slice().sort((a, b) => a.name.localeCompare(b.name));
         if (appRooms.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak pomieszczeń.</p>`; return; }
         listEl.innerHTML = appRooms.map(room => `
             <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
@@ -137,6 +138,10 @@ window.SettingsModule = (() => {
                     <button class="js-delete-room w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] text-sm cursor-pointer" data-name="${window.esc(room.name)}">🗑️</button>
                 </div>
             </div>`).join('');
+        };
+        render();
+        await window.loadDashboardOverview?.(forceRefresh);
+        render();
     };
 
     window.openNewRoomModal = function() { 
@@ -215,11 +220,11 @@ window.SettingsModule = (() => {
     };
 
     // --- ZARZĄDZANIE DOMOWNIKAMI ---
-    window.loadAppProfiles = async function() {
+    window.loadAppProfiles = async function(forceRefresh = false) {
         const listEl = document.getElementById('settings-profiles-list');
         if (!listEl) return;
-        const { data } = await window.supabaseClient.from('profiles').select('*').eq('household_id', window.currentUser.household_id).order('name');
-        appProfiles = data || [];
+        const render = () => {
+        appProfiles = (window.AppStore.get()?.profiles || []).slice().sort((a, b) => a.name.localeCompare(b.name));
         if (appProfiles.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak domowników.</p>`; return; }
         listEl.innerHTML = appProfiles.map(p => `
             <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
@@ -229,6 +234,10 @@ window.SettingsModule = (() => {
                 </div>
                 <button class="js-edit-profile w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] text-sm cursor-pointer" data-id="${p.id}">⚙️</button>
             </div>`).join('');
+        };
+        render();
+        await window.loadDashboardOverview?.(forceRefresh);
+        render();
     };
 
     window.openNewProfileModal = function() { 
@@ -251,8 +260,8 @@ window.SettingsModule = (() => {
         else { 
             window.closeNewProfileModal(); 
             window.showToast('Dodano domownika!'); 
-            window.loadAppProfiles(); 
             if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+            window.loadAppProfiles();
         }
     };
 
@@ -307,8 +316,8 @@ window.SettingsModule = (() => {
 
             window.showToast('Zapisano profil'); 
             window.closeEditProfileModal(); 
-            window.loadAppProfiles(); 
             if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+            window.loadAppProfiles();
         }
     };
 
@@ -323,8 +332,8 @@ window.SettingsModule = (() => {
             } else { 
                 window.showToast('Profil usunięto'); 
                 window.closeEditProfileModal(); 
-                window.loadAppProfiles(); 
                 if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
+                window.loadAppProfiles();
             }
         });
     }
@@ -398,22 +407,18 @@ window.SettingsModule = (() => {
     };
 
     // --- ARCHIWUM ---
-    window.openArchiveScreen = function() { window.goForward('archive-screen'); window.loadArchiveData(); };
+    window.openArchiveScreen = function() { return window.goForward('archive-screen'); };
 
-    window.loadArchiveData = async function() {
-        const listEl = document.getElementById('archive-list'); listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Pobieranie...</p>`;
-        const hid = window.currentUser.household_id;
-        const [tRes, htRes, todoRes, listRes] = await Promise.all([
-            window.supabaseClient.from('tasks').select('*').eq('household_id', hid).eq('is_archived', true),
-            window.supabaseClient.from('health_tasks').select('*').eq('household_id', hid).eq('is_archived', true),
-            window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', true),
-            window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', true)
-        ]);
+    window.loadArchiveData = async function(forceRefresh = false) {
+        const listEl = document.getElementById('archive-list');
+        if (!listEl) return;
+        const render = () => {
+        const state = window.AppStore.get() || {};
         let items = [];
-        if (tRes.data) tRes.data.forEach(x => items.push({ id: x.id, title: x.name, type: 'tasks', icon: '🏠', typeName: 'Dom' }));
-        if (htRes.data) htRes.data.forEach(x => items.push({ id: x.id, title: x.name, type: 'health_tasks', icon: '❤️', typeName: 'Zdrowie' }));
-        if (todoRes.data) todoRes.data.forEach(x => items.push({ id: x.id, title: x.title, type: 'todos', icon: '📝', typeName: 'Zadanie' }));
-        if (listRes.data) listRes.data.forEach(x => items.push({ id: x.id, title: x.title, type: 'checklists', icon: '🗂️', typeName: 'Lista' }));
+        (state.tasks || []).filter(x => x.is_archived).forEach(x => items.push({ id: x.id, title: x.name, type: 'tasks', icon: '🏠', typeName: 'Dom' }));
+        (state.hTasks || []).filter(x => x.is_archived).forEach(x => items.push({ id: x.id, title: x.name, type: 'health_tasks', icon: '❤️', typeName: 'Zdrowie' }));
+        (state.todos || []).filter(x => x.is_archived).forEach(x => items.push({ id: x.id, title: x.title, type: 'todos', icon: '📝', typeName: 'Zadanie' }));
+        (state.checklists || []).filter(x => x.is_archived).forEach(x => items.push({ id: x.id, title: x.title, type: 'checklists', icon: '🗂️', typeName: 'Lista' }));
         if (items.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Archiwum jest puste.</p>`; return; }
         
         listEl.innerHTML = items.map(item => `
@@ -427,6 +432,10 @@ window.SettingsModule = (() => {
                     <button class="js-delete-archive w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:text-[#ffb4ab] text-xs cursor-pointer" data-table="${item.type}" data-id="${item.id}">🗑️</button>
                 </div>
             </div>`).join('');
+        };
+        render();
+        await window.loadDashboardOverview?.(forceRefresh);
+        render();
     };
 
     window.restoreFromArchive = async function(table, id) {
@@ -442,7 +451,11 @@ window.SettingsModule = (() => {
     window.permanentlyDelete = function(table, id) {
         window.customConfirm("Usunąć trwale? Operacji nie można cofnąć!", async () => {
             const { error } = await window.supabaseClient.from(table).delete().eq('id', id);
-            if (error) window.showToast("Błąd"); else { window.showToast("Usunięto trwale!"); window.loadArchiveData(); }
+            if (error) window.showToast("Błąd"); else {
+                window.showToast("Usunięto trwale!");
+                window.invalidateDashboardCache?.();
+                window.loadArchiveData();
+            }
         });
     };
 

@@ -38,7 +38,7 @@ window.HomeModule = (() => {
         window.loadDashboard(); 
     };
 
-    window.loadDashboard = async function() {
+    window.loadDashboard = async function(forceRefresh = false) {
         const list = document.getElementById('dashboard-list') || document.getElementById('home-task-list');
         const backBtn = document.getElementById('home-back-btn');
         
@@ -57,13 +57,10 @@ window.HomeModule = (() => {
         // INSTANT RENDER z AppStore (0 ms)
         window.renderHomeUI();
 
-        // Tło: Dociągnięcie danych z Supabase w razie potrzeby
-        const state = window.AppStore.get() || {};
-        if (!state.tasks || state.tasks.length === 0) {
-            if (typeof window.loadDashboardOverview === 'function') {
-                await window.loadDashboardOverview(true);
-                window.renderHomeUI();
-            }
+        // Dane lokalne są już widoczne; synchronizacja korzysta z TTL i odświeża widok po zakończeniu.
+        if (typeof window.loadDashboardOverview === 'function') {
+            await window.loadDashboardOverview(forceRefresh);
+            window.renderHomeUI();
         }
     };
 
@@ -74,6 +71,15 @@ window.HomeModule = (() => {
         const tasks = (state.tasks || []).filter(t => !t.is_archived); 
         const logs = state.logs || [];
         const dbRooms = state.rooms || [];
+        const latestLogByTask = new Map();
+        logs.forEach(log => {
+            if (log.task_id == null || !log.created_at) return;
+            const logTime = new Date(log.created_at).getTime();
+            if (!Number.isFinite(logTime)) return;
+            const key = String(log.task_id);
+            const previous = latestLogByTask.get(key);
+            if (!previous || logTime > previous.time) latestLogByTask.set(key, { log, time: logTime });
+        });
 
         if (tasks.length === 0 && !roomFilter) {
             if (list) {
@@ -101,9 +107,9 @@ window.HomeModule = (() => {
                 if (!roomStats[rName]) roomStats[rName] = { icon: '📦', total: 0, overdue: 0 };
                 roomStats[rName].total++;
                 
-                const taskLogs = logs.filter(l => sameId(l.task_id, task.id)).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+                const lastLog = latestLogByTask.get(String(task.id))?.log;
                 if (task.interval_days && task.interval_days > 0) {
-                    if (taskLogs.length === 0) {
+                    if (!lastLog) {
                         const dueDate = new Date(task.next_due_at || task.created_at || today);
                         dueDate.setHours(0, 0, 0, 0);
                         if (dueDate < today) {
@@ -111,7 +117,7 @@ window.HomeModule = (() => {
                             totalOverdueAll++;
                         }
                     } else {
-                        const nextDate = new Date(taskLogs[0].created_at);
+                        const nextDate = new Date(lastLog.created_at);
                         nextDate.setDate(nextDate.getDate() + task.interval_days);
                         nextDate.setHours(0,0,0,0);
                         if (nextDate < today) {
@@ -119,7 +125,7 @@ window.HomeModule = (() => {
                             totalOverdueAll++;
                         }
                     }
-                } else if (!taskLogs.length && task.next_due_at) {
+                } else if (!lastLog && task.next_due_at) {
                     const dueDate = new Date(task.next_due_at);
                     dueDate.setHours(0, 0, 0, 0);
                     if (dueDate < today) {
@@ -179,12 +185,11 @@ window.HomeModule = (() => {
         let tasksToDisplay = roomFilter === 'Wszystkie' ? tasks : tasks.filter(t => (t.room || 'Inne') === roomFilter);
 
         let scored = tasksToDisplay.map(t => {
-            const taskLogs = logs.filter(l => sameId(l.task_id, t.id)).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-            const lastLog = taskLogs[0]; 
+            const lastLog = latestLogByTask.get(String(t.id))?.log;
             let daysRemaining;
             
             if (!t.interval_days || t.interval_days === 0) {
-                if (taskLogs.length > 0) {
+                if (lastLog) {
                     daysRemaining = 999999;
                 } else if (t.next_due_at) {
                     const dueDate = new Date(t.next_due_at);

@@ -4,8 +4,7 @@
 
 window.EventDispatcher = (() => {
     const clickHandlers = new Map();
-    let lastClickTime = 0;
-    let lastClickTarget = null;
+    const pendingElements = new WeakSet();
 
     // 1. STYLE OPTYMALIZACYJNE DLA EKRANÓW DOTYKOWYCH
     // Eliminujemy opóźnienie 300ms na iOS oraz wymuszamy traktowanie klas 'js-' jako przycisków
@@ -19,9 +18,6 @@ window.EventDispatcher = (() => {
     `;
     document.head.appendChild(style);
 
-    // Fix dla zachowania delegacji zdarzeń w iOS Safari
-    document.body.addEventListener('touchstart', () => {}, { passive: true });
-
     // 2. REJESTRACJA HANDLERA (Używamy Map dla błyskawicznego dostępu)
     const onClick = (selector, callback) => {
         if (!clickHandlers.has(selector)) {
@@ -32,15 +28,6 @@ window.EventDispatcher = (() => {
 
     // 3. GLÓWNA PĘTLA OBSŁUGI ZDARZEŃ (NATURALNY DOM BUBBLING)
     document.addEventListener('click', (e) => {
-        // Ochrona przed podwójnym kliknięciem (Debounce / Double-Tap Guard - 200ms)
-        const now = Date.now();
-        if (e.target === lastClickTarget && (now - lastClickTime < 200)) {
-            e.preventDefault();
-            return;
-        }
-        lastClickTime = now;
-        lastClickTarget = e.target;
-
         let node = e.target;
 
         // Idziemy w górę od klikniętego elementu do korzenia document
@@ -52,16 +39,34 @@ window.EventDispatcher = (() => {
 
             for (const [selector, callbacks] of clickHandlers.entries()) {
                 if (node.matches(selector)) {
+                    if (pendingElements.has(node)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                    }
+
+                    const pendingResults = [];
                     for (const callback of callbacks) {
                         try {
                             // BEZPIECZNA KAPSUŁKA: Błąd w jednym kliknięciu nie wywala całej aplikacji!
-                            callback(e, node);
+                            const result = callback(e, node);
+                            if (result && typeof result.then === 'function') pendingResults.push(result);
                         } catch (err) {
                             console.error(`[EventDispatcher Error] na selectorze "${selector}":`, err);
                             if (window.showToast) {
                                 window.showToast("Wystąpił drobny błąd interfejsu");
                             }
                         }
+                    }
+
+                    if (pendingResults.length) {
+                        pendingElements.add(node);
+                        Promise.all(pendingResults.map(result => Promise.resolve(result)))
+                            .catch(err => {
+                                console.error(`[EventDispatcher Async Error] na selectorze "${selector}":`, err);
+                                window.showToast?.('Nie udało się wykonać tej akcji. Spróbuj ponownie.');
+                            })
+                            .finally(() => pendingElements.delete(node));
                     }
                     // Po znalezieniu i obsłudze najbliższego elementu przerywamy,
                     // aby nie odpalać rodziców z tą samą klasą

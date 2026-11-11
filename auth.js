@@ -4,6 +4,8 @@
 
 let isLoginMode = true;
 
+const profileCacheKey = userId => `bento_profile_cache:${encodeURIComponent(String(userId))}`;
+
 window.hideSplashScreen = function() {
     const splash = document.getElementById('splash-screen');
     if (splash) {
@@ -62,6 +64,15 @@ window.finalizeLogin = async function(user) {
 
         let profile = profiles && profiles.length > 0 ? profiles[0] : null;
 
+        if (pError) {
+            const isNetworkError = !navigator.onLine || /fetch|network|timeout|load failed/i.test(`${pError.name || ''} ${pError.message || ''}`);
+            if (isNetworkError) {
+                try { profile = JSON.parse(localStorage.getItem(profileCacheKey(user.id)) || 'null'); }
+                catch (e) { profile = null; }
+            }
+            if (!profile?.household_id) throw pError;
+        }
+
         if (!profile || !profile.household_id) {
             const { data: memberData } = await window.supabaseClient
                 .from('household_members')
@@ -90,8 +101,9 @@ window.finalizeLogin = async function(user) {
             }
         }
 
+        try { localStorage.setItem(profileCacheKey(user.id), JSON.stringify(profile)); } catch (e) {}
         window.currentUser = { ...profile, user_id: user.id };
-        window.AppStore?.setScope(user.id, profile.household_id || null);
+        await window.AppStore?.setScope(user.id, profile.household_id || null);
         
         const urlParams = new URLSearchParams(window.location.search);
         const view = urlParams.get('view') || 'dashboard';

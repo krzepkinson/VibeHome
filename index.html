@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>HomeVibe</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#131314">
@@ -19,11 +19,17 @@
         });
     </script>
 
-    <script src="/config.js?v=9"></script>
+    <script src="/config.js?v=10"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&display=swap');
         body { font-family: 'Outfit', sans-serif; -webkit-tap-highlight-color: transparent; background-color: #131314; color: #e3e3e3; overscroll-behavior-y: none; }
+        body.h-screen { height: 100vh; height: 100dvh; }
+        #main-screen { min-height: 0; padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)); -webkit-overflow-scrolling: touch; }
+        #bottom-nav { padding-bottom: env(safe-area-inset-bottom, 0px); }
+        .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+        .screen-view, #main-screen, .overflow-y-auto { overscroll-behavior-y: contain; }
         .js-swipe-item, .swipe-front { touch-action: pan-y; }
         
         .hidden { display: none !important; pointer-events: none !important; visibility: hidden !important; }
@@ -47,6 +53,9 @@
         @media (hover: hover) and (pointer: fine) {
             .group:hover .swipe-front { transform: translateX(-64px); }
             .group:hover .js-swipe-item { transform: translateX(-80px) !important; }
+        }
+        @media (max-width: 640px) {
+            input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
         }
     </style>
 </head>
@@ -163,24 +172,24 @@
         </div>
     </div>
     
-    <script src="/events.js?v=9"></script>
+    <script src="/events.js?v=10"></script>
     
-    <script src="/utils.js?v=9"></script>
-    <script src="/store.js?v=9"></script>
-    <script src="/components.js?v=9"></script>
-    <script src="/user-log.js?v=9"></script>
-    <script src="/household.js?v=9"></script>
-    <script src="/router.js?v=9"></script>
-    <script src="/auth.js?v=9"></script>
-    <script src="/dashboard.js?v=9"></script>
-    <script src="/calendar.js?v=9"></script>
-    <script src="/home.js?v=9"></script>
-    <script src="/health.js?v=9"></script>
-    <script src="/quick-add.js?v=9"></script>
-    <script src="/todo.js?v=9"></script>
-    <script src="/settings.js?v=9"></script>
-    <script src="/search.js?v=9"></script>
-    <script src="/stats.js?v=9"></script>
+    <script src="/utils.js?v=10"></script>
+    <script src="/store.js?v=10"></script>
+    <script src="/components.js?v=10"></script>
+    <script src="/user-log.js?v=10"></script>
+    <script src="/household.js?v=10"></script>
+    <script src="/router.js?v=10"></script>
+    <script src="/auth.js?v=10"></script>
+    <script src="/dashboard.js?v=10"></script>
+    <script src="/calendar.js?v=10"></script>
+    <script src="/home.js?v=10"></script>
+    <script src="/health.js?v=10"></script>
+    <script src="/quick-add.js?v=10"></script>
+    <script src="/todo.js?v=10"></script>
+    <script src="/settings.js?v=10"></script>
+    <script src="/search.js?v=10"></script>
+    <script src="/stats.js?v=10"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {

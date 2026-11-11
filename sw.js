@@ -2,7 +2,7 @@
 // SERVICE WORKER: CACHING + PUSH (sw.js)
 // ==========================================
 
-const CACHE_NAME = 'homevibe-v2.8.9';
+const CACHE_NAME = 'homevibe-v2.9.0';
 
 // 1. Lista plików do "zamrożenia" w pamięci telefonu (App Shell)
 const ASSETS_TO_CACHE = [

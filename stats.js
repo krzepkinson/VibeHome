@@ -121,35 +121,17 @@ window.StatsModule = (() => {
 
     // --- PUBLICZNE API MODUŁU ---
 
-    window.openStatsScreen = async function() {
-        window.goForward('stats-screen');
-        await window.loadStats();
+    window.openStatsScreen = function() {
+        return window.goForward('stats-screen');
     };
 
-    window.loadStats = async function() {
+    window.loadStats = async function(forceRefresh = false) {
         const container = document.getElementById('stats-list');
         if (!container) return;
-        container.innerHTML = `<p class="text-neutral-500 text-xs text-center py-10 animate-pulse">Obliczam statystyki...</p>`;
-
-        const hid = window.currentUser.household_id;
-
-        // Fetch z limitem dla historii (punkt 5 Claude'a), ale wystarczającym dla statystyk
-        const [tasksRes, logsRes] = await Promise.all([
-            window.supabaseClient.from('tasks')
-                .select('*')
-                .eq('household_id', hid)
-                .eq('is_archived', false)
-                .gt('interval_days', 0),
-            window.supabaseClient.from('activity_logs')
-                .select('*')
-                .eq('household_id', hid)
-                .order('created_at', { ascending: false }) // POPRAWKA 1: Najpierw pobieramy najnowsze wpisy
-                .limit(1000) 
-        ]);
-
-        const tasks = tasksRes.data || [];
-        // POPRAWKA 2: Odwracamy tablicę, żeby algorytm liczył dni poprawnie (od najstarszego z najnowszych)
-        const logs = (logsRes.data || []).reverse();
+        const render = () => {
+        const state = window.AppStore.get() || {};
+        const tasks = (state.tasks || []).filter(task => !task.is_archived && Number(task.interval_days) > 0);
+        const logs = state.logs || [];
 
         if (tasks.length === 0) {
             container.innerHTML = window.UI.renderEmptyState("Brak danych", "Dodaj zadania cykliczne, by zobaczyć statystyki.");
@@ -184,6 +166,11 @@ window.StatsModule = (() => {
 
         html += statsData.map(s => renderTaskStat(s)).join('');
         container.innerHTML = html;
+        };
+
+        render();
+        await window.loadDashboardOverview?.(forceRefresh);
+        render();
     };
 
     return {

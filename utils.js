@@ -43,19 +43,21 @@ window.showToast = function(message) {
     window.toastTimeout = setTimeout(() => { toast.classList.add('opacity-0', '-translate-y-10'); }, 3000);
 };
 
-window.refreshCurrentView = async function() {
+window.refreshCurrentView = async function(forceRefresh = false) {
     try {
         const view = window.activeView;
         if (document.getElementById('checklist-screen') && !document.getElementById('checklist-screen').classList.contains('hidden')) {
             if (typeof window.loadChecklistItems === 'function') await window.loadChecklistItems();
         } else if (view === 'dashboard') {
-            if (typeof window.loadDashboardOverview === 'function') await window.loadDashboardOverview(true); 
+            if (typeof window.loadDashboardOverview === 'function') await window.loadDashboardOverview(forceRefresh); 
         } else if (view === 'home') {
-            if (typeof window.loadDashboard === 'function') await window.loadDashboard();
+            if (typeof window.loadDashboard === 'function') await window.loadDashboard(forceRefresh);
         } else if (view === 'todo') {
-            if (typeof window.loadTodosAndLists === 'function') await window.loadTodosAndLists();
+            if (typeof window.loadTodosAndLists === 'function') await window.loadTodosAndLists(forceRefresh);
         } else if (view === 'health') {
-            if (typeof window.initHealthModule === 'function') await window.initHealthModule();
+            if (typeof window.initHealthModule === 'function') await window.initHealthModule(forceRefresh);
+        } else if (view === 'pharmacy-screen') {
+            if (typeof window.loadPharmacyItems === 'function') await window.loadPharmacyItems(forceRefresh);
         }
     } catch(e) { console.error("Błąd odświeżania:", e); }
 };
@@ -150,31 +152,48 @@ document.addEventListener('DOMContentLoaded', window.initPullToRefresh);
 
 // --- SYSTEM SWIPE-TO-DELETE ---
 window.setupGlobalSwipe = function() {
-    let startX = 0; let isDragging = false; let activeItem = null; let openItem = null;
+    let startX = 0; let startY = 0; let isDragging = false; let horizontalSwipe = false; let activeItem = null; let openItem = null;
     
     const handleStart = (e) => {
         const swipeFront = e.target.closest('.swipe-front, .js-swipe-item');
         if (openItem && openItem !== swipeFront) { openItem.style.transform = 'translateX(0px)'; openItem = null; }
         if (!swipeFront) return;
         if (window.activeView === 'home' && swipeFront.matches('.js-swipe-item')) return;
-        activeItem = swipeFront; startX = e.touches ? e.touches[0].clientX : e.pageX; isDragging = true;
-        activeItem.style.transition = 'none';
+        activeItem = swipeFront;
+        startX = e.touches ? e.touches[0].clientX : e.pageX;
+        startY = e.touches ? e.touches[0].clientY : e.pageY;
+        isDragging = true;
+        horizontalSwipe = false;
     };
     
     const handleMove = (e) => {
         if (!isDragging || !activeItem) return;
-        let x = e.touches ? e.touches[0].clientX : e.pageX;
-        const diff = x - startX;
-        if (diff < 0) activeItem.style.transform = `translateX(${Math.max(diff, -100)}px)`;
+        const x = e.touches ? e.touches[0].clientX : e.pageX;
+        const y = e.touches ? e.touches[0].clientY : e.pageY;
+        const diffX = x - startX;
+        const diffY = y - startY;
+        if (!horizontalSwipe && Math.abs(diffY) > 8 && Math.abs(diffY) > Math.abs(diffX)) {
+            isDragging = false;
+            activeItem = null;
+            return;
+        }
+        if (Math.abs(diffX) > 8 && Math.abs(diffX) > Math.abs(diffY)) {
+            horizontalSwipe = true;
+            activeItem.style.transition = 'none';
+            if (diffX < 0) activeItem.style.transform = `translateX(${Math.max(diffX, -100)}px)`;
+        }
     };
     
     const handleEnd = (e) => {
-        if (!isDragging || !activeItem) return; isDragging = false;
+        if (!isDragging || !activeItem) return;
+        isDragging = false;
+        if (!horizontalSwipe) { activeItem = null; return; }
         activeItem.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
         let x = e.changedTouches ? e.changedTouches[0].clientX : e.pageX;
         if (x - startX < -40) { activeItem.style.transform = 'translateX(-64px)'; openItem = activeItem; }
         else { activeItem.style.transform = 'translateX(0px)'; }
         activeItem = null;
+        horizontalSwipe = false;
     };
     
     document.addEventListener('touchstart', handleStart, { passive: true });

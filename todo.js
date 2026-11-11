@@ -8,6 +8,7 @@ window.TodoModule = (() => {
     let currentChecklistType = 'generic';
 
     const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+    const normalizeId = id => /^\d+$/.test(String(id ?? '')) ? Number(id) : String(id ?? '');
 
     // PANCERNE HELPERY POBIERANIA ID UŻYTKOWNIKA I DOMU (BEZPIECZEŃSTWO SYNCU)
     const getUserId = () => {
@@ -65,11 +66,11 @@ window.TodoModule = (() => {
         { name: '🧴 Chemia i Dom', keys: ['mydł', 'papier', 'płyn', 'proszek', 'szampon', 'pasta', 'żel', 'gąbk', 'mop', 'ścier', 'work'] }
     ];
 
-    window.initTodoModule = async function() {
-        await window.loadTodosAndLists();
+    window.initTodoModule = async function(forceRefresh = false) {
+        await window.loadTodosAndLists(forceRefresh);
     };
 
-    window.initChecklistUI = function() {
+    window.initChecklistUI = function(forceRefresh = false) {
         const titleEl = document.getElementById('checklist-screen-title');
         if (!titleEl) return;
 
@@ -90,39 +91,15 @@ window.TodoModule = (() => {
             actionsContainer.appendChild(resetBtn);
         }
         
-        window.loadChecklistItems();
+        window.loadChecklistItems(forceRefresh);
     };
 
     // Ładowanie zadań i list (Local First: RAM + Supabase Sync)
     window.loadTodosAndLists = async function(forceRefresh = false) {
         window.renderTodoUI();
-
-        const state = window.AppStore.get() || {};
-        const hid = getHouseholdId();
-        if (!hid) return;
-
-        if (forceRefresh || !state.todos || state.todos.length === 0) {
-            try {
-                const [todosRes, listsRes, itemsRes] = await Promise.all([
-                    window.supabaseClient.from('todos').select('*').eq('household_id', hid).eq('is_archived', false).limit(200),
-                    window.supabaseClient.from('checklists').select('*').eq('household_id', hid).eq('is_archived', false).order('created_at', { ascending: false }),
-                    window.supabaseClient.from('checklist_items').select('*').eq('household_id', hid)
-                ]);
-
-                const failedResult = [todosRes, listsRes, itemsRes].find(result => result.error);
-                if (failedResult) throw failedResult.error;
-
-                window.AppStore.set(current => ({
-                    ...current,
-                    todos: todosRes.data || [],
-                    checklists: listsRes.data || [],
-                    checklistItems: itemsRes.data || []
-                }));
-                
-                window.renderTodoUI();
-            } catch (err) {
-                console.warn("Tryb offline - praca na danych lokalnych:", err);
-            }
+        if (typeof window.loadDashboardOverview === 'function') {
+            await window.loadDashboardOverview(forceRefresh);
+            window.renderTodoUI();
         }
     };
 
@@ -424,7 +401,7 @@ window.TodoModule = (() => {
     };
 
     window.openChecklistScreen = function(id, title, type) {
-        currentChecklistId = parseInt(id, 10); 
+        currentChecklistId = normalizeId(id);
         currentChecklistTitle = title;
         currentChecklistType = type || 'generic';
         window.goForward('checklist-screen');
@@ -447,19 +424,18 @@ window.TodoModule = (() => {
             </div>`).join('');
     }
 
-    window.loadChecklistItems = async function() {
+    window.loadChecklistItems = async function(forceRefresh = false) {
         const listEl = document.getElementById('checklist-items-list');
         if (!listEl || !currentChecklistId) return;
-        
-        const state = window.AppStore.get() || {};
-        let items = (state.checklistItems || []).filter(i => sameId(i.checklist_id, currentChecklistId));
-        
-        if (items.length === 0) {
+        let state = window.AppStore.get() || {};
+        if (forceRefresh || !state.lastSyncedAt || Date.now() - state.lastSyncedAt > window.CONFIG.CACHE_TTL) {
             listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10 animate-pulse">Ładowanie zawartości...</p>`;
-            const { data } = await window.supabaseClient.from('checklist_items').select('*').eq('checklist_id', currentChecklistId).order('created_at', { ascending: true });
-            items = data || [];
-            window.AppStore.set(s => ({...s, checklistItems: [...(s.checklistItems||[]).filter(i=>!sameId(i.checklist_id, currentChecklistId)), ...items]}));
+            await window.loadDashboardOverview?.(forceRefresh);
+            state = window.AppStore.get() || {};
         }
+        const items = (state.checklistItems || [])
+            .filter(i => sameId(i.checklist_id, currentChecklistId))
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
         const clearBtn = document.getElementById('checklist-clear-btn');
         if (clearBtn) clearBtn.classList.toggle('hidden', !items.some(i => i.is_completed));
@@ -779,14 +755,14 @@ window.TodoModule = (() => {
             e.preventDefault();
             e.stopPropagation();
             const targetEl = el.dataset.id ? el : el.closest('[data-id]');
-            if (targetEl) window.archiveChecklist(parseInt(targetEl.dataset.id, 10));
+            if (targetEl) window.archiveChecklist(normalizeId(targetEl.dataset.id));
         });
 
         window.EventDispatcher.onClick('.js-archive-todo', (e, el) => {
             e.preventDefault();
             e.stopPropagation();
             const targetEl = el.dataset.id ? el : el.closest('[data-id]');
-            if (targetEl) window.archiveTodo(parseInt(targetEl.dataset.id, 10));
+            if (targetEl) window.archiveTodo(normalizeId(targetEl.dataset.id));
         });
 
         window.EventDispatcher.onClick('.js-toggle-todo', (e, el) => {
@@ -794,7 +770,7 @@ window.TodoModule = (() => {
             const targetEl = el.dataset.id ? el : el.closest('[data-id]');
             if (targetEl) {
                 const isDone = targetEl.dataset.status === 'true';
-                window.toggleTodo(parseInt(targetEl.dataset.id, 10), isDone);
+                window.toggleTodo(normalizeId(targetEl.dataset.id), isDone);
             }
         });
 
@@ -803,7 +779,7 @@ window.TodoModule = (() => {
             const targetEl = el.dataset.id ? el : el.closest('[data-id]');
             if (targetEl) {
                 const isUrgent = targetEl.dataset.urgent === 'true';
-                window.toggleTodoUrgency(parseInt(targetEl.dataset.id, 10), isUrgent);
+                window.toggleTodoUrgency(normalizeId(targetEl.dataset.id), isUrgent);
             }
         });
 
@@ -816,14 +792,14 @@ window.TodoModule = (() => {
         window.EventDispatcher.onClick('.js-delete-checklist-item', (e, el) => {
             e.preventDefault();
             const targetEl = el.dataset.id ? el : el.closest('[data-id]');
-            if (targetEl) window.deleteChecklistItem(parseInt(targetEl.dataset.id, 10), targetEl);
+            if (targetEl) window.deleteChecklistItem(normalizeId(targetEl.dataset.id), targetEl);
         });
 
         window.EventDispatcher.onClick('.js-toggle-checklist-item', (e, el) => {
             const targetEl = el.dataset.id ? el : el.closest('[data-id]');
             if (targetEl) {
                 const isCompleted = targetEl.dataset.status === 'true';
-                window.toggleChecklistItem(parseInt(targetEl.dataset.id, 10), isCompleted, targetEl);
+                window.toggleChecklistItem(normalizeId(targetEl.dataset.id), isCompleted, targetEl);
             }
         });
     } else {
