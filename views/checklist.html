@@ -1,21 +1,6 @@
-<div class="fixed inset-0 z-[60] bg-[#131314] flex flex-col transition-all duration-300 animate-fade-in">
-    <div class="p-4 sm:p-6 border-b border-[#333537] flex items-center gap-3 bg-[#1e1f20]">
-        <button onclick="window.goBack()" class="text-neutral-400 text-2xl active:scale-90 transition-transform pb-1 px-2">←</button>
-        <div class="flex-1">
-            <h1 class="text-lg font-medium text-neutral-100" id="checklist-screen-title">Lista</h1>
-            <button onclick="window.clearCompletedItems()" id="checklist-clear-btn" class="text-[10px] text-[#a8c7fa] font-bold uppercase tracking-widest mt-0.5 hidden">Usuń zrobione</button>
-        </div>
-    </div>
-    
-    <div class="p-4 sm:p-6 flex-1 overflow-y-auto no-scrollbar">
-        <div id="checklist-items-list" class="space-y-1"></div>
-    </div>
-    
-    <div class="p-4 bg-[#1e1f20] border-t border-[#333537] pb-8">
-        <div class="flex gap-2">
-            <input type="text" id="new-checklist-item-input" placeholder="Dodaj element..." 
-                   class="flex-1 bg-[#131314] border border-[#333537] rounded-full px-5 py-3 text-sm text-neutral-200 focus:outline-none focus:border-[#a8c7fa]">
-            <button onclick="window.saveChecklistItem()" class="w-12 h-12 bg-[#a8c7fa] text-[#004a77] rounded-full flex items-center justify-center text-2xl pb-1 shadow-md active:scale-90 transition-transform">+</button>
-        </div>
-    </div>
+<div class="fixed inset-0 z-[60] flex flex-col" style="background:var(--ux-bg)">
+ <header class="ux-header" style="padding:16px;margin:0;border-bottom:1px solid var(--ux-line)"><button type="button" class="ux-icon-btn" onclick="window.goBack()" aria-label="Wróć"><span data-icon="back"></span></button><h1 class="ux-title" id="checklist-screen-title" style="flex:1">Lista</h1><button type="button" class="ux-btn primary js-open-quick-add" data-type="list-item"><span data-icon="plus"></span>Dodaj</button></header>
+ <div class="ux-toolbar" style="padding:8px 16px;justify-content:flex-start"><button type="button" id="checklist-clear-btn" class="ux-btn ghost small hidden" onclick="window.clearCompletedItems()">Usuń ukończone</button></div>
+ <div class="flex-1 min-h-0 overflow-y-auto" style="padding:0 16px 20px"><div id="checklist-items-list"></div></div>
+ <div style="padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--ux-line);background:var(--ux-panel)"><form id="checklist-inline-form" style="display:flex;gap:8px" onsubmit="event.preventDefault();window.saveChecklistItem()"><label class="sr-only" for="new-checklist-item-input">Nowa pozycja listy</label><input id="new-checklist-item-input" class="ux-input" style="flex:1" placeholder="Dodaj pozycję…" autocomplete="off"><button type="submit" class="ux-icon-btn" aria-label="Dodaj do listy"><span data-icon="plus"></span></button></form></div>
 </div>

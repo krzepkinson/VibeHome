@@ -1,47 +1,10 @@
-<div class="max-w-xl mx-auto p-4 sm:p-6 pb-24 relative min-h-[90vh] animate-fade-in">
-    <header class="mb-3 mt-1 flex justify-between items-center gap-3">
-        <h1 class="text-xl font-medium text-neutral-100 tracking-wide">Przegląd</h1>
-        <div class="flex items-center gap-1">
-            <button class="js-open-history w-9 h-9 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 flex items-center justify-center text-sm" aria-label="Historia">🕒</button>
-            <button class="js-dash-nav w-9 h-9 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-200 flex items-center justify-center text-sm" data-view="calendar" aria-label="Kalendarz">📅</button>
-            <button class="js-open-search w-9 h-9 rounded-full bg-[#1e1f20] border border-[#333537] text-neutral-400 flex items-center justify-center text-base" aria-label="Szukaj">🔍</button>
-            <button class="js-open-quick-add h-9 px-2.5 rounded-full bg-[#c4eed0] text-[#133323] font-medium text-[11px] whitespace-nowrap">＋ Dodaj</button>
-        </div>
-    </header>
-
-    <div class="flex justify-between items-center gap-3 py-2 border-b border-[#333537]">
-        <div class="flex items-center gap-2 text-xs text-neutral-300">
-            <span id="dashboard-overdue-count" class="text-[#ffb4ab]">0 zaległych</span>
-            <span class="text-neutral-600">·</span>
-            <span id="dashboard-upcoming-count" class="text-neutral-400">0 wkrótce</span>
-        </div>
-        <label class="flex items-center gap-1.5 text-[11px] text-neutral-400">
-            <span>Horyzont</span>
-            <select id="dashboard-horizon" class="bg-transparent text-neutral-200 focus:outline-none">
-                <option value="30">30 dni</option>
-                <option value="90" selected>90 dni</option>
-                <option value="365">rok</option>
-            </select>
-        </label>
-    </div>
-
-    <div class="flex gap-4 border-b border-[#333537] mt-1" role="group" aria-label="Filtr przeglądu">
-        <button class="js-dashboard-filter py-2 text-xs text-[#c4eed0] border-b-2 border-[#9dd7b0]" data-filter="all" aria-pressed="true">Wszystko</button>
-        <button class="js-dashboard-filter py-2 text-xs text-neutral-400 border-b-2 border-transparent" data-filter="home" aria-pressed="false">Dom</button>
-        <button class="js-dashboard-filter py-2 text-xs text-neutral-400 border-b-2 border-transparent" data-filter="health" aria-pressed="false">Zdrowie</button>
-    </div>
-
-    <div id="dashboard-overview-list" class="mt-2" aria-live="polite"></div>
-    <div class="h-10"></div>
+<div class="ux-page">
+  <header class="ux-header"><h1 class="ux-title">Przegląd</h1><div class="ux-toolbar"><button type="button" class="ux-icon-btn js-open-search" aria-label="Szukaj"><span data-icon="search"></span></button><button type="button" class="ux-icon-btn js-dash-nav" data-view="settings" aria-label="Ustawienia"><span data-icon="settings"></span></button><button type="button" class="ux-btn primary js-open-quick-add"><span data-icon="plus"></span>Dodaj</button></div></header>
+  <div class="ux-summary-line"><span id="overview-summary">Najbliższe terminy i ważne sprawy</span><label for="dashboard-horizon">Horyzont <select id="dashboard-horizon" class="ux-profile-select"><option value="30">30 dni</option><option value="90" selected>90 dni</option><option value="365">Rok</option></select></label></div>
+  <div id="overview-content" aria-live="polite"></div>
+  <div class="ux-section"><button type="button" class="ux-btn ghost small js-open-history"><span data-icon="history"></span>Historia wykonanych spraw</button></div>
 </div>
-
-<div id="dashboard-history-overlay" class="fixed inset-0 z-50 bg-[#131314] hidden flex flex-col animate-fade-in">
-    <div class="p-4 sm:p-6 border-b border-[#333537] bg-[#1e1f20] flex items-center gap-3 shrink-0">
-        <button class="js-close-history text-neutral-400 text-3xl pb-1 px-2">←</button>
-        <div>
-            <h2 class="text-lg font-medium text-neutral-100">Historia ostatnich zdarzeń</h2>
-            <p class="text-xs text-neutral-400 mt-0.5">Kto i kiedy odhaczył</p>
-        </div>
-    </div>
-    <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-32 no-scrollbar" style="-webkit-overflow-scrolling: touch;" id="dashboard-history-list"></div>
+<div id="dashboard-history-overlay" class="fixed inset-0 z-50 bg-[#131314] hidden flex flex-col">
+  <header class="ux-header" style="padding:18px;margin:0;border-bottom:1px solid var(--ux-line)"><button type="button" class="ux-icon-btn js-close-history" aria-label="Wróć"><span data-icon="back"></span></button><h2 class="ux-title" style="font-size:18px;flex:1">Historia wykonanych spraw</h2></header>
+  <div id="dashboard-history-list" class="flex-1 min-h-0 overflow-y-auto p-4 pb-24"></div>
 </div>

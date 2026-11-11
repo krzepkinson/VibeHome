@@ -1,147 +1,22 @@
-<div class="max-w-xl mx-auto bg-[#131314] min-h-[100vh] flex flex-col animate-fade-in relative pb-24">
-    
-    <header class="p-4 sm:p-6 border-b border-[#333537] bg-[#1e1f20] sticky top-0 z-30">
-        <div class="flex flex-col gap-3 mb-3">
-          <div class="flex justify-between items-center gap-2">
-            <div class="flex items-center gap-2 sm:gap-3">
-                <button class="js-cal-go-back text-neutral-400 text-3xl active:scale-90 transition-transform pl-1 pr-2 pb-1 cursor-pointer">←</button>
-                <div>
-                    <h1 class="text-lg font-bold text-neutral-100 tracking-wide">Kalendarz</h1>
-                    <p class="text-[10px] text-neutral-400 uppercase tracking-widest mt-0.5" id="calendar-subtitle">Wydarzenia i terminy</p>
-                </div>
-            </div>
-            <button class="js-open-quick-add h-9 px-2.5 rounded-full bg-[#c4eed0] text-[#133323] font-medium text-[11px] whitespace-nowrap">＋ Dodaj</button>
-          </div>
-          <div class="bg-[#131314] rounded-full p-1 flex items-center border border-[#333537] self-start">
-              <button id="tab-agenda" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all bg-[#333537] text-white shadow-sm" data-tab="agenda">Agenda</button>
-              <button id="tab-month" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all text-neutral-500 hover:text-neutral-300" data-tab="month">Miesiąc</button>
-              <button id="tab-year" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all text-neutral-500 hover:text-neutral-300" data-tab="year">Rok</button>
-          </div>
-        </div>
-
-        <div class="flex gap-2 overflow-x-auto hide-scrollbar items-center mb-3">
-            <button id="filter-all" class="js-cal-filter px-3 py-1.5 bg-[#a8c7fa] text-[#004a77] rounded-full text-[10px] font-bold shrink-0 shadow-sm transition-colors" data-filter="all">Wszystko</button>
-            <button id="filter-Wydarzenie" class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-full text-[10px] font-bold shrink-0 transition-colors" data-filter="Wydarzenie">🎟️ Wydarzenia</button>
-            <button id="filter-Dom" class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-full text-[10px] font-bold shrink-0 transition-colors" data-filter="Dom">🏠 Dom</button>
-            <button id="filter-Zdrowie" class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-full text-[10px] font-bold shrink-0 transition-colors" data-filter="Zdrowie">❤️ Zdrowie</button>
-            <button id="filter-Zadanie" class="js-cal-filter px-3 py-1.5 bg-[#131314] border border-[#333537] text-neutral-400 rounded-full text-[10px] font-bold shrink-0 transition-colors" data-filter="Zadanie">📝 Zadania</button>
-        </div>
-
-        <div class="flex gap-2 overflow-x-auto hide-scrollbar items-center" id="cal-profile-filters"></div>
-        
-        <div class="flex items-center gap-2 mt-3">
-            <button class="js-cal-open-subfilter px-3 py-1.5 bg-[#333537]/50 border border-[#333537] text-neutral-300 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1 active:scale-95">
-                <span class="text-xs">+</span> Filtry
-            </button>
-            <div id="active-subfilter-badge" class="hidden flex items-center"></div>
-        </div>
+<div class="ux-page">
+    <header class="ux-header">
+        <div><h1 class="ux-title">Kalendarz</h1><p id="calendar-subtitle" class="ux-muted">Wydarzenia i zadania z terminem</p></div>
+        <div class="ux-toolbar"><button type="button" class="ux-icon-btn js-open-search" aria-label="Szukaj"><span data-ux-icon="search"></span></button><button type="button" class="ux-icon-btn js-dash-nav" data-view="settings" aria-label="Ustawienia"><span data-ux-icon="settings"></span></button><button type="button" class="ux-btn ux-btn-primary js-open-quick-add" data-kind="event"><span data-ux-icon="plus"></span> Dodaj</button></div>
     </header>
-
-    <div id="cal-view-agenda" class="flex-1 p-4 sm:p-6 overflow-y-auto hidden"></div>
-    
-    <div id="cal-view-month" class="flex-1 flex flex-col hidden">
-        <div class="p-4 sm:p-6 pb-2 border-b border-[#333537]">
-            <div class="flex justify-between items-center mb-4">
-                <button class="js-cal-change-month text-neutral-400 text-xl px-2 active:scale-90" data-offset="-1">←</button>
-                <h2 id="cal-month-title" class="text-lg font-bold text-[#c2e7ff]">Maj 2026</h2>
-                <button class="js-cal-change-month text-neutral-400 text-xl px-2 active:scale-90" data-offset="1">→</button>
-            </div>
-            <div id="cal-month-grid" class="mb-2"></div>
-        </div>
-        <div id="cal-month-details" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#131314] scroll-smooth"></div>
+    <div class="ux-tabs" aria-label="Widok kalendarza">
+        <button type="button" class="ux-tab js-cal-tab active" data-tab="agenda" aria-pressed="true">Agenda</button>
+        <button type="button" class="ux-tab js-cal-tab" data-tab="month" aria-pressed="false">Miesiąc</button>
+        <details class="ux-calendar-options"><summary class="ux-btn"><span data-ux-icon="more"></span> Więcej</summary><div class="ux-panel">
+            <button type="button" class="ux-btn js-cal-tab" data-tab="year">Widok roku</button>
+            <label class="ux-field" for="calendar-kind-filter">Rodzaj<select id="calendar-kind-filter" class="ux-input"><option value="all">Wszystkie wpisy</option><option value="event">Wydarzenia</option><option value="task">Zadania i listy</option><option value="episode">Przebieg zdrowia</option></select></label>
+            <label class="ux-field" for="calendar-area-filter">Obszar<select id="calendar-area-filter" class="ux-input"><option value="all">Wszystkie obszary</option><option value="Dom">Dom</option><option value="Zdrowie">Zdrowie</option><option value="Ogólne">Ogólne</option></select></label>
+            <label class="ux-field" for="calendar-person-filter">Osoba<select id="calendar-person-filter" class="ux-input"><option value="">Wszyscy</option></select></label>
+            <label class="ux-field"><input id="calendar-history-filter" type="checkbox"> Pokaż historię i odwołane wydarzenia</label>
+        </div></details>
     </div>
-    
-    <div id="cal-view-year" class="flex-1 p-4 sm:p-6 overflow-y-auto hidden bg-[#131314]">
-        <div class="flex justify-between items-center mb-6">
-            <button class="js-cal-change-year text-neutral-400 text-xl px-2 active:scale-90" data-offset="-1">←</button>
-            <div class="text-center">
-                <h2 class="text-lg font-bold text-neutral-100" id="cal-year-title">Heatmapa: 2026</h2>
-                <p class="text-[9px] text-neutral-500 uppercase tracking-widest mt-1">Legenda poniżej</p>
-            </div>
-            <button class="js-cal-change-year text-neutral-400 text-xl px-2 active:scale-90" data-offset="1">→</button>
-        </div>
-        
-        <div id="cal-year-grid" class="space-y-6"></div>
-
-        <div class="flex justify-center gap-4 mt-6 flex-wrap border-t border-[#333537] pt-6 pb-6">
-            <div class="flex items-center gap-1.5" title="Kino, wyjścia, imprezy"><div class="w-3 h-3 rounded-sm bg-[#d946ef]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Wydarzenie</span></div>
-            <div class="flex items-center gap-1.5" title="Katar, kaszel itp."><div class="w-3 h-3 rounded-sm bg-[#ef4444]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Infekcja</span></div>
-            <div class="flex items-center gap-1.5" title="Wizyty i szczepienia"><div class="w-3 h-3 rounded-sm bg-[#f59e0b]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Wizyta</span></div>
-            <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-[#3b82f6]"></div><span class="text-[9px] uppercase text-neutral-500 font-bold">Dom</span></div>
-        </div>
-
-        <div class="mt-4 bg-[#1e1f20] border border-[#333537] p-4 sm:p-5 rounded-[24px] shadow-lg mb-4">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-sm font-bold text-neutral-100" id="cal-stats-title">Podsumowanie: 2026</h3>
-                <span class="text-2xl opacity-80">📊</span>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-[#131314] rounded-xl p-3 border border-[#333537]">
-                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest mb-1" id="cal-stats-label-1">Aktywne dni</p>
-                    <p class="text-2xl font-bold text-neutral-200" id="cal-stats-val-1">0</p>
-                </div>
-                <div class="bg-[#131314] rounded-xl p-3 border border-[#333537]">
-                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest mb-1" id="cal-stats-label-2">Zarejestrowane</p>
-                    <p class="text-2xl font-bold text-neutral-200" id="cal-stats-val-2">0</p>
-                </div>
-            </div>
-            <button class="js-cal-generate-pdf w-full mt-4 py-3 bg-[#333537] text-neutral-200 text-xs font-bold uppercase tracking-widest rounded-xl border border-[#444746] active:scale-95 transition-transform flex justify-center items-center gap-2">
-                Generuj raport PDF
-            </button>
-        </div>
-    </div>
-
-</div>
-
-<div id="cal-subfilter-modal" class="hidden fixed inset-0 bg-[#131314]/80 backdrop-blur-sm z-[200] flex justify-center items-end sm:items-center p-0 sm:p-4">
-    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 pb-24 sm:pb-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-subfilter-panel">
-        <div class="flex justify-between items-center mb-4 border-b border-[#333537] pb-3">
-            <h3 class="text-base font-bold text-neutral-100">Wybierz zdarzenia</h3>
-            <button class="js-cal-close-subfilter text-neutral-500 text-xl">✕</button>
-        </div>
-        <div class="space-y-4">
-            <div id="cal-subfilter-pills" class="space-y-4 max-h-[50vh] overflow-y-auto hide-scrollbar pb-2">
-            </div>
-        </div>
-        <button class="js-cal-apply-subfilter w-full bg-[#a8c7fa] text-[#004a77] font-bold py-3 text-sm rounded-full active:scale-95 transition-transform mt-6 shadow-lg shadow-[#a8c7fa]/10">Zastosuj filtry</button>
-    </div>
-</div>
-
-<div id="cal-heatmap-modal" class="hidden fixed inset-0 bg-[#131314]/80 backdrop-blur-sm z-[200] flex justify-center items-end p-0 sm:p-4">
-    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 pb-24 sm:pb-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-heatmap-panel">
-        <div class="flex justify-between items-center mb-4 border-b border-[#333537] pb-3">
-            <div>
-                <h3 class="text-base font-bold text-neutral-100">Co się działo?</h3>
-                <p class="text-[10px] uppercase tracking-widest text-neutral-500 mt-0.5" id="cal-heatmap-modal-title">Data</p>
-            </div>
-            <button class="js-cal-close-heatmap text-neutral-500 text-xl active:scale-90">✕</button>
-        </div>
-        <div id="cal-heatmap-modal-content" class="space-y-2 mb-4 max-h-[50vh] overflow-y-auto hide-scrollbar"></div>
-    </div>
-</div>
-
-<div id="cal-event-modal" class="hidden fixed inset-0 bg-[#131314]/80 backdrop-blur-sm z-[200] flex justify-center items-end sm:items-center p-0 sm:p-4">
-    <div class="bg-[#1e1f20] rounded-t-[28px] sm:rounded-[28px] border border-[#333537] w-full max-w-sm p-6 pb-24 sm:pb-6 shadow-2xl transition-transform transform translate-y-full duration-300" id="cal-event-panel">
-        <div class="flex justify-between items-center mb-6 border-b border-[#333537] pb-3">
-            <div>
-                <h3 class="text-base font-bold text-neutral-100" id="cal-event-modal-title">Nowe Wydarzenie</h3>
-                <p class="text-[10px] uppercase tracking-widest text-neutral-500 mt-0.5">Z dokładną godziną</p>
-            </div>
-            <button class="js-cal-close-event text-neutral-500 text-xl active:scale-90">✕</button>
-        </div>
-        
-        <div class="space-y-4">
-            <input type="hidden" id="cal-event-id" value="">
-            <input type="text" id="cal-event-title" maxlength="100" placeholder="Nazwa (np. Wyjście do kina)" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#d946ef]">
-            <div>
-                <label class="block text-[10px] uppercase tracking-widest text-neutral-500 mb-1.5 font-bold pl-1">Data i Godzina</label>
-                <input type="datetime-local" id="cal-event-datetime" class="w-full p-3.5 rounded-[16px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm focus:outline-none focus:border-[#d946ef] [color-scheme:dark]">
-            </div>
-        </div>
-        
-        <div class="mt-6 flex flex-col gap-3">
-            <button class="js-cal-save-event w-full bg-[#d946ef] text-[#4a044e] font-bold py-3.5 text-sm rounded-full active:scale-95 transition-transform shadow-lg shadow-[#d946ef]/20">Zapisz wydarzenie</button>
-            <button id="cal-event-delete-btn" class="js-cal-delete-event hidden w-full text-[#ffb4ab] border border-[#8c1d18]/50 bg-[#3c1414]/30 font-bold py-3.5 text-sm rounded-full active:scale-95 transition-transform">Usuń wydarzenie</button>
-        </div>
-    </div>
+    <div id="calendar-active-filters" class="ux-toolbar"></div>
+    <section id="cal-view-agenda"></section>
+    <section id="cal-view-month" class="hidden"><header class="ux-header"><button type="button" class="ux-icon-btn js-cal-change-month" data-offset="-1" aria-label="Poprzedni miesiąc"><span data-ux-icon="back"></span></button><h2 id="cal-month-title" class="ux-section"></h2><button type="button" class="ux-icon-btn js-cal-change-month" data-offset="1" aria-label="Następny miesiąc"><span data-ux-icon="forward"></span></button></header><div id="cal-month-grid"></div></section>
+    <section id="cal-view-year" class="hidden"><header class="ux-header"><button type="button" class="ux-icon-btn js-cal-change-year" data-offset="-1" aria-label="Poprzedni rok"><span data-ux-icon="back"></span></button><h2 id="cal-year-title" class="ux-section"></h2><button type="button" class="ux-icon-btn js-cal-change-year" data-offset="1" aria-label="Następny rok"><span data-ux-icon="forward"></span></button></header><div id="cal-year-grid" class="ux-calendar-years"></div></section>
+    <section id="calendar-day-details" class="ux-section hidden"></section>
 </div>

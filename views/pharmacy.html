@@ -1,20 +1,7 @@
-<div class="fixed inset-0 z-[60] bg-[#131314] flex flex-col transition-all duration-300 animate-fade-in">
-    <div class="p-4 sm:p-6 border-b border-[#333537] flex flex-col gap-4 bg-[#1e1f20]">
-        <div class="flex items-center gap-3">
-            <button onclick="window.goBack()" class="text-neutral-400 text-2xl active:scale-90 pb-1 px-2">←</button>
-            <div class="flex-1">
-                <h1 class="text-lg font-medium text-neutral-100">Domowa Apteczka</h1>
-                <p class="text-[10px] text-neutral-500 uppercase tracking-widest">Spis leków</p>
-            </div>
-            <button type="button" class="js-open-quick-add h-9 px-3 bg-[#c4eed0] text-[#133323] rounded-full flex items-center justify-center text-xs font-medium whitespace-nowrap">＋ Dodaj</button>
-        </div>
-        <div class="relative">
-            <input type="text" id="pharmacy-search-input" oninput="window.renderPharmacyList()" placeholder="Szukaj w apteczce..." 
-                   class="w-full bg-[#131314] border border-[#333537] rounded-xl px-10 py-2.5 text-sm text-neutral-200 focus:outline-none focus:border-[#a8c7fa]">
-            <span class="absolute left-3 top-2.5 opacity-30">🔍</span>
-        </div>
-    </div>
-    <div class="p-4 sm:p-6 flex-1 overflow-y-auto no-scrollbar">
-        <div id="pharmacy-list" class="space-y-1"></div>
-    </div>
+<div class="ux-page">
+    <header class="ux-header"><div class="ux-toolbar"><button type="button" class="ux-icon-btn js-close-pharmacy-screen" aria-label="Wróć"><span data-ux-icon="back"></span></button><h1 class="ux-title">Apteczka</h1></div><button type="button" class="ux-btn primary js-open-quick-add" data-type="pharmacy"><span data-ux-icon="plus"></span> Dodaj</button></header>
+    <p class="ux-row-meta">Wspólna apteczka domu · produkty i ich opakowania</p>
+    <label class="ux-form-field" for="pharmacy-search-input">Szukaj nazwy, substancji lub opisu</label>
+    <input type="search" id="pharmacy-search-input" autocomplete="off" placeholder="Np. Apap lub paracetamol" oninput="window.renderPharmacyList()" class="ux-input">
+    <div id="pharmacy-list"></div>
 </div>
