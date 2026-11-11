@@ -1,7 +1,7 @@
 const CONFIG = {
-    SUPABASE_URL: "https://[reducted].supabase.co",
-    SUPABASE_KEY: "[reducted]",
-    VAPID_PUBLIC_KEY: "[reducted]",
+    SUPABASE_URL: "https://znrrvqgqxjxgahpfuqkm.supabase.co",
+    SUPABASE_KEY: "sb_publishable_NBhB0zf-fuRqkJMmllSEQg_7qcmtcOE",
+    VAPID_PUBLIC_KEY: "BL2GdHoe3QiVQrSO7NDLwbfMMcuF-07IGUFuXQgdJjd-TDl3PriVMvFnbqphZzpH48CH5IXn2hhS0sEzUAWLyoA",
     APP_VERSION: "2.8.6",
     VERSION: "2.8.6",
     DEBUG: true,        // ZMIANA: Zmienna potrzebna dla store.js (logowanie w konsoli)
