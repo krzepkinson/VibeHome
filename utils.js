@@ -38,6 +38,7 @@ window.showToast = function(message) {
     const toast = document.getElementById('toast');
     if (!toast) return;
     toast.innerText = message;
+    toast.style.pointerEvents = 'none';
     toast.classList.remove('opacity-0', '-translate-y-10');
     if (window.toastTimeout) clearTimeout(window.toastTimeout);
     window.toastTimeout = setTimeout(() => { toast.classList.add('opacity-0', '-translate-y-10'); }, 3000);
@@ -66,10 +67,12 @@ window.customConfirm = function(message, onConfirm) {
     document.getElementById('confirm-message').innerText = message;
     window._confirmCallback = onConfirm;
     document.getElementById('confirm-modal').classList.remove('hidden');
+    window.UX?.openDialog('confirm-modal');
 };
 
 window.closeConfirmModal = function(result) {
     document.getElementById('confirm-modal').classList.add('hidden');
+    window.UX?.closeDialog('confirm-modal');
     if (result && typeof window._confirmCallback === 'function') window._confirmCallback();
     window._confirmCallback = null;
 };

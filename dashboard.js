@@ -1104,7 +1104,6 @@ window.DashboardModule = (() => {
     // ==========================================
     if (window.EventDispatcher) {
         
-        window.EventDispatcher.onClick('.js-open-search', () => window.openGlobalSearch());
         window.EventDispatcher.onClick('.js-dashboard-filter', (e, el) => {
             dashboardFilter = el.dataset.filter || 'all';
             document.querySelectorAll('.js-dashboard-filter').forEach(button => {

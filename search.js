@@ -1,363 +1,147 @@
-// ==========================================
-// LOGIKA: WYSZUKIWARKA 2.1 - HYBRYDOWA (search.js)
-// ==========================================
-
+// Lokalne wyszukiwanie całej aplikacji; wspólna synchronizacja uzupełnia pamięć w tle.
 window.SearchModule = (() => {
-    let searchTimeout = null;
-    const HISTORY_KEY_PREFIX = 'bento_recent_searches_v1:';
-    const getHistoryKey = () => {
-        const userId = window.currentUser?.user_id;
-        return userId ? `${HISTORY_KEY_PREFIX}${encodeURIComponent(String(userId))}` : null;
+    const HISTORY_PREFIX = 'bento_recent_searches_v2:';
+    let generation = 0, timer = null, visible = false, currentQuery = '', rendered = new Map();
+    const esc = value => window.esc ? window.esc(value) : String(value || '');
+    const icon = name => window.UX?.icon?.(name) || '';
+    const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+    const normalize = value => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l');
+    const store = () => window.AppStore?.get() || {};
+    const historyKey = () => {
+        const user = window.currentUser;
+        const id = user?.user_id || user?.id;
+        return id ? `${HISTORY_PREFIX}${encodeURIComponent(id)}:${encodeURIComponent(user.household_id || '')}` : null;
     };
-    try { localStorage.removeItem('bento_recent_searches_v1'); } catch (e) {}
-
-    // 1. HELPERY HISTORII WYSZUKIWANIA
-    const getRecentSearches = () => {
-        try {
-            const key = getHistoryKey();
-            return key ? JSON.parse(localStorage.getItem(key)) || [] : [];
-        }
-        catch (e) { return []; }
-    };
-
-    const saveToRecentSearches = (item) => {
-        try {
-            const key = getHistoryKey();
-            if (!key) return;
-            let list = getRecentSearches();
-            list = list.filter(i => !(i.id === item.id && i.type === item.type));
-            list.unshift(item);
-            if (list.length > 5) list = list.slice(0, 5);
-            localStorage.setItem(key, JSON.stringify(list));
-        } catch (e) {}
-    };
-
-    window.clearRecentSearches = function() {
-        try {
-            const key = getHistoryKey();
-            if (key) localStorage.removeItem(key);
-        } catch (e) {}
-        window.renderRecentSearches();
-    };
-
-    // 2. HIGHLIGHTING (PODŚWIETLANIE FRAZY)
-    const highlightText = (text, query) => {
-        if (!text) return '';
-        if (!query) return window.esc(text);
-        const escText = window.esc(text);
-        const escQuery = window.esc(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const reg = new RegExp(`(${escQuery})`, 'gi');
-        return escText.replace(reg, '<mark class="bg-[#004a77] text-[#c2e7ff] px-1 rounded font-bold">$1</mark>');
-    };
-
-    // 3. RENDER HISTORII OSTATNICH WYSZUKIWAŃ
-    window.renderRecentSearches = function() {
-        const listEl = document.getElementById('search-results-list');
-        if (!listEl) return;
-
-        const recent = getRecentSearches();
-        if (recent.length === 0) {
-            listEl.innerHTML = `
-                <div class="flex flex-col items-center justify-center py-10 text-center">
-                    <p class="text-xs text-neutral-500 mb-1">Wpisz minimum 2 znaki...</p>
-                    <p class="text-[10px] text-neutral-600">Szukaj w zadaniach, apteczce, zdrowiu i listach</p>
-                </div>`;
-            return;
-        }
-
-        let html = `
-            <div class="mb-3 flex justify-between items-center px-1 animate-fade-in">
-                <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Ostatnio szukane</span>
-                <button class="js-clear-search-history text-[10px] text-neutral-500 hover:text-[#ffb4ab] cursor-pointer active:scale-95">Wyczyszcz ✕</button>
-            </div>`;
-
-        html += recent.map(r => `
-            <div class="js-search-result flex items-center gap-4 p-3 bg-[#1e1f20]/60 hover:bg-[#252627] border border-[#333537]/60 rounded-[14px] mb-1.5 cursor-pointer active:scale-95 transition-all animate-fade-in"
-                 data-id="${window.esc(r.id)}"
-                 data-title="${window.esc(r.title)}"
-                 data-type="${window.esc(r.type)}"
-                 data-icon="${window.esc(r.icon)}"
-                 data-extra="${window.esc(r.extraData)}">
-                <div class="text-xl opacity-70">${window.esc(r.icon || '🔍')}</div>
-                <div class="flex-1 min-w-0">
-                    <h3 class="text-xs font-medium text-neutral-300 truncate">${window.esc(r.title)}</h3>
-                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest">${window.esc(r.type)}</p>
-                </div>
-                <span class="text-neutral-600 text-xs">↩</span>
-            </div>
-        `).join('');
-
-        listEl.innerHTML = html;
-    };
-
-    // 4. FUNKCJA RYSUJĄCA WYNIKI W HTML
-    const renderResults = (resultsArray, q, isFetching) => {
-        const listEl = document.getElementById('search-results-list');
-        if (!listEl) return;
-
-        if (resultsArray.length === 0) {
-            if (isFetching) {
-                listEl.innerHTML = `<div class="flex justify-center py-10"><p class="text-xs text-neutral-500 animate-pulse">Głębokie szukanie...</p></div>`;
-            } else {
-                listEl.innerHTML = `
-                    <div class="flex justify-center py-10">
-                        <p class="text-xs text-neutral-500">Brak wyników dla "<span class="text-neutral-300 font-medium">${window.esc(q)}</span>"</p>
-                    </div>`;
-            }
-            return;
-        }
-
-        let html = resultsArray.map(r => {
-            const highlightedTitle = highlightText(r.title, q);
-            const highlightedExtra = r.extraData ? highlightText(r.extraData, q) : '';
-
-            return `
-            <div class="js-search-result flex items-center gap-4 p-4 bg-[#1e1f20] hover:bg-[#333537] border border-[#333537] rounded-[16px] mb-2 cursor-pointer active:scale-95 transition-all shadow-sm animate-fade-in"
-                 data-id="${window.esc(r.id)}"
-                 data-title="${window.esc(r.title)}"
-                 data-type="${window.esc(r.type)}"
-                 data-icon="${window.esc(r.icon)}"
-                 data-extra="${window.esc(r.extraData)}">
-                <div class="text-2xl">${window.esc(r.icon || '🔍')}</div>
-                <div class="flex-1 min-w-0">
-                    <h3 class="text-sm font-medium text-neutral-200 truncate">${highlightedTitle}</h3>
-                    <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-0.5">${window.esc(r.type)}${highlightedExtra ? ` • ${highlightedExtra}` : ''}</p>
-                </div>
-                <span class="text-neutral-500 text-lg">→</span>
-            </div>`;
-        }).join('');
-
-        if (isFetching) {
-            html += `<div class="py-3 text-center animate-pulse"><p class="text-[10px] text-neutral-500 uppercase tracking-widest">Przeszukuję wnętrza list i apteczkę...</p></div>`;
-        }
-
-        listEl.innerHTML = html;
-    };
-
-    window.openGlobalSearch = function() {
-        const modal = document.getElementById('search-modal');
-        const input = document.getElementById('global-search-input');
-        if (!modal) return;
-        
-        if (input) input.value = '';
-        window.renderRecentSearches();
-        
-        modal.classList.remove('hidden');
-        if (input) input.focus();
-        
-        requestAnimationFrame(() => {
-            modal.classList.remove('-translate-y-full');
-            modal.classList.add('translate-y-0');
-        });
-    };
-
-    window.closeGlobalSearch = function() {
-        const modal = document.getElementById('search-modal');
-        const input = document.getElementById('global-search-input');
-        
-        if (input) input.blur(); 
-        
-        if (modal) {
-            modal.classList.remove('translate-y-0');
-            modal.classList.add('-translate-y-full');
-            setTimeout(() => modal.classList.add('hidden'), 300); 
-        }
-    };
-
-    // 5. HYBRYDOWE WYSZUKIWANIE (RAM + SUPABASE)
-    window.performGlobalSearch = function(query) {
-        const q = query.trim().toLowerCase();
-        const listEl = document.getElementById('search-results-list');
-        if (!listEl) return;
-
-        if (q.length < 2) {
-            window.renderRecentSearches();
-            return;
-        }
-
-        if (searchTimeout) clearTimeout(searchTimeout);
-
-        searchTimeout = setTimeout(async () => {
-            let localResults = [];
-            try {
-                // ETAP 1: Szukanie lokalne w 0ms (To co już mamy w RAM)
-                const state = window.AppStore.get() || {};
-                const tasks = state.tasks || [];
-                const hTasks = state.hTasks || [];
-                const todos = state.todos || [];
-                const lists = state.checklists || [];
-
-                tasks.filter(t => !t.is_archived && t.name && t.name.toLowerCase().includes(q)).forEach(t => {
-                    localResults.push({ id: t.id, title: t.name, type: 'Dom', icon: '🏠', extraData: t.room || 'Inne' });
-                });
-                hTasks.filter(t => !t.is_archived && t.name && t.name.toLowerCase().includes(q)).forEach(t => {
-                    localResults.push({ id: t.id, title: t.name, type: 'Zdrowie', icon: '❤️', extraData: '' });
-                });
-                todos.filter(t => !t.is_archived && t.title && t.title.toLowerCase().includes(q)).forEach(t => {
-                    localResults.push({ id: t.id, title: t.title, type: 'Zadanie', icon: '📝', extraData: '' });
-                });
-                lists.filter(l => !l.is_archived && l.title && l.title.toLowerCase().includes(q)).forEach(l => {
-                    localResults.push({ id: l.id, title: l.title, type: 'Lista', icon: '🗂️', extraData: l.list_type || 'generic' });
-                });
-
-                const checklistItems = state.checklistItems || [];
-                checklistItems.filter(item => item.content && item.content.toLowerCase().includes(q)).forEach(item => {
-                    const parentList = lists.find(list => String(list.id) === String(item.checklist_id));
-                    localResults.push({
-                        id: item.checklist_id,
-                        title: item.content,
-                        type: `W liście "${parentList?.title || 'Nieznana lista'}"`,
-                        icon: '☑️',
-                        extraData: parentList?.list_type || 'generic'
-                    });
-                });
-                (state.pharmacy || []).filter(item =>
-                    (item.name && item.name.toLowerCase().includes(q))
-                    || (item.purpose && item.purpose.toLowerCase().includes(q))
-                ).forEach(item => {
-                    const extra = item.purpose && item.purpose.toLowerCase().includes(q) ? `Opis: ${item.purpose}` : (item.purpose || '');
-                    localResults.push({ id: item.id, title: item.name, type: 'Apteczka', icon: '💊', extraData: extra });
-                });
-
-                // Rysujemy natychmiastowe wyniki z flagą isFetching = true
-                renderResults(localResults, q, true);
-
-                // ETAP 2: Głębokie Szukanie w Chmurze (Zwraca wyniki w ułamek sekundy)
-                const hid = window.currentUser ? window.currentUser.household_id : null;
-                if (!hid) {
-                    renderResults(localResults, q, false);
-                    return;
-                }
-
-                const isFresh = Number(state.lastSyncedAt || 0) > 0
-                    && Date.now() - Number(state.lastSyncedAt) <= window.CONFIG.CACHE_TTL;
-                if (isFresh || !navigator.onLine) {
-                    renderResults(localResults, q, false);
-                    return;
-                }
-
-                const [ciRes, pRes] = await Promise.all([
-                    window.supabaseClient.from('checklist_items')
-                        .select('checklist_id, content')
-                        .eq('household_id', hid)
-                        .ilike('content', `%${q}%`)
-                        .limit(20),
-                    window.supabaseClient.from('pharmacy_items')
-                        .select('id, name, purpose')
-                        .eq('household_id', hid)
-                        .or(`name.ilike.%${q}%,purpose.ilike.%${q}%`)
-                        .limit(20)
-                ]);
-
-                let remoteResults = [];
-
-                if (ciRes.data) {
-                    ciRes.data.forEach(ci => {
-                        const parentList = lists.find(l => String(l.id) === String(ci.checklist_id));
-                        const listTitle = parentList ? parentList.title : 'Nieznana lista';
-                        const listType = parentList ? parentList.list_type : 'generic';
-                        remoteResults.push({
-                            id: ci.checklist_id,
-                            title: ci.content,
-                            type: `W liście "${listTitle}"`,
-                            icon: '☑️',
-                            extraData: listType
-                        });
-                    });
-                }
-
-                if (pRes.data) {
-                    pRes.data.forEach(p => {
-                        const extra = p.purpose && p.purpose.toLowerCase().includes(q) ? `Opis: ${p.purpose}` : (p.purpose || '');
-                        remoteResults.push({ id: p.id, title: p.name, type: 'Apteczka', icon: '💊', extraData: extra });
-                    });
-                }
-
-                // Łączymy wyniki lokalne z tymi pobranymi z chmury (zabezpieczenie przed dublami)
-                const finalResults = [...localResults];
-                const seen = new Set(localResults.map(r => `${r.type}-${r.id}-${r.title}`));
-                
-                remoteResults.forEach(r => {
-                    const key = `${r.type}-${r.id}-${r.title}`;
-                    if (!seen.has(key)) {
-                        seen.add(key);
-                        finalResults.push(r);
-                    }
-                });
-
-                // Aktualizujemy ekran z kompletnymi wynikami
-                renderResults(finalResults, q, false);
-
-            } catch (error) {
-                console.error("Błąd wyszukiwania hybrydowego:", error);
-                renderResults(localResults, q, false);
-            }
-        }, 150); // Minimalne opóźnienie 150ms przed wysłaniem zapytania do serwera (Debounce)
-    };
-
-    // Nasłuchiwanie pola wpisywania
-    document.addEventListener('input', (e) => {
-        if (e.target && e.target.id === 'global-search-input') {
-            window.performGlobalSearch(e.target.value);
-        }
-    });
-
-    if (window.EventDispatcher) {
-        window.EventDispatcher.onClick('.js-open-search', (e) => {
-            e.preventDefault();
-            window.openGlobalSearch();
-        });
-
-        window.EventDispatcher.onClick('.js-close-global-search', (e) => {
-            e.preventDefault();
-            window.closeGlobalSearch();
-        });
-
-        window.EventDispatcher.onClick('.js-clear-search-history', (e) => {
-            e.preventDefault();
-            window.clearRecentSearches();
-        });
-
-        window.EventDispatcher.onClick('.js-search-result', async (e, el) => {
-            e.preventDefault();
-
-            const rawId = el.dataset.id || '';
-            const id = /^\d+$/.test(rawId) ? Number(rawId) : rawId;
-            const type = el.dataset.type;
-            const title = el.dataset.title;
-            const icon = el.dataset.icon || '🔍';
-            const extra = el.dataset.extra;
-
-            // Zapis do historii wyszukiwania
-            saveToRecentSearches({ id, title, type, icon, extraData: extra });
-
-            window.closeGlobalSearch();
-
-            if (type === 'Dom') {
-                await window.switchView('home');
-                if (typeof window.filterHomeByRoom === 'function') window.filterHomeByRoom(extra);
-                if (typeof window.openSettingsScreen === 'function') await window.openSettingsScreen(id);
-            } 
-            else if (type === 'Zdrowie') {
-                await window.switchView('health');
-                if (typeof window.openHealthSettingsScreen === 'function') await window.openHealthSettingsScreen(id);
-            } 
-            else if (type === 'Zadanie') {
-                await window.switchView('todo');
-                if (typeof window.openEditTodoModal === 'function') await window.openEditTodoModal(id, title);
-            } 
-            else if (type === 'Lista' || type.startsWith('W liście')) {
-                await window.switchView('todo');
-                if (typeof window.openChecklistScreen === 'function') await window.openChecklistScreen(id, title, extra);
-            }
-            else if (type === 'Apteczka') {
-                if (typeof window.openPharmacyScreen === 'function') await window.openPharmacyScreen();
-                if (typeof window.openEditPharmacyModal === 'function') await window.openEditPharmacyModal(id);
-            }
-        });
-    } else {
-        console.error("EventDispatcher nie został załadowany!");
+    function history() { try { const key = historyKey(); return key ? JSON.parse(localStorage.getItem(key) || '[]') : []; } catch (error) { return []; } }
+    function remember(result) {
+        const key = historyKey(); if (!key) return;
+        try { localStorage.setItem(key, JSON.stringify([{ key: result.key, kind: result.kind }, ...history().filter(item => item.key !== result.key)].slice(0, 5))); } catch (error) {}
     }
-
-    return {};
+    function personName(id) { return (store().profiles || []).find(person => sameId(person.id, id))?.name || ''; }
+    function dateLabel(value) { const date = new Date(value); return isNaN(date.getTime()) ? '' : date.toLocaleDateString('pl-PL'); }
+    function highlight(value, query) {
+        const source = String(value || ''), needle = normalize(query);
+        if (!needle) return esc(source);
+        let normalized = '', offset = 0;
+        const positions = [];
+        for (const char of source) {
+            const folded = normalize(char);
+            for (let i = 0; i < folded.length; i++) positions.push({ start: offset, end: offset + char.length });
+            normalized += folded; offset += char.length;
+        }
+        let result = '', cursor = 0, index = normalized.indexOf(needle);
+        while (index >= 0) {
+            const start = positions[index]?.start, end = positions[index + needle.length - 1]?.end;
+            if (start == null || end == null) break;
+            result += esc(source.slice(cursor, start)) + `<mark class="ux-search-mark">${esc(source.slice(start, end))}</mark>`;
+            cursor = end;
+            index = normalized.indexOf(needle, index + needle.length);
+        }
+        return result + esc(source.slice(cursor));
+    }
+    function index() {
+        const state = store(), results = [], lists = (state.checklists || []).filter(list => !list.is_archived);
+        (window.TaskModel?.list?.({ includeCompleted: true, includeArchived: false }) || []).forEach(task => {
+            results.push({ key: task.key, kind: 'task', title: task.name, subtitle: [task.area, task.room, personName(task.profileId), task.completed ? 'Wykonane' : task.dueAt ? dateLabel(task.dueAt) : 'Bez terminu'].filter(Boolean).join(' · '), icon: task.important ? 'flag' : 'task', searchText: [task.name, task.area, task.room, personName(task.profileId)].join(' '), raw: task });
+        });
+        (window.EventModel?.list?.({ includePast: true, includeCancelled: true }) || []).forEach(event => {
+            results.push({ key: event.key, kind: 'event', title: event.name, subtitle: [event.area === 'Zdrowie' ? 'Wizyta / kontrola' : 'Wydarzenie', personName(event.profileId), dateLabel(event.startsAt), event.allDay ? 'Cały dzień' : event.time, event.cancelled ? 'Odwołane' : ''].filter(Boolean).join(' · '), icon: 'calendar', searchText: [event.name, event.area, personName(event.profileId)].join(' '), raw: event });
+        });
+        const episodeList = window.HealthEntries?.listEpisodes?.() || (state.hLogs || []).map(log => {
+            const task = (state.hTasks || []).find(task => sameId(task.id, log.health_task_id));
+            return task ? { key: `health_logs:${log.id}`, id: log.id, taskId: task.id, name: task.name, profileId: task.profile_id, startDate: log.start_date, endDate: log.end_date, notes: log.notes, raw: log, task } : null;
+        }).filter(Boolean);
+        episodeList.forEach(episode => results.push({ key: episode.key || `health_logs:${episode.id}`, kind: 'episode', title: episode.name, subtitle: [personName(episode.profileId), episode.task?.category === 'Suplementacja' ? 'Dawny wpis suplementacji' : episode.endDate ? 'Historia zdrowia' : 'W toku', dateLabel(episode.startDate), episode.notes].filter(Boolean).join(' · '), icon: 'activity', searchText: [episode.name, personName(episode.profileId), episode.notes].join(' '), raw: episode }));
+        const loggedHealthTasks = new Set(episodeList.map(episode => String(episode.taskId)));
+        (state.hTasks || []).filter(task => !loggedHealthTasks.has(String(task.id)) && (task.task_type === 'duration' || String(task.category || '').toLowerCase() === 'suplementacja')).forEach(task => results.push({ key: `health_record:${task.id}`, kind: 'health-record', title: task.name, subtitle: [personName(task.profile_id), task.category === 'Suplementacja' ? 'Dawny wpis suplementacji' : 'Dawny zapis zdrowotny', task.is_archived ? 'Archiwum' : ''].filter(Boolean).join(' · '), icon: 'history', searchText: [task.name, task.category, personName(task.profile_id)].join(' '), raw: task }));
+        (state.hMeasurements || []).forEach(measurement => results.push({ key: `health_measurements:${measurement.id}`, kind: 'measurement', title: `${measurement.measurement_type || measurement.type || 'Pomiar'} · ${measurement.value}`, subtitle: [personName(measurement.profile_id), dateLabel(measurement.created_at), measurement.notes].filter(Boolean).join(' · '), icon: 'thermometer', searchText: [measurement.measurement_type || measurement.type, measurement.value, measurement.notes, personName(measurement.profile_id)].join(' '), raw: measurement }));
+        const groups = window.PharmacyModel?.listGroups?.() || (state.pharmacy || []).map(item => ({ key: String(item.id), name: item.name, description: item.purpose || '', ean: item.ean, packages: [item] }));
+        groups.forEach(group => results.push({ key: `pharmacy:${group.key}`, kind: 'pharmacy', title: group.name, subtitle: ['Apteczka domu', group.description || '', group.ean || ''].filter(Boolean).join(' · '), icon: 'package', searchText: [group.name, group.description, group.ean, ...(group.packages || []).map(item => item.purpose || '')].join(' '), groupKey: group.key, raw: group }));
+        lists.forEach(list => results.push({ key: `checklists:${list.id}`, kind: 'list', title: list.title, subtitle: list.list_type === 'shopping' ? 'Lista zakupów' : list.list_type === 'packing' ? 'Lista do spakowania' : 'Lista', icon: 'list', searchText: list.title, listId: list.id, listType: list.list_type || 'generic', raw: list }));
+        (state.checklistItems || []).forEach(item => {
+            const parent = lists.find(list => sameId(list.id, item.checklist_id)); if (!parent) return;
+            results.push({ key: `checklist_items:${item.id}`, kind: 'list-item', title: item.content, subtitle: `W liście „${parent.title}”${item.is_completed ? ' · Gotowe' : ''}`, icon: 'list', searchText: `${item.content} ${parent.title}`, listId: parent.id, itemId: item.id, parentTitle: parent.title, listType: parent.list_type || 'generic', raw: item });
+        });
+        return results;
+    }
+    function search(query) {
+        const needle = normalize(query).trim(); if (needle.length < 2) return [];
+        return index().filter(result => normalize(result.searchText).includes(needle)).sort((a, b) => Number(normalize(b.title).startsWith(needle)) - Number(normalize(a.title).startsWith(needle)) || a.title.localeCompare(b.title, 'pl')).slice(0, 100);
+    }
+    function renderRows(results, query = '') {
+        return results.map(result => `<button type="button" class="ux-row js-search-result" data-search-key="${esc(result.key)}">${icon(result.icon)}<span class="ux-row-main"><span class="ux-row-title">${highlight(result.title, query)}</span><span class="ux-row-meta">${highlight(result.subtitle, query)}</span></span><span class="ux-row-status">${icon('forward')}</span></button>`).join('');
+    }
+    function renderResults(results, query, syncing = false) {
+        const target = document.getElementById('search-results-list'); if (!target) return;
+        rendered = new Map(results.map(result => [result.key, result]));
+        target.innerHTML = results.length ? `<p class="ux-muted">${results.length === 100 ? 'Pierwsze 100 wyników' : `${results.length} wyników`}</p>${renderRows(results, query)}` : `<p class="ux-empty">Brak wyników dla „${esc(query)}”.</p><button type="button" class="ux-btn ux-btn-primary js-search-add">${icon('plus')} Dodaj „${esc(query)}”</button>`;
+        if (syncing) target.insertAdjacentHTML('beforeend', '<p class="ux-muted" role="status">Uzupełniam zapisane dane…</p>');
+    }
+    window.renderRecentSearches = function() {
+        const target = document.getElementById('search-results-list'); if (!target) return;
+        const available = index(), recent = history().map(item => available.find(result => result.key === item.key)).filter(Boolean);
+        rendered = new Map(recent.map(result => [result.key, result]));
+        target.innerHTML = recent.length ? `<div class="ux-header"><h2 class="ux-section">Ostatnio otwierane</h2><button type="button" class="ux-btn js-clear-search-history">Wyczyść</button></div>${renderRows(recent)}` : '<p class="ux-empty">Wpisz co najmniej 2 znaki.</p><p class="ux-muted">Szukaj nazw, opisów leków i substancji, wydarzeń, osób oraz pozycji na listach.</p>';
+    };
+    window.clearRecentSearches = function() { try { const key = historyKey(); if (key) localStorage.removeItem(key); } catch (error) {} window.renderRecentSearches(); };
+    window.openGlobalSearch = function() {
+        const modal = document.getElementById('search-modal'), input = document.getElementById('global-search-input'); if (!modal) return;
+        generation++; visible = true; currentQuery = ''; if (input) input.value = '';
+        window.renderRecentSearches(); modal.classList.remove('-translate-y-full'); modal.classList.add('translate-y-0');
+        if (window.UX?.openDialog) window.UX.openDialog(modal); else modal.classList.remove('hidden');
+        setTimeout(() => input?.focus(), 20);
+    };
+    window.closeGlobalSearch = function() {
+        visible = false; generation++; if (timer) clearTimeout(timer);
+        document.getElementById('global-search-input')?.blur();
+        const modal = document.getElementById('search-modal'); if (modal) { modal.classList.remove('translate-y-0'); modal.classList.add('-translate-y-full'); if (window.UX?.closeDialog) window.UX.closeDialog(modal); else modal.classList.add('hidden'); }
+    };
+    window.performGlobalSearch = function(query) {
+        currentQuery = String(query || '').trim();
+        const request = ++generation; if (timer) clearTimeout(timer);
+        if (normalize(currentQuery).length < 2) { window.renderRecentSearches(); return; }
+        const snapshot = currentQuery, fresh = Date.now() - Number(store().lastSyncedAt || 0) <= (window.CONFIG?.CACHE_TTL || 30000), refresh = !fresh && navigator.onLine && Boolean(window.loadDashboardOverview);
+        renderResults(search(snapshot), snapshot, refresh);
+        if (refresh) timer = setTimeout(async () => { try { await window.loadDashboardOverview(); } catch (error) {} if (visible && request === generation) renderResults(search(snapshot), snapshot, false); }, 250);
+    };
+    async function highlightListItem(id) {
+        if (id == null) return;
+        for (let attempt = 0; attempt < 40; attempt++) {
+            const item = [...document.querySelectorAll('.js-toggle-checklist-item[data-id]')].find(element => sameId(element.dataset.id, id));
+            if (item) { const row = item.closest('.swipe-front') || item; row.classList.add('ux-search-hit'); row.scrollIntoView({ block: 'center', behavior: 'smooth' }); setTimeout(() => row.classList.remove('ux-search-hit'), 5000); return; }
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+    }
+    function closeSearchDetail() { const modal = document.getElementById('search-record-detail'); if (window.UX?.closeDialog) window.UX.closeDialog(modal); else modal?.classList.add('hidden'); }
+    function openRecord(result) {
+        let modal = document.getElementById('search-record-detail');
+        if (!modal) { modal = document.createElement('div'); modal.id = 'search-record-detail'; modal.className = 'ux-modal'; document.body.appendChild(modal); }
+        const item = result.raw;
+        const details = result.kind === 'measurement' ? `<p class="ux-row-meta">${esc(personName(item.profile_id))} · ${esc(dateLabel(item.created_at))}</p><p>${esc(item.notes || 'Brak dodatkowej notatki.')}</p><div class="ux-actions"><button type="button" class="ux-btn js-search-edit-record" data-type="measurement" data-id="${esc(item.id)}">${icon('edit')} Edytuj pomiar</button></div>` : `<p class="ux-row-meta">${esc(result.subtitle)}</p><p class="ux-muted">Wpis pozostaje w historii. Nie tworzy przypomnienia o przyjmowaniu leku.</p><div class="ux-actions"><button type="button" class="ux-btn js-search-edit-record" data-type="health-record" data-id="${esc(item.id)}">${icon('edit')} Edytuj zapis</button></div>`;
+        modal.innerHTML = `<section class="ux-sheet" role="dialog" aria-modal="true" aria-labelledby="search-record-title"><header class="ux-header"><h2 id="search-record-title" class="ux-title">${esc(result.title)}</h2><button type="button" class="ux-icon-btn js-close-search-record" aria-label="Zamknij">${icon('close')}</button></header>${details}</section>`;
+        if (window.UX?.openDialog) window.UX.openDialog(modal); else modal.classList.remove('hidden');
+    }
+    async function openResult(result) {
+        remember(result); window.closeGlobalSearch();
+        if (result.kind === 'task') return window.openTaskDetails?.(result.key);
+        if (result.kind === 'event') return window.openEventDetails?.(result.key);
+        if (result.kind === 'episode') return window.openHealthEpisode?.(result.raw.id);
+        if (result.kind === 'pharmacy') return window.openPharmacyProduct?.(result.groupKey);
+        if (result.kind === 'measurement') return window.openMeasurementDetails ? window.openMeasurementDetails(result.raw.id) : openRecord(result);
+        if (result.kind === 'health-record') return window.openHealthDefinition ? window.openHealthDefinition(result.raw.id) : openRecord(result);
+        const parent = result.kind === 'list-item' ? (store().checklists || []).find(list => sameId(list.id, result.listId)) : result.raw;
+        if (parent) { await window.openChecklistScreen?.(parent.id, parent.title, parent.list_type || 'generic'); if (result.kind === 'list-item') await highlightListItem(result.itemId); }
+    }
+    document.addEventListener('input', event => { if (event.target?.id === 'global-search-input') window.performGlobalSearch(event.target.value); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') { if (visible) window.closeGlobalSearch(); closeSearchDetail(); } });
+    if (window.EventDispatcher) {
+        window.EventDispatcher.onClick('.js-open-search', event => { event.preventDefault(); window.openGlobalSearch(); });
+        window.EventDispatcher.onClick('.js-close-global-search', window.closeGlobalSearch);
+        window.EventDispatcher.onClick('.js-clear-search-history', window.clearRecentSearches);
+        window.EventDispatcher.onClick('.js-search-result', (event, button) => { event.preventDefault(); const result = rendered.get(button.dataset.searchKey); if (result) openResult(result); });
+        window.EventDispatcher.onClick('.js-search-add', () => { const text = currentQuery; window.closeGlobalSearch(); window.openQuickAddModal?.({ text }); });
+        window.EventDispatcher.onClick('.js-close-search-record', closeSearchDetail);
+        window.EventDispatcher.onClick('.js-search-edit-record', (event, button) => { closeSearchDetail(); if (button.dataset.type === 'measurement') window.openEditHealthBookItem?.(button.dataset.id, 'measurement'); else window.openHealthSettingsScreen?.(button.dataset.id); });
+    }
+    return { search, index, highlight, openResult };
 })();

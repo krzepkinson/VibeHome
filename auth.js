@@ -106,8 +106,11 @@ window.finalizeLogin = async function(user) {
         await window.AppStore?.setScope(user.id, profile.household_id || null);
         
         const urlParams = new URLSearchParams(window.location.search);
-        const view = urlParams.get('view') || 'dashboard';
-        window.switchView(view);
+        const requestedView = urlParams.get('view') || 'dashboard';
+        const view = requestedView === 'auth' ? 'dashboard' : requestedView;
+        // Zachowaj cel powiadomienia do czasu odczytania go przez UX.
+        window.history.replaceState({view}, '', view === 'dashboard' && requestedView === 'auth' ? '/' : window.location.href);
+        await window.switchView(view, false);
         
     } catch (error) {
         console.error("Błąd krytyczny logowania:", error);

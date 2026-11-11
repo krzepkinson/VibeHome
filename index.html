@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>HomeVibe</title>
     <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/ux.css?v=300">
     <meta name="theme-color" content="#131314">
     <link rel="apple-touch-icon" href="/icon.png">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -19,7 +20,7 @@
         });
     </script>
 
-    <script src="/config.js?v=10"></script>
+    <script src="/config.js?v=300"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&display=swap');
@@ -105,22 +106,11 @@
     </main>
 
     <nav id="bottom-nav" class="fixed bottom-0 w-full bg-[#1e1f20] border-t border-[#333537] pb-safe z-30 transition-all duration-300">
-        <div class="flex justify-around items-center max-w-xl mx-auto h-16">
-            <button class="js-dash-nav flex flex-col items-center justify-center w-full h-full text-[#c4eed0] transition-colors" data-view="dashboard" id="nav-dashboard">
-                <span class="text-lg mb-1">✨</span><span class="text-[9px] font-medium uppercase tracking-wider">Przegląd</span>
-            </button>
-            <button class="js-dash-nav flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors" data-view="home" id="nav-home">
-                <span class="text-lg mb-1">🏠</span><span class="text-[9px] font-medium uppercase tracking-wider">Dom</span>
-            </button>
-            <button class="js-dash-nav flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors" data-view="todo" id="nav-todo">
-                <span class="text-lg mb-1">📝</span><span class="text-[9px] font-medium uppercase tracking-wider">Zadania</span>
-            </button>
-            <button class="js-dash-nav flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors" data-view="health" id="nav-health">
-                <span class="text-lg mb-1">❤️</span><span class="text-[9px] font-medium uppercase tracking-wider">Zdrowie</span>
-            </button>
-            <button class="js-dash-nav flex flex-col items-center justify-center w-full h-full text-neutral-500 hover:text-neutral-300 transition-colors" data-view="settings" id="nav-settings">
-                <span class="text-lg mb-1">⚙️</span><span class="text-[9px] font-medium uppercase tracking-wider">Ustawienia</span>
-            </button>
+        <div class="ux-nav">
+            <button type="button" class="js-dash-nav" data-view="dashboard" id="nav-dashboard" aria-current="page"><span data-icon="overview"></span><span>Przegląd</span></button>
+            <button type="button" class="js-dash-nav" data-view="todo" id="nav-todo"><span data-icon="task"></span><span>Zadania</span></button>
+            <button type="button" class="js-dash-nav" data-view="health" id="nav-health"><span data-icon="heart"></span><span>Zdrowie</span></button>
+            <button type="button" class="js-dash-nav" data-view="calendar" id="nav-calendar"><span data-icon="calendar"></span><span>Kalendarz</span></button>
         </div>
     </nav>
 
@@ -172,24 +162,29 @@
         </div>
     </div>
     
-    <script src="/events.js?v=10"></script>
+    <script src="/events.js?v=300"></script>
     
-    <script src="/utils.js?v=10"></script>
-    <script src="/store.js?v=10"></script>
-    <script src="/components.js?v=10"></script>
-    <script src="/user-log.js?v=10"></script>
-    <script src="/household.js?v=10"></script>
-    <script src="/router.js?v=10"></script>
-    <script src="/auth.js?v=10"></script>
-    <script src="/dashboard.js?v=10"></script>
-    <script src="/calendar.js?v=10"></script>
-    <script src="/home.js?v=10"></script>
-    <script src="/health.js?v=10"></script>
-    <script src="/quick-add.js?v=10"></script>
-    <script src="/todo.js?v=10"></script>
-    <script src="/settings.js?v=10"></script>
-    <script src="/search.js?v=10"></script>
-    <script src="/stats.js?v=10"></script>
+    <script src="/utils.js?v=300"></script>
+    <script src="/store.js?v=300"></script>
+    <script src="/ux.js?v=300"></script>
+    <script src="/task-model.js?v=300"></script>
+    <script src="/event-model.js?v=300"></script>
+    <script src="/components.js?v=300"></script>
+    <script src="/user-log.js?v=300"></script>
+    <script src="/household.js?v=300"></script>
+    <script src="/router.js?v=300"></script>
+    <script src="/auth.js?v=300"></script>
+    <script src="/dashboard.js?v=300"></script>
+    <script src="/calendar.js?v=300"></script>
+    <script src="/home.js?v=300"></script>
+    <script src="/health.js?v=300"></script>
+    <script src="/quick-add.js?v=300"></script>
+    <script src="/todo.js?v=300"></script>
+    <script src="/task-details.js?v=300"></script>
+    <script src="/settings.js?v=300"></script>
+    <script src="/search.js?v=300"></script>
+    <script src="/stats.js?v=300"></script>
+    <script src="/overview.js?v=300"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {

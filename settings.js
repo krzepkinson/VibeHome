@@ -79,13 +79,25 @@ window.SettingsModule = (() => {
     window.openRoomsSettings = function() { window.goForward('settings-rooms-screen'); };
     window.openProfilesSettings = function() { window.goForward('settings-profiles-screen'); };
 
-    window.checkNotificationStatus = function() {
+    window.checkNotificationStatus = async function() {
         const statusText = document.getElementById('notif-status-text'); 
         const btn = document.getElementById('notif-enable-btn');
         if (!statusText || !btn) return;
         if (!("Notification" in window)) { statusText.innerText = "Brak wsparcia."; btn.classList.add('hidden'); return; }
-        if (Notification.permission === "granted") { statusText.innerText = "Aktywne 🔔"; btn.classList.add('hidden'); }
-        else { statusText.innerText = "Wymaga zgody"; btn.classList.remove('hidden'); }
+        if (Notification.permission !== 'granted') {
+            statusText.innerText = Notification.permission === 'denied' ? 'Zablokowane w ustawieniach przeglądarki' : 'Wymaga zgody';
+            btn.textContent = 'Włącz'; btn.classList.toggle('hidden', Notification.permission === 'denied'); return;
+        }
+        statusText.innerText = 'Zgoda udzielona — sprawdzam konfigurację';
+        btn.classList.remove('hidden'); btn.textContent = 'Skonfiguruj';
+        try {
+            const registration = await navigator.serviceWorker?.getRegistration();
+            const subscription = await registration?.pushManager?.getSubscription();
+            if (!subscription) { statusText.innerText = 'Zgoda udzielona — dokończ konfigurację'; return; }
+            const { data, error } = await window.supabaseClient.from('push_subscriptions').select('endpoint').eq('endpoint', subscription.endpoint).eq('user_id', window.currentUser.user_id).limit(1);
+            if (!error && data?.length) { statusText.innerText = 'Powiadomienia skonfigurowane'; btn.classList.add('hidden'); }
+            else statusText.innerText = 'Zgoda udzielona — konfiguracja wymaga sprawdzenia';
+        } catch (error) { statusText.innerText = 'Zgoda udzielona — konfiguracja wymaga sprawdzenia'; }
     };
 
     window.requestNotificationPermission = async function() {
@@ -100,7 +112,7 @@ window.SettingsModule = (() => {
             if (!publicVapidKey) { window.showToast("Błąd klucza VAPID."); return; }
 
             const applicationServerKey = window.urlB64ToUint8Array(publicVapidKey);
-            const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey });
+            const subscription = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey });
             const subJSON = subscription.toJSON();
 
             await window.supabaseClient.from('push_subscriptions').delete().eq('endpoint', subJSON.endpoint);
@@ -113,7 +125,7 @@ window.SettingsModule = (() => {
             }]);
 
             if (error) window.showToast("Błąd bazy!");
-            else window.showToast("Powiadomienia włączone! 🔔");
+            else { window.showToast("Powiadomienia skonfigurowane."); await window.checkNotificationStatus(); }
         } catch (err) { window.showToast("Błąd: " + err.message); }
     };
 
@@ -131,11 +143,11 @@ window.SettingsModule = (() => {
         appRooms = (window.AppStore.get()?.rooms || []).slice().sort((a, b) => a.name.localeCompare(b.name));
         if (appRooms.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak pomieszczeń.</p>`; return; }
         listEl.innerHTML = appRooms.map(room => `
-            <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
-                <div class="flex items-center gap-3"><span class="text-xl">${window.esc(room.icon || '📦')}</span><span class="text-sm font-medium text-neutral-200">${window.esc(room.name)}</span></div>
-                <div class="flex gap-1">
-                    <button class="js-edit-room w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] text-sm cursor-pointer" data-name="${window.esc(room.name)}" data-icon="${window.esc(room.icon || '📦')}">✏️</button>
-                    <button class="js-delete-room w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#3c1414] text-sm cursor-pointer" data-name="${window.esc(room.name)}">🗑️</button>
+            <div class="ux-row">
+                ${window.UX.icon('room')}<span class="ux-row-main ux-row-title">${window.esc(room.name)}</span>
+                <div class="ux-row-actions">
+                    <button type="button" class="js-edit-room ux-icon-btn" aria-label="Edytuj pomieszczenie" data-name="${window.esc(room.name)}" data-room-icon="${window.esc(room.icon || 'room')}">${window.UX.icon('edit')}</button>
+                    <button type="button" class="js-delete-room ux-icon-btn" aria-label="Usuń pomieszczenie" data-name="${window.esc(room.name)}">${window.UX.icon('trash')}</button>
                 </div>
             </div>`).join('');
         };
@@ -148,7 +160,7 @@ window.SettingsModule = (() => {
         // ZMIANA KRYTYCZNA: Korzystamy z nowej architektury
         window.loadAndShowModal('new-room-modal', '/modals/new-room.html', () => {
             document.getElementById('new-room-name').value = ''; 
-            document.getElementById('new-room-icon').value = ''; 
+            document.getElementById('new-room-icon').value = 'room';
         });
     };
 
@@ -160,8 +172,11 @@ window.SettingsModule = (() => {
     window.saveNewRoom = async function() {
         const name = document.getElementById('new-room-name').value.trim(); const icon = document.getElementById('new-room-icon').value.trim();
         if (!name) return;
-        const { error } = await window.supabaseClient.from('rooms').insert([{ name: name, icon: icon || '📦', user_id: window.currentUser.user_id, household_id: window.currentUser.household_id }]);
+        if(window._savingRoom)return;window._savingRoom=true;
+        const { data, error } = await window.supabaseClient.from('rooms').insert([{ name: name, icon: icon || 'room', user_id: window.currentUser.user_id, household_id: window.currentUser.household_id }]).select().single();
+        window._savingRoom=false;
         if (error) window.showToast('Błąd zapisu'); else { 
+            window.AppStore.set(state=>({...state,rooms:[...(state.rooms||[]),data]}));appRooms=window.AppStore.get().rooms.slice();
             window.closeNewRoomModal(); 
             window.showToast('Dodano!'); 
             window.invalidateDashboardCache(); 
@@ -189,7 +204,9 @@ window.SettingsModule = (() => {
         const { error } = await window.supabaseClient.from('rooms').update({ name: newName, icon: newIcon }).eq('name', oldName).eq('household_id', window.currentUser.household_id);
         if (error) window.showToast('Błąd zapisu');
         else {
-            await window.supabaseClient.from('tasks').update({ room: newName }).eq('room', oldName).eq('household_id', window.currentUser.household_id);
+            const changedTasks=await window.supabaseClient.from('tasks').update({ room: newName }).eq('room', oldName).eq('household_id', window.currentUser.household_id);
+            if(changedTasks.error){window.showToast('Nazwa pokoju została zmieniona, ale nie udało się zaktualizować części zadań. Odśwież i spróbuj ponownie.');return;}
+            window.AppStore.set(state=>({...state,rooms:(state.rooms||[]).map(r=>r.name===oldName?{...r,name:newName,icon:newIcon}:r),tasks:(state.tasks||[]).map(t=>t.room===oldName?{...t,room:newName}:t)}));appRooms=window.AppStore.get().rooms.slice();
             window.closeEditRoomModal(); 
             window.showToast('Zaktualizowano!'); 
             window.invalidateDashboardCache(); 
@@ -204,6 +221,7 @@ window.SettingsModule = (() => {
             if (error) { window.showToast('Błąd: ' + error.message); return; }
             
             await window.supabaseClient.from('tasks').update({ room: null }).eq('room', name).eq('household_id', window.currentUser.household_id);
+            window.AppStore.set(state=>({...state,rooms:(state.rooms||[]).filter(r=>r.name!==name),tasks:(state.tasks||[]).map(t=>t.room===name?{...t,room:null}:t)}));appRooms=window.AppStore.get().rooms.slice();
 
             window.showToast('Usunięto'); 
             if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache(); 
@@ -215,7 +233,7 @@ window.SettingsModule = (() => {
     window.populateRoomsDropdown = async function(selectId, selectedValue = '') {
         const selectEl = document.getElementById(selectId); if (!selectEl) return;
         if (appRooms.length === 0) await window.fetchRoomsFromDB();
-        selectEl.innerHTML = appRooms.map(r => `<option value="${window.esc(r.name)}">${window.esc(r.icon)} ${window.esc(r.name)}</option>`).join('') + `<option value="Inne">📦 Inne</option>`;
+        selectEl.innerHTML = appRooms.map(r => `<option value="${window.esc(r.name)}">${window.esc(r.name)}</option>`).join('') + `<option value="Inne">Inne</option>`;
         if (selectedValue) selectEl.value = selectedValue;
     };
 
@@ -227,13 +245,9 @@ window.SettingsModule = (() => {
         appProfiles = (window.AppStore.get()?.profiles || []).slice().sort((a, b) => a.name.localeCompare(b.name));
         if (appProfiles.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-4">Brak domowników.</p>`; return; }
         listEl.innerHTML = appProfiles.map(p => `
-            <div class="flex justify-between items-center px-3 py-2 bg-[#1e1f20] rounded-[16px] border border-[#333537] mb-1.5">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 ${window.getAvatarColor(p.name)} text-white rounded-full flex items-center justify-center font-bold shadow-md border-2 border-[#131314]">${window.esc(p.name.charAt(0).toUpperCase())}</div>
-                    <span class="text-sm font-medium text-neutral-200">${window.esc(p.name)}</span>
-                </div>
-                <button class="js-edit-profile w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-[#333537] text-sm cursor-pointer" data-id="${p.id}">⚙️</button>
-            </div>`).join('');
+            <button type="button" class="ux-row js-edit-profile" data-id="${window.esc(String(p.id))}">
+                ${window.UX.icon('person')}<span class="ux-row-main ux-row-title">${window.esc(p.name)}</span>${window.UX.icon('chevron')}
+            </button>`).join('');
         };
         render();
         await window.loadDashboardOverview?.(forceRefresh);
@@ -247,42 +261,53 @@ window.SettingsModule = (() => {
         });
     };
 
-    window.closeNewProfileModal = function() { 
+    window.closeNewProfileModal = function(created = false) {
+        window.UX?.closeDialog('new-profile-modal');
         const modal = document.getElementById('new-profile-modal');
-        if (modal) { setTimeout(() => { modal.classList.add('hidden'); }, 10); }
+        if (modal) modal.classList.add('hidden');
+        if (!created && typeof window._afterHealthProfileCancelled === 'function') {
+            const resume = window._afterHealthProfileCancelled;
+            window._afterHealthProfileCancelled = null; window._afterHealthProfileCreated = null; resume();
+        }
     };
 
     window.saveNewProfile = async function() {
         const name = document.getElementById('new-profile-name').value.trim(); 
         if (!name) return;
-        const { error } = await window.supabaseClient.from('profiles').insert([{ name: name, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id }]);
+        if (window._savingHealthProfile) return;
+        window._savingHealthProfile = true;
+        const { data, error } = await window.supabaseClient.from('profiles').insert([{ name: name, user_id: window.currentUser.user_id, household_id: window.currentUser.household_id }]).select().single();
+        window._savingHealthProfile = false;
         if (error) window.showToast("Błąd: " + error.message); 
         else { 
-            window.closeNewProfileModal(); 
-            window.showToast('Dodano domownika!'); 
+            window.AppStore.set(state => ({ ...state, profiles: [...(state.profiles || []), data] }));
+            appProfiles = window.AppStore.get().profiles.slice();
+            window.closeNewProfileModal(true);
+            window.selectHealthProfile?.(data.id);
+            window.showToast('Dodano osobę.');
             if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
-            window.loadAppProfiles();
+            window.loadAppProfiles(); window.UX?.refresh();
+            const resume = window._afterHealthProfileCreated;
+            window._afterHealthProfileCreated = null; window._afterHealthProfileCancelled = null;
+            if (typeof resume === 'function') resume(data);
         }
     };
 
-    window.openEditProfileScreen = function(id) {
-        const profile = appProfiles.find(p => p.id === id); 
+    window.openEditProfileScreen = async function(id) {
+        const profile = (window.AppStore.get().profiles || []).find(p => String(p.id) === String(id));
         if(!profile) return;
+        await window.switchView('edit-profile-screen');
         
         document.getElementById('edit-profile-id').value = profile.id; 
         document.getElementById('edit-profile-name').value = profile.name; 
         document.getElementById('edit-profile-birth').value = profile.birth_date || ''; 
         document.getElementById('edit-profile-height').value = profile.height || ''; 
         document.getElementById('edit-profile-weight').value = profile.weight || ''; 
-        document.getElementById('edit-profile-title').innerText = `Edytuj: ${profile.name}`; 
-        
-        const modal = document.getElementById('edit-profile-modal');
-        if (modal) modal.classList.remove('hidden');
+        document.getElementById('edit-profile-title').innerText = `Profil: ${profile.name}`;
     };
 
     window.closeEditProfileModal = function() {
-        const modal = document.getElementById('edit-profile-modal');
-        if (modal) { setTimeout(() => { modal.classList.add('hidden'); }, 10); }
+        window.goBack();
     }
 
     window.saveProfileDetails = async function() {
@@ -315,6 +340,7 @@ window.SettingsModule = (() => {
             }
 
             window.showToast('Zapisano profil'); 
+            window.AppStore.set(state => ({...state, profiles:(state.profiles||[]).map(p=>String(p.id)===String(id)?{...p,name,birth_date:document.getElementById('edit-profile-birth').value||null,height:document.getElementById('edit-profile-height').value||null,weight:document.getElementById('edit-profile-weight').value||null}:p)}));
             window.closeEditProfileModal(); 
             if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
             window.loadAppProfiles();
@@ -330,7 +356,8 @@ window.SettingsModule = (() => {
             if (error) { 
                 window.showToast('Błąd: ' + error.message); 
             } else { 
-                window.showToast('Profil usunięto'); 
+                window.AppStore.set(state=>({...state,profiles:(state.profiles||[]).filter(p=>String(p.id)!==String(id))}));
+                window.showToast('Profil usunięto');
                 window.closeEditProfileModal(); 
                 if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
                 window.loadAppProfiles();
@@ -340,6 +367,7 @@ window.SettingsModule = (() => {
 
     // --- EDYCJA ZADAŃ I LOGÓW Z USTAWIEN ---
     window.openSettingsScreen = async function(taskId) {
+        if (window.TaskModel?.get(`tasks:${taskId}`)) { window.openTaskDetails(`tasks:${taskId}`); return; }
         try {
             const { data, error } = await window.supabaseClient.from('tasks').select('*').eq('id', taskId).single();
             if (error || !data) { window.showToast('Nie znaleziono zadania.'); return; }
@@ -414,22 +442,20 @@ window.SettingsModule = (() => {
         if (!listEl) return;
         const render = () => {
         const state = window.AppStore.get() || {};
-        let items = [];
-        (state.tasks || []).filter(x => x.is_archived).forEach(x => items.push({ id: x.id, title: x.name, type: 'tasks', icon: '🏠', typeName: 'Dom' }));
-        (state.hTasks || []).filter(x => x.is_archived).forEach(x => items.push({ id: x.id, title: x.name, type: 'health_tasks', icon: '❤️', typeName: 'Zdrowie' }));
-        (state.todos || []).filter(x => x.is_archived).forEach(x => items.push({ id: x.id, title: x.title, type: 'todos', icon: '📝', typeName: 'Zadanie' }));
-        (state.checklists || []).filter(x => x.is_archived).forEach(x => items.push({ id: x.id, title: x.title, type: 'checklists', icon: '🗂️', typeName: 'Lista' }));
-        if (items.length === 0) { listEl.innerHTML = `<p class="text-center text-neutral-500 text-xs py-10">Archiwum jest puste.</p>`; return; }
+        const items = [], tasks=window.TaskModel.list({includeCompleted:true,includeArchived:true});
+        const convertedTodos=new Set(tasks.map(t=>t.raw.ux_meta?.legacyTodoId||state.uxTaskMeta?.[t.key]?.legacyTodoId).filter(Boolean).map(String));
+        tasks.filter(t=>t.archived&&t.raw.is_archived&&!(t.source==='todos'&&convertedTodos.has(String(t.id)))).forEach(t=>items.push({id:t.id,title:t.name,type:t.source,taskKey:t.key,icon:'task',typeName:`Zadanie · ${t.area}`}));
+        (state.hTasks||[]).filter(t=>t.is_archived&&t.task_type==='duration').forEach(t=>items.push({id:t.id,title:t.name,type:'health_tasks',icon:'activity',typeName:'Historia zdrowia'}));
+        window.EventModel.list({includePast:true,includeCancelled:true}).filter(e=>e.cancelled||e.archived).forEach(e=>items.push({id:e.id,title:e.name,type:e.source,eventKey:e.key,icon:'calendar',typeName:e.cancelled?'Odwołane wydarzenie':'Wydarzenie'}));
+        (state.checklists||[]).filter(l=>l.is_archived).forEach(l=>items.push({id:l.id,title:l.title,type:'checklists',icon:'list',typeName:'Lista'}));
+        if (items.length === 0) { listEl.innerHTML = '<p class="ux-empty">Archiwum jest puste.</p>'; return; }
         
         listEl.innerHTML = items.map(item => `
-            <div class="flex items-center justify-between px-3 py-2 bg-[#1e1f20] rounded-[12px] border border-[#333537] mb-1.5 animate-fade-in">
-                <div class="flex items-center gap-3">
-                    <span class="text-lg">${item.icon}</span>
-                    <div><h4 class="text-sm font-medium text-neutral-200">${window.esc(item.title)}</h4><p class="text-[9px] text-neutral-500 uppercase tracking-widest">${item.typeName}</p></div>
-                </div>
-                <div class="flex gap-1">
-                    <button class="js-restore-archive px-3 py-1.5 rounded-full bg-[#0f5223]/20 text-[#c4eed0] text-[9px] font-bold uppercase border border-[#0f5223]/50 cursor-pointer" data-table="${item.type}" data-id="${item.id}">Przywróć</button>
-                    <button class="js-delete-archive w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:text-[#ffb4ab] text-xs cursor-pointer" data-table="${item.type}" data-id="${item.id}">🗑️</button>
+            <div class="ux-row">
+                ${window.UX.icon(item.icon)}${item.taskKey?`<button type="button" class="ux-row-main js-open-task-details" data-key="${window.esc(item.taskKey)}"><span class="ux-row-title">${window.esc(item.title)}</span><span class="ux-row-meta">${window.esc(item.typeName)}</span></button>`:`<div class="ux-row-main"><h3 class="ux-row-title">${window.esc(item.title)}</h3><p class="ux-row-meta">${window.esc(item.typeName)}</p></div>`}
+                <div class="ux-row-actions">
+                    <button type="button" class="js-restore-archive ux-btn small" data-table="${item.type}" data-id="${window.esc(String(item.id))}" data-event-key="${window.esc(item.eventKey||'')}">Przywróć</button>
+                    <button type="button" class="js-delete-archive ux-icon-btn" aria-label="Usuń trwale" data-table="${item.type}" data-id="${window.esc(String(item.id))}">${window.UX.icon('trash')}</button>
                 </div>
             </div>`).join('');
         };
@@ -438,20 +464,29 @@ window.SettingsModule = (() => {
         render();
     };
 
-    window.restoreFromArchive = async function(table, id) {
-        const { error } = await window.supabaseClient.from(table).update({ is_archived: false }).eq('id', id);
-        if (error) window.showToast("Błąd"); else { 
+    window.restoreFromArchive = async function(table, id, eventKey) {
+        const collections={tasks:'tasks',todos:'todos',health_tasks:'hTasks',checklists:'checklists',calendar_events:'calendarEvents'};
+        if(!collections[table])return;
+        try {
+            if(eventKey) await window.EventModel.restore(eventKey);
+            else {
+                const { error } = await window.supabaseClient.from(table).update({ is_archived: false }).eq('id', id).eq('household_id',window.currentUser.household_id);
+                if(error)throw error;
+                window.AppStore.set(s=>({...s,[collections[table]]:(s[collections[table]]||[]).map(row=>String(row.id)===String(id)?{...row,is_archived:false}:row)}));
+            }
             window.showToast("Przywrócono!"); 
             window.invalidateDashboardCache(); 
             window.loadArchiveData(); 
-            setTimeout(() => window.refreshCurrentView(), 150); 
-        }
+        }catch(error){window.showToast('Nie udało się przywrócić wpisu. Spróbuj ponownie.');}
     };
 
     window.permanentlyDelete = function(table, id) {
+        const collections={tasks:'tasks',todos:'todos',health_tasks:'hTasks',checklists:'checklists',calendar_events:'calendarEvents'};
+        if(!collections[table])return;
         window.customConfirm("Usunąć trwale? Operacji nie można cofnąć!", async () => {
-            const { error } = await window.supabaseClient.from(table).delete().eq('id', id);
+            const { error } = await window.supabaseClient.from(table).delete().eq('id', id).eq('household_id',window.currentUser.household_id);
             if (error) window.showToast("Błąd"); else {
+                window.AppStore.set(s=>({...s,[collections[table]]:(s[collections[table]]||[]).filter(row=>String(row.id)!==String(id))}));
                 window.showToast("Usunięto trwale!");
                 window.invalidateDashboardCache?.();
                 window.loadArchiveData();
@@ -476,26 +511,26 @@ window.SettingsModule = (() => {
     // DELEGACJA ZDARZEŃ (VIA DISPATCHER)
     // ==========================================
     if (window.EventDispatcher) {
-        window.EventDispatcher.onClick('.js-edit-room', (e, el) => window.openEditRoomModal(el.dataset.name, el.dataset.icon));
+        window.EventDispatcher.onClick('.js-edit-room', (e, el) => window.openEditRoomModal(el.dataset.name, el.dataset.roomIcon));
         window.EventDispatcher.onClick('.js-delete-room', (e, el) => window.deleteRoom(el.dataset.name));
         
-        window.EventDispatcher.onClick('.js-edit-profile', (e, el) => window.openEditProfileScreen(parseInt(el.dataset.id)));
+        window.EventDispatcher.onClick('.js-edit-profile', (e, el) => window.openEditProfileScreen(el.dataset.id));
         
-        window.EventDispatcher.onClick('.js-edit-log', (e, el) => window.openEditLogModal(parseInt(el.dataset.id)));
-        window.EventDispatcher.onClick('.js-delete-log', (e, el) => window.deleteLog(parseInt(el.dataset.id)));
+        window.EventDispatcher.onClick('.js-edit-log', (e, el) => window.openEditLogModal(el.dataset.id));
+        window.EventDispatcher.onClick('.js-delete-log', (e, el) => window.deleteLog(el.dataset.id));
         
-        window.EventDispatcher.onClick('.js-restore-archive', (e, el) => window.restoreFromArchive(el.dataset.table, parseInt(el.dataset.id)));
-        window.EventDispatcher.onClick('.js-delete-archive', (e, el) => window.permanentlyDelete(el.dataset.table, parseInt(el.dataset.id)));
+        window.EventDispatcher.onClick('.js-restore-archive', (e, el) => window.restoreFromArchive(el.dataset.table, el.dataset.id, el.dataset.eventKey));
+        window.EventDispatcher.onClick('.js-delete-archive', (e, el) => window.permanentlyDelete(el.dataset.table, el.dataset.id));
 
         // NOWE: Dynamiczne Modale z plikow
         window.EventDispatcher.onClick('.js-close-new-room', () => window.closeNewRoomModal());
-        window.EventDispatcher.onClick('.js-save-new-room', () => window.saveNewRoom());
+        window.EventDispatcher.onClick('.js-save-new-room', e => { e.preventDefault();window.saveNewRoom(); });
         
         window.EventDispatcher.onClick('.js-close-edit-room', () => window.closeEditRoomModal());
-        window.EventDispatcher.onClick('.js-save-edit-room', () => window.saveEditRoom());
+        window.EventDispatcher.onClick('.js-save-edit-room', e => { e.preventDefault();window.saveEditRoom(); });
 
         window.EventDispatcher.onClick('.js-close-new-profile', () => window.closeNewProfileModal());
-        window.EventDispatcher.onClick('.js-save-new-profile', () => window.saveNewProfile());
+        window.EventDispatcher.onClick('.js-save-new-profile', e => { e.preventDefault();window.saveNewProfile(); });
 
         window.EventDispatcher.onClick('.js-close-profile-switcher', () => window.closeProfileSwitcher?.());
         window.EventDispatcher.onClick('.js-open-new-profile-from-switcher', () => {
@@ -507,5 +542,6 @@ window.SettingsModule = (() => {
         console.error("EventDispatcher nie został załadowany!");
     }
 
+    document.addEventListener('submit',event=>{const actions={'new-profile-form':window.saveNewProfile,'new-room-form':window.saveNewRoom,'edit-room-form':window.saveEditRoom};if(actions[event.target.id]){event.preventDefault();actions[event.target.id]();}});
     return { init: window.initSettingsModule };
 })();

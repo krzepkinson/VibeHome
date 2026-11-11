@@ -51,6 +51,7 @@ window.Router = (() => {
     const pendingViewLoads = new Map();
     const pendingModalLoads = new Map();
     let navigationRequestId = 0;
+    const scrollPositions = new Map();
 
     // POMOCNICZE: Bezpieczny odczyt i zapis w localStorage
     const getCachedHtml = (key) => {
@@ -156,13 +157,16 @@ window.Router = (() => {
 
         // Zmieniamy ekran dopiero po przygotowaniu celu, żeby wolne pobranie
         // szablonu nie zostawiało użytkownika z pustym ekranem.
+        const mainScreen = document.getElementById('main-screen');
+        if (mainScreen) scrollPositions.set(activeView, mainScreen.scrollTop);
         document.querySelectorAll('.screen-view').forEach(el => {
             if (el !== targetScreen) el.classList.add('hidden');
         });
         targetScreen.classList.remove('hidden');
 
-        const mainScreen = document.getElementById('main-screen');
-        if (mainScreen) mainScreen.scrollTop = 0;
+        if (mainScreen) {
+            mainScreen.scrollTop = scrollPositions.get(viewName) || 0;
+        }
 
         if (pushToHistory && viewName !== 'auth') {
             const newUrl = viewName === 'dashboard' ? '/' : `/?view=${viewName}`;
@@ -176,13 +180,16 @@ window.Router = (() => {
             nav.classList.toggle('hidden', viewName === 'auth' || isSubScreen);
             
             nav.querySelectorAll('button').forEach(btn => {
-                const isActive = btn.dataset.view === viewName || btn.getAttribute('onclick')?.includes(`'${viewName}'`);
-                btn.style.opacity = isActive ? '1' : '0.5';
+                const isActive = btn.dataset.view === (viewName === 'home' ? 'todo' : viewName) || btn.getAttribute('onclick')?.includes(`'${viewName}'`);
+                btn.style.opacity = '1';
+                if (isActive) btn.setAttribute('aria-current','page'); else btn.removeAttribute('aria-current');
             });
         }
 
         activeView = viewName;
         window.activeView = viewName;
+        window.UX?.decorate(targetScreen);
+        document.dispatchEvent(new CustomEvent('app:view-changed', { detail: { view: viewName } }));
 
         if (typeof config.onEnter === 'function') {
             try {
@@ -194,6 +201,10 @@ window.Router = (() => {
                 console.error(`Błąd inicjalizacji widoku ${viewName}:`, err);
             }
         }
+        // Lokalny renderer onEnter może zmienić wysokość po odsłonięciu widoku.
+        requestAnimationFrame(() => {
+            if (requestId === navigationRequestId && mainScreen) mainScreen.scrollTop = scrollPositions.get(viewName) || 0;
+        });
     };
 
     // 2. PANCERNY SILNIK MODALI OFFLINE
@@ -227,6 +238,7 @@ window.Router = (() => {
         if (typeof onReadyCallback === 'function') {
             onReadyCallback(modalEl);
         }
+        window.UX?.openDialog(modalEl);
     };
 
     window.prefetchModalTemplate = function(modalId, modalPath) {

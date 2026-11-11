@@ -4,6 +4,8 @@
 
 window.HomeModule = (() => {
     let roomFilter = null; 
+    let afterEditLogClose = null;
+    let editLogSaving = false;
 
     // Helper do bezpiecznego porównywania ID (String vs Number)
     const sameId = (a, b) => a != null && b != null && String(a) === String(b);
@@ -66,168 +68,16 @@ window.HomeModule = (() => {
 
     window.renderHomeUI = function() {
         const list = document.getElementById('dashboard-list') || document.getElementById('home-task-list');
+        if (!list) return;
+        if (!window.TaskModel || !window.TaskDetails) { list.innerHTML = '<p class="ux-muted">Ładowanie zadań…</p>'; return; }
         const state = window.AppStore.get() || {};
-        
-        const tasks = (state.tasks || []).filter(t => !t.is_archived); 
-        const logs = state.logs || [];
-        const dbRooms = state.rooms || [];
-        const latestLogByTask = new Map();
-        logs.forEach(log => {
-            if (log.task_id == null || !log.created_at) return;
-            const logTime = new Date(log.created_at).getTime();
-            if (!Number.isFinite(logTime)) return;
-            const key = String(log.task_id);
-            const previous = latestLogByTask.get(key);
-            if (!previous || logTime > previous.time) latestLogByTask.set(key, { log, time: logTime });
-        });
-
-        if (tasks.length === 0 && !roomFilter) {
-            if (list) {
-                list.innerHTML = window.UI.renderEmptyState("Brak zaplanowanych zadań", "Dodaj krótkie zadanie albo ustaw termin w planie domu.") + `
-                <div class="flex justify-center -mt-10">
-                    <button class="js-open-quick-add min-h-11 px-4 bg-[#c4eed0] text-[#133323] font-medium rounded-full transition-all flex items-center gap-2 cursor-pointer text-sm">
-                        <span class="text-base">+</span> Dodaj
-                    </button>
-                </div>`;
-            }
-            return;
-        }
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        if (!roomFilter) {
-            let roomStats = {};
-            dbRooms.forEach(r => roomStats[r.name] = { icon: r.icon, total: 0, overdue: 0 });
-            if (!roomStats['Inne']) roomStats['Inne'] = { icon: '📦', total: 0, overdue: 0 };
-            
-            let totalOverdueAll = 0;
-            tasks.forEach(task => {
-                const rName = task.room || 'Inne';
-                if (!roomStats[rName]) roomStats[rName] = { icon: '📦', total: 0, overdue: 0 };
-                roomStats[rName].total++;
-                
-                const lastLog = latestLogByTask.get(String(task.id))?.log;
-                if (task.interval_days && task.interval_days > 0) {
-                    if (!lastLog) {
-                        const dueDate = new Date(task.next_due_at || task.created_at || today);
-                        dueDate.setHours(0, 0, 0, 0);
-                        if (dueDate < today) {
-                            roomStats[rName].overdue++;
-                            totalOverdueAll++;
-                        }
-                    } else {
-                        const nextDate = new Date(lastLog.created_at);
-                        nextDate.setDate(nextDate.getDate() + task.interval_days);
-                        nextDate.setHours(0,0,0,0);
-                        if (nextDate < today) {
-                            roomStats[rName].overdue++; 
-                            totalOverdueAll++;
-                        }
-                    }
-                } else if (!lastLog && task.next_due_at) {
-                    const dueDate = new Date(task.next_due_at);
-                    dueDate.setHours(0, 0, 0, 0);
-                    if (dueDate < today) {
-                        roomStats[rName].overdue++;
-                        totalOverdueAll++;
-                    }
-                }
-            });
-
-            let html = `<div class="flex flex-col mt-2">`;
-            const allBadge = totalOverdueAll > 0 ? `<span class="ml-2 shrink-0 rounded-full bg-[#3c1414] text-[#ffb4ab] px-2 py-1 text-[10px]">${totalOverdueAll} zaległych</span>` : '';
-            
-            html += `
-                <div class="js-filter-room min-h-12 flex items-center gap-3 px-3 py-2 bg-[#004a77]/20 rounded-xl border border-[#004a77]/50 cursor-pointer active:opacity-70" data-room="Wszystkie">
-                    <span class="w-7 text-center text-lg opacity-80">🗂️</span><h3 class="flex-1 text-sm font-medium text-[#c2e7ff]">Wszystkie</h3>
-                    <span class="text-[10px] text-[#c2e7ff]/70">${tasks.length} zadań</span>${allBadge}
-                </div>`;
-
-            // UX: Pokoje Smart (Dynamiczne sortowanie po ilości zaległości)
-            const sortedRooms = Object.entries(roomStats).sort((a, b) => {
-                if (a[0] === 'Inne') return 1;
-                if (b[0] === 'Inne') return -1;
-                if (b[1].overdue !== a[1].overdue) return b[1].overdue - a[1].overdue; // Zaległe na początek
-                if (b[1].total !== a[1].total) return b[1].total - a[1].total;
-                return a[0].localeCompare(b[0]);
-            });
-
-            sortedRooms.forEach(([roomName, stats]) => {
-                const badge = stats.overdue > 0 ? `<span class="ml-2 shrink-0 rounded-full bg-[#3c1414] text-[#ffb4ab] px-2 py-1 text-[10px]">${stats.overdue} zaległych</span>` : '';
-                
-                // UX: Dynamiczna zmiana koloru zabrudzonych pokoi
-                let bgClass = 'bg-[#1e1f20]';
-                let borderClass = 'border-[#333537]';
-                let nameColor = 'text-neutral-200';
-                
-                if (stats.overdue >= 3) {
-                    bgClass = 'bg-rose-900/30';
-                    borderClass = 'border-rose-900/50';
-                    nameColor = 'text-rose-200 font-bold';
-                } else if (stats.overdue > 0) {
-                    bgClass = 'bg-[#3c1414]/30';
-                    borderClass = 'border-[#ffb4ab]/20';
-                    nameColor = 'text-[#ffb4ab]';
-                }
-
-                html += `
-                    <div class="js-filter-room min-h-12 flex items-center gap-3 px-3 py-2 ${bgClass} rounded-xl border ${borderClass} cursor-pointer active:opacity-70 transition-colors" data-room="${window.esc(roomName)}">
-                        <span class="w-7 text-center text-lg">${window.esc(stats.icon)}</span><h3 class="flex-1 text-sm ${nameColor}">${window.esc(roomName)}</h3>
-                        <span class="text-[10px] text-neutral-500">${stats.total}</span>${badge}
-                    </div>`;
-            });
-            
-            if (list) list.innerHTML = html + `</div>`;
-            return;
-        }
-
-        let tasksToDisplay = roomFilter === 'Wszystkie' ? tasks : tasks.filter(t => (t.room || 'Inne') === roomFilter);
-
-        let scored = tasksToDisplay.map(t => {
-            const lastLog = latestLogByTask.get(String(t.id))?.log;
-            let daysRemaining;
-            
-            if (!t.interval_days || t.interval_days === 0) {
-                if (lastLog) {
-                    daysRemaining = 999999;
-                } else if (t.next_due_at) {
-                    const dueDate = new Date(t.next_due_at);
-                    dueDate.setHours(0, 0, 0, 0);
-                    daysRemaining = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
-                } else {
-                    daysRemaining = 0;
-                }
-            } else {
-                if (!lastLog) {
-                    const dueDate = new Date(t.next_due_at || t.created_at || today);
-                    dueDate.setHours(0, 0, 0, 0);
-                    daysRemaining = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
-                } else {
-                    const lastDate = new Date(lastLog.created_at);
-                    lastDate.setHours(0,0,0,0);
-                    const nextDueDate = new Date(lastDate);
-                    nextDueDate.setDate(nextDueDate.getDate() + t.interval_days);
-                    const diffTime = nextDueDate.getTime() - today.getTime();
-                    daysRemaining = Math.ceil(diffTime / 86400000);
-                }
-            }
-            return { t, last: lastLog, daysRemaining };
-        });
-
-        scored.sort((a, b) => {
-            if (a.daysRemaining !== b.daysRemaining) return a.daysRemaining - b.daysRemaining;
-            const intA = a.t.interval_days || 999999;
-            const intB = b.t.interval_days || 999999;
-            if (intA !== intB) return intA - intB;
-            return a.t.name.localeCompare(b.t.name);
-        });
-
-        if (list) {
-            list.innerHTML = scored.length 
-                ? scored.map(item => window.UI.renderHomeTaskCard(item)).join('') 
-                : window.UI.renderEmptyState("Brak zadań", "To pomieszczenie jest czyste.");
-        }
+        const esc = value => window.esc(String(value ?? ''));
+        let tasks = window.TaskModel.list().filter(task => task.area === 'Dom');
+        const selectedRoom = roomFilter && roomFilter !== 'Wszystkie' ? roomFilter : '';
+        let html = `<div class="ux-actions ux-task-filters" role="group" aria-label="Pomieszczenie"><button type="button" class="ux-chip js-filter-room ${!selectedRoom ? 'active' : ''}" data-room="Wszystkie">Wszystkie</button>${(state.rooms || []).map(room => `<button type="button" class="ux-chip js-filter-room ${selectedRoom === room.name ? 'active' : ''}" data-room="${esc(room.name)}">${esc(room.name)}</button>`).join('')}</div>`;
+        tasks = tasks.filter(task => !selectedRoom || task.room === selectedRoom).sort((a, b) => Number(b.important) - Number(a.important) || (a.dueAt ? new Date(a.dueAt).getTime() : Infinity) - (b.dueAt ? new Date(b.dueAt).getTime() : Infinity) || a.name.localeCompare(b.name, 'pl'));
+        html += tasks.map(window.TaskDetails.row).join('') || '<p class="ux-empty">Brak aktywnych zadań. Dodaj zadanie, termin lub cykl dla domu.</p>';
+        list.innerHTML = html;
     };
 
     window.getRelativeTime = function(d) {
@@ -292,6 +142,16 @@ window.HomeModule = (() => {
 
     // Wewnętrzna funkcja realizująca logowanie w 0 ms
     async function executeTaskLog(taskId, finalDate, notes) {
+        if (window.TaskModel) {
+            try {
+                const result = await window.TaskModel.complete(`tasks:${taskId}`, { completedAt: finalDate, notes });
+                const message = result.task?.repeat.every ? `Wykonano · kolejny termin ${window.TaskModel.dueLabel(result.task)}` : 'Zadanie wykonane';
+                if (window.UX?.actionToast && result.undo) window.UX.actionToast(message, 'Cofnij', result.undo);
+                else window.showToast(message);
+            } catch (error) { console.error('Task completion failed:', error); window.showToast('Nie udało się zapisać wykonania.'); }
+            return;
+        }
+
         const state = window.AppStore.get() || {};
         const taskObj = (state.tasks || []).find(t => sameId(t.id, taskId));
         if (!taskObj) return;
@@ -503,26 +363,36 @@ window.HomeModule = (() => {
         if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     };
 
-    window.openEditLogModal = function(logId) {
+    window.openEditLogModal = function(logId, options = {}) {
         const state = window.AppStore.get() || {};
         const log = (state.logs || []).find(l => sameId(l.id, logId));
         
         if (!log) { window.showToast("Nie znaleziono wpisu."); return; }
+        afterEditLogClose = typeof options.onClose === 'function' ? options.onClose : null;
 
         window.loadAndShowModal('edit-log-modal', '/modals/edit-log.html', () => {
             document.getElementById('edit-log-id').value = log.id;
             document.getElementById('edit-log-date').value = formatLocalDatetime(log.created_at);
             document.getElementById('edit-log-notes').value = log.notes || '';
+            const error = document.getElementById('edit-log-error');
+            if (error) error.textContent = '';
+            window.UX?.openDialog('edit-log-modal');
             setTimeout(() => { const input = document.getElementById('edit-log-notes'); if (input) input.focus(); }, 50);
         });
     };
 
     window.closeEditLogModal = function() { 
+        if (editLogSaving) return;
         const modal = document.getElementById('edit-log-modal');
-        if (modal) modal.classList.add('hidden');
+        if (window.UX?.closeDialog) window.UX.closeDialog('edit-log-modal');
+        else if (modal) modal.classList.add('hidden');
+        const callback = afterEditLogClose;
+        afterEditLogClose = null;
+        callback?.();
     };
 
     window.saveEditLog = async function() {
+        if (editLogSaving) return;
         if (document.activeElement) document.activeElement.blur();
 
         const id = document.getElementById('edit-log-id').value;
@@ -530,26 +400,57 @@ window.HomeModule = (() => {
         const notes = document.getElementById('edit-log-notes').value.trim();
 
         if (!id || !dateStr) { window.showToast("Wprowadź datę i godzinę!"); return; }
-        const finalDate = parseLocalDatetime(dateStr).toISOString();
-
-        window.AppStore.set(prevState => ({
-            ...prevState,
-            logs: (prevState.logs || []).map(l => sameId(l.id, id) ? { ...l, created_at: finalDate, notes: notes } : l)
-        }));
-
-        window.closeEditLogModal();
-        window.showToast("Wpis zaktualizowany! ✏️"); 
-        window.renderHomeUI();
-
-        const { error } = await window.supabaseClient.from('activity_logs')
-            .update({ created_at: finalDate, notes: notes })
-            .eq('id', id);
-
-        if (error) { 
-            window.showToast("Błąd zapisu w chmurze"); 
-            window.loadDashboardOverview(true);
+        const parsedDate = parseLocalDatetime(dateStr);
+        if (!parsedDate || isNaN(parsedDate.getTime())) { window.showToast('Wprowadź prawidłową datę i godzinę.'); return; }
+        const finalDate = parsedDate.toISOString();
+        const state = window.AppStore.get() || {};
+        const original = (state.logs || []).find(log => sameId(log.id, id));
+        if (!original) { window.showToast('Nie znaleziono wpisu.'); return; }
+        const activeScope = { householdId: window.currentUser?.household_id, userId: window.currentUser?.user_id || window.currentUser?.id };
+        const assertScope = () => {
+            if (window.currentUser?.household_id !== activeScope.householdId || (window.currentUser?.user_id || window.currentUser?.id) !== activeScope.userId) throw new Error('Konto lub dom zmieniły się podczas zapisywania.');
+        };
+        const task = window.TaskModel?.get(`tasks:${original.task_id}`);
+        const taskLogs = (state.logs || []).filter(log => sameId(log.task_id, original.task_id));
+        const latestBefore = taskLogs.reduce((latest, log) => Math.max(latest, new Date(log.created_at).getTime()), -Infinity);
+        const latestAfter = taskLogs.reduce((latest, log) => Math.max(latest, new Date(sameId(log.id, id) ? finalDate : log.created_at).getTime()), -Infinity);
+        const nextDue = task?.repeat?.every && task.repeat.mode === 'completion' && latestBefore !== latestAfter && Number.isFinite(latestAfter) ? window.TaskModel.addRepeat(new Date(latestAfter), task.repeat).toISOString() : null;
+        editLogSaving = true;
+        const modal = document.getElementById('edit-log-modal');
+        modal?.querySelectorAll('button,input,textarea').forEach(element => { element.disabled = true; });
+        const errorElement = document.getElementById('edit-log-error');
+        if (errorElement) errorElement.textContent = '';
+        window.invalidateDashboardCache?.();
+        try {
+            const { error } = await window.supabaseClient.from('activity_logs').update({ created_at: finalDate, notes }).eq('id', id).eq('household_id', activeScope.householdId);
+            if (error) throw error;
+            assertScope();
+            if (nextDue) {
+                const update = await window.supabaseClient.from('tasks').update({ next_due_at: nextDue }).eq('id', original.task_id).eq('household_id', activeScope.householdId);
+                if (update.error) {
+                    const rollback = await window.supabaseClient.from('activity_logs').update({ created_at: original.created_at, notes: original.notes || '' }).eq('id', id).eq('household_id', activeScope.householdId);
+                    if (rollback.error) window.loadDashboardOverview?.(true);
+                    throw update.error;
+                }
+                assertScope();
+            }
+            window.invalidateDashboardCache?.();
+            window.AppStore.set(prevState => ({ ...prevState,
+                logs: (prevState.logs || []).map(log => sameId(log.id, id) ? { ...log, created_at: finalDate, notes } : log),
+                tasks: nextDue ? (prevState.tasks || []).map(row => sameId(row.id, original.task_id) ? { ...row, next_due_at: nextDue } : row) : prevState.tasks
+            }));
+            editLogSaving = false;
+            window.closeEditLogModal();
+            window.showToast('Zaktualizowano zapis wykonania.');
+            window.UX?.refresh?.();
+        } catch (error) {
+            console.error('Completion edit failed:', error);
+            if (errorElement) errorElement.textContent = 'Nie udało się zapisać. Data i notatka pozostają w formularzu.';
+            else window.showToast('Nie udało się zapisać wykonania.');
+        } finally {
+            editLogSaving = false;
+            modal?.querySelectorAll('button,input,textarea').forEach(element => { element.disabled = false; });
         }
-        if (typeof window.invalidateDashboardCache === 'function') window.invalidateDashboardCache();
     };
 
     window.deleteTaskFromHome = function(id, name) {
