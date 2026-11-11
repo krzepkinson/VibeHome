@@ -2,8 +2,8 @@ const CONFIG = {
     SUPABASE_URL: "https://znrrvqgqxjxgahpfuqkm.supabase.co",
     SUPABASE_KEY: "sb_publishable_NBhB0zf-fuRqkJMmllSEQg_7qcmtcOE",
     VAPID_PUBLIC_KEY: "BL2GdHoe3QiVQrSO7NDLwbfMMcuF-07IGUFuXQgdJjd-TDl3PriVMvFnbqphZzpH48CH5IXn2hhS0sEzUAWLyoA",
-    APP_VERSION: "3.0.2",
-    VERSION: "3.0.2",
+    APP_VERSION: "3.0.3",
+    VERSION: "3.0.3",
     DEBUG: true,        // ZMIANA: Zmienna potrzebna dla store.js (logowanie w konsoli)
     CACHE_TTL: 30000,
     DEFAULT_AVATAR: "👤"
