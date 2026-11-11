@@ -3,77 +3,88 @@
 // ==========================================
 
 window.AppStore = (() => {
-    const STORAGE_KEY = 'bento_app_store_v1';
+    const LEGACY_STORAGE_KEY = 'bento_app_store_v1';
+    const STORAGE_KEY_PREFIX = `${LEGACY_STORAGE_KEY}:`;
 
-    // Domyślny stan początkowy
-    const defaultState = {
-        tasks: [], logs: [], profiles: [], rooms: [], 
-        todos: [], hTasks: [], hLogs: [], pharmacy: [], 
-        hMeasurements: [], checklists: [], calendarEvents: []
-    };
+    const createDefaultState = () => ({
+        tasks: [], logs: [], profiles: [], rooms: [],
+        todos: [], hTasks: [], hLogs: [], pharmacy: [],
+        hMeasurements: [], checklists: [], checklistItems: [], calendarEvents: []
+    });
 
-    // Błyskawiczny odczyt z pamięci urządzenia (0 ms przy starcie)
-    const loadInitialState = () => {
-        try {
-            const cached = localStorage.getItem(STORAGE_KEY);
-            if (cached) {
-                const parsed = JSON.parse(cached);
-                return { ...defaultState, ...parsed };
-            }
-        } catch (e) {
-            console.warn("Błąd odczytu z localStorage:", e);
-        }
-        return { ...defaultState };
-    };
-
-    let state = loadInitialState();
+    let state = createDefaultState();
+    let activeStorageKey = null;
     let listeners = [];
 
-    // Zapis stanu w pamięci podręcznej telefonu
-    const saveToStorage = (newState) => {
+    const notify = () => listeners.forEach(callback => callback(state));
+
+    const loadFromStorage = (key) => {
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+            const cached = key && localStorage.getItem(key);
+            if (cached) return { ...createDefaultState(), ...JSON.parse(cached) };
         } catch (e) {
-            console.warn("Błąd zapisu do localStorage:", e);
+            console.warn('Błąd odczytu z localStorage:', e);
+        }
+        return createDefaultState();
+    };
+
+    const saveToStorage = () => {
+        if (!activeStorageKey) return;
+        try {
+            localStorage.setItem(activeStorageKey, JSON.stringify(state));
+        } catch (e) {
+            console.warn('Błąd zapisu do localStorage:', e);
         }
     };
 
     return {
-        // Pobierz aktualny stan z pamięci RAM
         get: () => state,
 
-        // Zapis stanu + natychmiastowa persystencja na dysku
-        set: (updater) => {
-            const nextState = typeof updater === 'function' 
-                ? updater(state) 
-                : { ...state, ...updater };
-            
-            state = nextState;
-            saveToStorage(state);
-            
-            if (window.CONFIG && window.CONFIG.DEBUG) {
-                console.log("Store updated & saved locally:", state);
+        // Dane lokalne są odseparowane dla konta i gospodarstwa domowego.
+        setScope: (userId, householdId) => {
+            if (!userId) {
+                activeStorageKey = null;
+                state = createDefaultState();
+                notify();
+                return;
             }
-            
-            listeners.forEach(callback => callback(state));
+
+            const scope = `${encodeURIComponent(String(userId))}:${encodeURIComponent(String(householdId || 'no-household'))}`;
+            const nextKey = `${STORAGE_KEY_PREFIX}${scope}`;
+            if (nextKey === activeStorageKey) return;
+
+            activeStorageKey = nextKey;
+            state = loadFromStorage(activeStorageKey);
+
+            // Stary klucz nie był przypisany do użytkownika, więc nie da się go
+            // bezpiecznie przypisać do jednego z domowników.
+            try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch (e) {}
+            notify();
         },
 
-        // Zapisz się na powiadomienia o zmianach
+        set: (updater) => {
+            const nextState = typeof updater === 'function'
+                ? updater(state)
+                : { ...state, ...updater };
+
+            if (!nextState || typeof nextState !== 'object') return;
+            state = { ...createDefaultState(), ...nextState };
+            saveToStorage();
+            notify();
+        },
+
         subscribe: (callback) => {
             listeners.push(callback);
-            return () => {
-                listeners = listeners.filter(l => l !== callback);
-            };
+            return () => { listeners = listeners.filter(listener => listener !== callback); };
         },
 
-        // Wyszyszczenie pamięci lokalnej (np. przy wylogowaniu)
         clearStorage: () => {
             try {
-                localStorage.removeItem(STORAGE_KEY);
-                state = { ...defaultState };
-                listeners.forEach(callback => callback(state));
+                if (activeStorageKey) localStorage.removeItem(activeStorageKey);
+                state = createDefaultState();
+                notify();
             } catch (e) {
-                console.warn("Błąd czyszczenia storage:", e);
+                console.warn('Błąd czyszczenia storage:', e);
             }
         }
     };

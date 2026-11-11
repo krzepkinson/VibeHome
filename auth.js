@@ -91,6 +91,7 @@ window.finalizeLogin = async function(user) {
         }
 
         window.currentUser = { ...profile, user_id: user.id };
+        window.AppStore?.setScope(user.id, profile.household_id || null);
         
         const urlParams = new URLSearchParams(window.location.search);
         const view = urlParams.get('view') || 'dashboard';
@@ -132,8 +133,13 @@ window.checkSession = async function() {
 };
 
 window.logoutUser = async function() {
-    await window.supabaseClient.auth.signOut();
+    const { error } = await window.supabaseClient.auth.signOut();
+    if (error) {
+        window.showToast?.('Błąd wylogowania');
+        return;
+    }
     window.currentUser = null;
+    window.AppStore?.setScope(null, null);
             
     if (typeof window.invalidateDashboardCache === 'function') {
         window.invalidateDashboardCache();

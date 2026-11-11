@@ -3,7 +3,7 @@
 // ==========================================
 
 window.esc = function(str) {
-    if (!str) return '';
+    if (str == null) return '';
     return str.toString().replace(/[&<>'"]/g, tag => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
     }[tag] || tag));
@@ -137,7 +137,7 @@ window.initPullToRefresh = function() {
             ptrIcon.classList.add('animate-spin');
             
             Promise.resolve().then(async () => {
-                await window.refreshCurrentView();
+                await window.refreshCurrentView(true);
                 ptrIndicator.style.transform = `translateY(-100%)`; 
                 ptrIcon.classList.remove('animate-spin');
             });
@@ -156,6 +156,7 @@ window.setupGlobalSwipe = function() {
         const swipeFront = e.target.closest('.swipe-front, .js-swipe-item');
         if (openItem && openItem !== swipeFront) { openItem.style.transform = 'translateX(0px)'; openItem = null; }
         if (!swipeFront) return;
+        if (window.activeView === 'home' && swipeFront.matches('.js-swipe-item')) return;
         activeItem = swipeFront; startX = e.touches ? e.touches[0].clientX : e.pageX; isDragging = true;
         activeItem.style.transition = 'none';
     };

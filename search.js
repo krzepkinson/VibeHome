@@ -4,26 +4,39 @@
 
 window.SearchModule = (() => {
     let searchTimeout = null;
-    const HISTORY_KEY = 'bento_recent_searches_v1';
+    const HISTORY_KEY_PREFIX = 'bento_recent_searches_v1:';
+    const getHistoryKey = () => {
+        const userId = window.currentUser?.user_id;
+        return userId ? `${HISTORY_KEY_PREFIX}${encodeURIComponent(String(userId))}` : null;
+    };
+    try { localStorage.removeItem('bento_recent_searches_v1'); } catch (e) {}
 
     // 1. HELPERY HISTORII WYSZUKIWANIA
     const getRecentSearches = () => {
-        try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } 
+        try {
+            const key = getHistoryKey();
+            return key ? JSON.parse(localStorage.getItem(key)) || [] : [];
+        }
         catch (e) { return []; }
     };
 
     const saveToRecentSearches = (item) => {
         try {
+            const key = getHistoryKey();
+            if (!key) return;
             let list = getRecentSearches();
             list = list.filter(i => !(i.id === item.id && i.type === item.type));
             list.unshift(item);
             if (list.length > 5) list = list.slice(0, 5);
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+            localStorage.setItem(key, JSON.stringify(list));
         } catch (e) {}
     };
 
     window.clearRecentSearches = function() {
-        try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
+        try {
+            const key = getHistoryKey();
+            if (key) localStorage.removeItem(key);
+        } catch (e) {}
         window.renderRecentSearches();
     };
 
@@ -60,15 +73,15 @@ window.SearchModule = (() => {
 
         html += recent.map(r => `
             <div class="js-search-result flex items-center gap-4 p-3 bg-[#1e1f20]/60 hover:bg-[#252627] border border-[#333537]/60 rounded-[14px] mb-1.5 cursor-pointer active:scale-95 transition-all animate-fade-in"
-                 data-id="${r.id}"
+                 data-id="${window.esc(r.id)}"
                  data-title="${window.esc(r.title)}"
                  data-type="${window.esc(r.type)}"
                  data-icon="${window.esc(r.icon)}"
                  data-extra="${window.esc(r.extraData)}">
-                <div class="text-xl opacity-70">${r.icon || '🔍'}</div>
+                <div class="text-xl opacity-70">${window.esc(r.icon || '🔍')}</div>
                 <div class="flex-1 min-w-0">
                     <h3 class="text-xs font-medium text-neutral-300 truncate">${window.esc(r.title)}</h3>
-                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest">${r.type}</p>
+                    <p class="text-[9px] text-neutral-500 uppercase tracking-widest">${window.esc(r.type)}</p>
                 </div>
                 <span class="text-neutral-600 text-xs">↩</span>
             </div>
@@ -100,15 +113,15 @@ window.SearchModule = (() => {
 
             return `
             <div class="js-search-result flex items-center gap-4 p-4 bg-[#1e1f20] hover:bg-[#333537] border border-[#333537] rounded-[16px] mb-2 cursor-pointer active:scale-95 transition-all shadow-sm animate-fade-in"
-                 data-id="${r.id}"
+                 data-id="${window.esc(r.id)}"
                  data-title="${window.esc(r.title)}"
                  data-type="${window.esc(r.type)}"
                  data-icon="${window.esc(r.icon)}"
                  data-extra="${window.esc(r.extraData)}">
-                <div class="text-2xl">${r.icon}</div>
+                <div class="text-2xl">${window.esc(r.icon || '🔍')}</div>
                 <div class="flex-1 min-w-0">
                     <h3 class="text-sm font-medium text-neutral-200 truncate">${highlightedTitle}</h3>
-                    <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-0.5">${r.type}${highlightedExtra ? ` • ${highlightedExtra}` : ''}</p>
+                    <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-0.5">${window.esc(r.type)}${highlightedExtra ? ` • ${highlightedExtra}` : ''}</p>
                 </div>
                 <span class="text-neutral-500 text-lg">→</span>
             </div>`;

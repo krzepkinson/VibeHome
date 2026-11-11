@@ -3,13 +3,26 @@
 // ==========================================
 
 window.Router = (() => {
-    const VIEW_CACHE_PREFIX = 'bento_view_cache_';
-    const MODAL_CACHE_PREFIX = 'bento_modal_cache_';
+    const APP_VERSION = String(window.CONFIG?.VERSION || '1');
+    const VIEW_CACHE_BASE = 'bento_view_cache_';
+    const MODAL_CACHE_BASE = 'bento_modal_cache_';
+    const VIEW_CACHE_PREFIX = `${VIEW_CACHE_BASE}${APP_VERSION}_`;
+    const MODAL_CACHE_PREFIX = `${MODAL_CACHE_BASE}${APP_VERSION}_`;
+    const withVersion = (path) => `${path}${path.includes('?') ? '&' : '?'}v=${encodeURIComponent(APP_VERSION)}`;
+
+    try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            const isOldViewCache = key?.startsWith(VIEW_CACHE_BASE) && !key.startsWith(VIEW_CACHE_PREFIX);
+            const isOldModalCache = key?.startsWith(MODAL_CACHE_BASE) && !key.startsWith(MODAL_CACHE_PREFIX);
+            if (isOldViewCache || isOldModalCache) localStorage.removeItem(key);
+        }
+    } catch (e) {}
 
     const viewConfig = {
         // GŁÓWNE WIDOKI
         'auth':      { onEnter: null },
-        'dashboard': { file: 'dashboard.html', onEnter: () => window.loadDashboardOverview?.(true) },
+        'dashboard': { file: 'dashboard.html', onEnter: (forceRefresh = false) => window.loadDashboardOverview?.(forceRefresh) },
         'home':      { file: 'home.html', onEnter: () => window.loadDashboard?.() },
         'health':    { file: 'health.html', onEnter: () => window.initHealthModule?.() },
         'todo':      { file: 'todo.html', onEnter: () => window.initTodoModule?.() },
@@ -78,7 +91,7 @@ window.Router = (() => {
                     }
                 } else {
                     // Cicha aktualizacja w tle jeśli jest zasięg
-                    fetch(`/views/${config.file}`).then(r => r.ok ? r.text() : null).then(freshHtml => {
+                    fetch(withVersion(`/views/${config.file}`)).then(r => r.ok ? r.text() : null).then(freshHtml => {
                         if (html && freshHtml) setCachedHtml(cacheKey, freshHtml);
                     }).catch(() => {});
                 }
@@ -153,7 +166,7 @@ window.Router = (() => {
                 }
             } else {
                 // Cicha aktualizacja w tle
-                fetch(modalPath).then(r => r.ok ? r.text() : null).then(freshHtml => {
+                fetch(withVersion(modalPath)).then(r => r.ok ? r.text() : null).then(freshHtml => {
                     if (freshHtml) setCachedHtml(cacheKey, freshHtml);
                 }).catch(() => {});
             }
@@ -181,7 +194,7 @@ window.Router = (() => {
             if (cfg.file) {
                 const cacheKey = VIEW_CACHE_PREFIX + vName;
                 if (!getCachedHtml(cacheKey)) {
-                    fetch(`/views/${cfg.file}`).then(r => r.ok ? r.text() : null).then(html => {
+                    fetch(withVersion(`/views/${cfg.file}`)).then(r => r.ok ? r.text() : null).then(html => {
                         if (html) setCachedHtml(cacheKey, html);
                     }).catch(() => {});
                 }
@@ -201,9 +214,9 @@ window.Router = (() => {
         window.switchView(viewName); 
     };
 
-    window.refreshCurrentView = function() {
+    window.refreshCurrentView = function(forceRefresh = false) {
         if (viewConfig[activeView]?.onEnter) {
-            viewConfig[activeView].onEnter();
+            return viewConfig[activeView].onEnter(forceRefresh);
         }
     };
 

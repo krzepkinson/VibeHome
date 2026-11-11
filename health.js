@@ -7,6 +7,10 @@ window.HealthModule = (() => {
 
     // Bezpieczne porównywanie identyfikatorów bez względu na ich typ (String / Number)
     const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+    const activeProfileStorageKey = () => {
+        const userId = window.currentUser?.user_id;
+        return userId ? `bento_health_active_profile:${encodeURIComponent(String(userId))}` : null;
+    };
 
     const formatLocalDatetime = (isoStr) => {
         if (!isoStr) return '';
@@ -45,18 +49,20 @@ window.HealthModule = (() => {
         if (diff > 0) {
             const isFever = currentMeas.measurement_type.toLowerCase().includes('temp') || currentMeas.measurement_type.toLowerCase().includes('gorąc');
             const color = isFever ? 'text-[#ffb4ab]' : 'text-neutral-300';
-            return `<span class="${color} font-bold text-xs ml-1.5" title="Poprzednio: ${prevVal} ${currentMeas.unit || ''}">↑ (+${diff.toFixed(1)})</span>`;
+            return `<span class="${color} font-bold text-xs ml-1.5" title="Poprzednio: ${window.esc(prevVal)} ${window.esc(currentMeas.unit || '')}">↑ (+${diff.toFixed(1)})</span>`;
         } else if (diff < 0) {
             const isFever = currentMeas.measurement_type.toLowerCase().includes('temp') || currentMeas.measurement_type.toLowerCase().includes('gorąc');
             const color = isFever ? 'text-[#c4eed0]' : 'text-neutral-300';
-            return `<span class="${color} font-bold text-xs ml-1.5" title="Poprzednio: ${prevVal} ${currentMeas.unit || ''}">↓ (${diff.toFixed(1)})</span>`;
+            return `<span class="${color} font-bold text-xs ml-1.5" title="Poprzednio: ${window.esc(prevVal)} ${window.esc(currentMeas.unit || '')}">↓ (${diff.toFixed(1)})</span>`;
         }
         return '<span class="text-neutral-500 font-bold text-xs ml-1.5" title="Bez zmian">=</span>';
     };
 
     window.initHealthModule = async function() {
         try {
-            const savedProfile = localStorage.getItem('bento_health_active_profile');
+            const key = activeProfileStorageKey();
+            const savedProfile = key ? localStorage.getItem(key) : null;
+            localStorage.removeItem('bento_health_active_profile');
             if (savedProfile) currentProfileId = savedProfile;
         } catch (e) {}
 
@@ -329,7 +335,7 @@ window.HealthModule = (() => {
                         <div class="space-y-1.5">
                             ${allMeas.sort((a,b)=> new Date(b.created_at) - new Date(a.created_at)).map(m => `
                                 <div class="flex justify-between items-center bg-[#1e1f20] p-2.5 rounded-xl border border-[#333537]">
-                                    <span class="text-neutral-300 font-medium">${m.measurement_type}: <strong class="text-[#c2e7ff]">${m.value} ${m.unit || ''}</strong></span>
+                                    <span class="text-neutral-300 font-medium">${window.esc(m.measurement_type)}: <strong class="text-[#c2e7ff]">${window.esc(m.value)} ${window.esc(m.unit || '')}</strong></span>
                                     <span class="text-[10px] text-neutral-500">${new Date(m.created_at).toLocaleString('pl-PL', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})}</span>
                                 </div>
                             `).join('')}
@@ -631,7 +637,8 @@ window.HealthModule = (() => {
         currentProfileId = id; 
 
         try {
-            localStorage.setItem('bento_health_active_profile', String(id));
+            const key = activeProfileStorageKey();
+            if (key) localStorage.setItem(key, String(id));
         } catch (e) {}
 
         if (typeof window.closeProfileSwitcher === 'function') window.closeProfileSwitcher();
@@ -1022,7 +1029,7 @@ window.HealthModule = (() => {
                     type: 'measurement',
                     date: new Date(m.created_at),
                     title: `Pomiar: ${m.measurement_type}`,
-                    desc: `Wynik: <span class="text-[#c2e7ff] font-bold">${m.value} ${m.unit || ''}</span>${trendHtml}${m.notes ? `<br><span class="text-[10px] opacity-70">${window.esc(m.notes)}</span>` : ''}`,
+                    desc: `Wynik: <span class="text-[#c2e7ff] font-bold">${window.esc(m.value)} ${window.esc(m.unit || '')}</span>${trendHtml}${m.notes ? `<br><span class="text-[10px] opacity-70">${window.esc(m.notes)}</span>` : ''}`,
                     icon: '📏',
                     color: 'text-[#c2e7ff]',
                     bg: 'bg-[#004a77]/10 border-[#004a77]/30'
@@ -1053,7 +1060,7 @@ window.HealthModule = (() => {
             timelineItems.sort((a, b) => b.date - a.date);
 
             if (timelineItems.length === 0) {
-                tl.innerHTML = `<div class="py-10 text-neutral-500 text-xs text-center">Brak wpisów w książeczce dla: ${profile ? profile.name : 'tego profilu'}</div>`;
+                tl.innerHTML = `<div class="py-10 text-neutral-500 text-xs text-center">Brak wpisów w książeczce dla: ${window.esc(profile ? profile.name : 'tego profilu')}</div>`;
                 return;
             }
 
@@ -1093,7 +1100,7 @@ window.HealthModule = (() => {
 
         } catch (err) {
             console.error("Błąd ładowania Książeczki:", err);
-            tl.innerHTML = `<p class="text-center text-rose-400 text-xs py-10">Błąd: ${err.message}</p>`;
+            tl.innerHTML = `<p class="text-center text-rose-400 text-xs py-10">Błąd: ${window.esc(err.message)}</p>`;
         }
     };
 

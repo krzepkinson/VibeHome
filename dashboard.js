@@ -52,7 +52,12 @@ window.DashboardModule = (() => {
                     window.supabaseClient.from('health_measurements').select('*').eq('household_id', hid).order('created_at', { ascending: false }).limit(100)
                 ]);
 
-                window.AppStore.set({
+                const failedResult = [tasksRes, logsRes, hTasksRes, hLogsRes, todoRes, profilesRes, roomsRes, listsRes, eventsRes, measRes]
+                    .find(result => result.error);
+                if (failedResult) throw failedResult.error;
+
+                window.AppStore.set(current => ({
+                    ...current,
                     tasks: tasksRes.data || [],
                     logs: logsRes.data || [],
                     hTasks: hTasksRes.data || [],
@@ -63,9 +68,9 @@ window.DashboardModule = (() => {
                     checklists: listsRes.data || [],
                     calendarEvents: eventsRes.data || [],
                     hMeasurements: measRes.data || []
-                });
+                }));
                 
-                window.dashboardCacheTime = now;
+                window.dashboardCacheTime = Date.now();
             } catch (err) {
                 console.error("Dashboard fetch error:", err);
                 window.showToast("Tryb offline - ładuję z pamięci urządzenia");

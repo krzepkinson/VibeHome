@@ -109,12 +109,15 @@ window.TodoModule = (() => {
                     window.supabaseClient.from('checklist_items').select('*').eq('household_id', hid)
                 ]);
 
-                window.AppStore.set({
-                    ...state,
+                const failedResult = [todosRes, listsRes, itemsRes].find(result => result.error);
+                if (failedResult) throw failedResult.error;
+
+                window.AppStore.set(current => ({
+                    ...current,
                     todos: todosRes.data || [],
                     checklists: listsRes.data || [],
                     checklistItems: itemsRes.data || []
-                });
+                }));
                 
                 window.renderTodoUI();
             } catch (err) {
@@ -233,8 +236,7 @@ window.TodoModule = (() => {
                         <button type="button" class="js-archive-checklist text-[#ffb4ab] text-xl active:scale-95 transition-transform cursor-pointer touch-manipulation" data-id="${list.id}">🗑️</button>
                     </div>
                     <div class="js-open-checklist swipe-front relative z-10 flex flex-col p-3 bg-[#0f2334] rounded-[16px] border border-[#004a77]/50 cursor-pointer w-full transition-transform touch-manipulation" 
-                         data-id="${list.id}" data-title="${window.esc(list.title)}" data-type="${list.list_type || 'generic'}"
-                         onclick="window.openChecklistScreen('${list.id}', '${window.esc(list.title)}', '${list.list_type || 'generic'}')">
+                         data-id="${window.esc(list.id)}" data-title="${window.esc(list.title)}" data-type="${window.esc(list.list_type || 'generic')}">
                         <div class="flex items-center justify-between min-w-0 w-full pointer-events-none">
                             <div class="flex items-center gap-3 min-w-0">
                                 <span class="text-lg shrink-0">${lType.icon}</span>
@@ -295,7 +297,8 @@ window.TodoModule = (() => {
         listEl.innerHTML = html;
         
         const inlineInput = document.getElementById('inline-todo-input');
-        if (inlineInput) {
+        if (inlineInput && !inlineInput.dataset.enterHandlerAttached) {
+            inlineInput.dataset.enterHandlerAttached = 'true';
             inlineInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); window.saveInlineTodo(); }
             });

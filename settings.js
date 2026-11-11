@@ -108,7 +108,6 @@ window.SettingsModule = (() => {
 
             const { error } = await window.supabaseClient.from('push_subscriptions').insert([{
                 user_id: window.currentUser.user_id,
-                household_id: window.currentUser.household_id,
                 endpoint: subJSON.endpoint,
                 auth: subJSON.keys.auth,
                 p256dh: subJSON.keys.p256dh
@@ -449,7 +448,13 @@ window.SettingsModule = (() => {
 
     window.logoutUser = async function() {
         const { error } = await window.supabaseClient.auth.signOut();
-        if (error) window.showToast("Błąd wylogowania"); else window.location.reload();
+        if (error) {
+            window.showToast("Błąd wylogowania");
+            return;
+        }
+        window.currentUser = null;
+        window.AppStore?.setScope(null, null);
+        window.location.reload();
     };
     
     window.closeSettingsScreen = function() { window.goBack(); };
