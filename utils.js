@@ -110,47 +110,89 @@ window.isTaskOverdue = function(task, logsArray) {
 };
 
 // --- SYSTEM PULL-TO-REFRESH ---
-window.initPullToRefresh = function() {
-    const mainScreen = document.getElementById('main-screen');
-    const ptrIndicator = document.getElementById('ptr-indicator');
-    const ptrIcon = document.getElementById('ptr-icon');
-    if (!mainScreen || !ptrIndicator) return;
-    
-    let startY = 0; let currentY = 0; let isPulling = false; const threshold = 70;
-    
-    mainScreen.addEventListener('touchstart', (e) => {
-        if (mainScreen.scrollTop === 0) { startY = e.touches[0].clientY; isPulling = true; ptrIndicator.style.transition = 'none'; }
-    }, { passive: true });
-    
-    mainScreen.addEventListener('touchmove', (e) => {
-        if (!isPulling) return;
-        currentY = e.touches[0].clientY; const diff = currentY - startY;
-        if (diff > 0 && mainScreen.scrollTop === 0) {
-            const visual = Math.min(diff * 0.4, threshold + 20);
-            ptrIndicator.style.transform = `translateY(${visual - 60}px)`; 
+window.initPullToRefresh = (() => {
+    const initialized = new WeakSet();
+    // Stuknięcie i touchend bez potwierdzonego ruchu nie zmieniają DOM.
+    // Safari wysyła click po zakończeniu sekwencji dotykowej:
+    // https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/HandlingEvents/HandlingEvents.html
+    const excluded = 'button,a,input,select,textarea,label,[role="button"],[contenteditable]:not([contenteditable="false"]),[data-no-pull-refresh],.js-swipe-item,.swipe-front,[role="dialog"],[aria-modal="true"],.ux-modal,.ux-dialog,.ux-sheet,.ux-dialog-panel';
+    return function() {
+        const mainScreen = document.getElementById('main-screen');
+        const ptrIndicator = document.getElementById('ptr-indicator');
+        const ptrIcon = document.getElementById('ptr-icon');
+        if (!mainScreen || !ptrIndicator || !ptrIcon || initialized.has(mainScreen)) return;
+        initialized.add(mainScreen);
+        let gesture = null, refreshing = false;
+        const deadZone = 12, refreshDistance = 100;
+
+        function hideIndicator() {
+            ptrIndicator.style.transition = 'transform 0.3s ease-out';
+            ptrIndicator.style.transform = 'translateY(-100%)';
+            ptrIcon.style.transform = '';
+            ptrIcon.classList.remove('animate-spin');
+        }
+        function cancel() {
+            const visible = gesture?.pulling;
+            gesture = null;
+            if (visible && !refreshing) hideIndicator();
+        }
+        function canStart(target) {
+            if (!target || target.closest(excluded) || mainScreen.scrollTop > 0 || window.activeView === 'auth') return false;
+            // Osobny scroll listy lub nakładki nie odświeża widoku pod spodem.
+            let node = target;
+            for (; node && node !== mainScreen; node = node.parentElement) {
+                const style = window.getComputedStyle(node);
+                if (style.position === 'fixed' || node.scrollHeight > node.clientHeight && /auto|scroll/.test(style.overflowY)) return false;
+            }
+            return node === mainScreen;
+        }
+        mainScreen.addEventListener('touchstart', event => {
+            cancel();
+            if (refreshing || event.touches.length !== 1) return;
+            const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+            if (!canStart(target)) return;
+            const touch = event.touches[0];
+            gesture = { id: touch.identifier, x: touch.clientX, y: touch.clientY, view: window.activeView, pulling: false };
+        }, { passive: true });
+        mainScreen.addEventListener('touchmove', event => {
+            if (!gesture || refreshing) return;
+            if (event.touches.length !== 1 || mainScreen.scrollTop > 0 || window.activeView !== gesture.view) { cancel(); return; }
+            const touch = Array.from(event.touches).find(point => point.identifier === gesture.id);
+            if (!touch) { cancel(); return; }
+            const dx = touch.clientX - gesture.x, dy = touch.clientY - gesture.y;
+            if (!gesture.pulling) {
+                if (Math.max(Math.abs(dx), Math.abs(dy)) <= deadZone) return;
+                if (dy <= deadZone || dy <= Math.abs(dx) * 1.3) { cancel(); return; }
+                gesture.pulling = true;
+                ptrIndicator.style.transition = 'none';
+            }
+            if (dy <= 0 || Math.abs(dx) > dy) { cancel(); return; }
+            const visual = Math.min(Math.max(0, dy - deadZone) * 0.4, 90);
+            ptrIndicator.style.transform = `translateY(${visual - 60}px)`;
             ptrIcon.style.transform = `rotate(${visual * 4}deg)`;
-        }
-    }, { passive: true });
-    
-    mainScreen.addEventListener('touchend', () => {
-        if (!isPulling) return; 
-        isPulling = false;
-        ptrIndicator.style.transition = 'transform 0.3s ease-out';
-        
-        if (currentY - startY > threshold && mainScreen.scrollTop === 0) {
-            ptrIndicator.style.transform = `translateY(15px)`; 
+        }, { passive: true });
+        mainScreen.addEventListener('touchend', event => {
+            const completed = gesture;
+            gesture = null;
+            if (!completed?.pulling) return;
+            const touch = Array.from(event.changedTouches || []).find(point => point.identifier === completed.id);
+            const dy = touch ? touch.clientY - completed.y : 0, dx = touch ? touch.clientX - completed.x : 0;
+            if (!touch || event.touches.length || mainScreen.scrollTop > 0 || window.activeView !== completed.view || dy < refreshDistance || dy <= Math.abs(dx) * 1.3) { hideIndicator(); return; }
+            refreshing = true;
+            ptrIndicator.style.transition = 'transform 0.3s ease-out';
+            ptrIndicator.style.transform = 'translateY(15px)';
             ptrIcon.classList.add('animate-spin');
-            
-            Promise.resolve().then(async () => {
-                await window.refreshCurrentView(true);
-                ptrIndicator.style.transform = `translateY(-100%)`; 
-                ptrIcon.classList.remove('animate-spin');
-            });
-        } else { 
-            ptrIndicator.style.transform = `translateY(-100%)`; 
-        }
-    }, { passive: true });
-};
+            Promise.resolve().then(() => window.refreshCurrentView(true))
+                .catch(error => console.error('Błąd odświeżania gestem:', error))
+                .finally(() => { refreshing = false; hideIndicator(); });
+        }, { passive: true });
+        mainScreen.addEventListener('touchcancel', cancel, { passive: true });
+        mainScreen.addEventListener('scroll', () => { if (mainScreen.scrollTop > 0) cancel(); }, { passive: true });
+        document.addEventListener('app:view-changed', cancel);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') cancel(); });
+        window.addEventListener('pagehide', cancel);
+    };
+})();
 document.addEventListener('DOMContentLoaded', window.initPullToRefresh);
 
 // --- SYSTEM SWIPE-TO-DELETE ---
