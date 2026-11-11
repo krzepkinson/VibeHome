@@ -6,19 +6,7 @@ window.EventDispatcher = (() => {
     const clickHandlers = new Map();
     const pendingElements = new WeakSet();
 
-    // 1. STYLE OPTYMALIZACYJNE DLA EKRANÓW DOTYKOWYCH
-    // Eliminujemy opóźnienie 300ms na iOS oraz wymuszamy traktowanie klas 'js-' jako przycisków
-    const style = document.createElement('style');
-    style.innerHTML = `
-        [class*="js-"] { 
-            cursor: pointer !important; 
-            -webkit-tap-highlight-color: transparent; 
-            touch-action: manipulation;
-        }
-    `;
-    document.head.appendChild(style);
-
-    // 2. REJESTRACJA HANDLERA (Używamy Map dla błyskawicznego dostępu)
+    // 1. REJESTRACJA HANDLERA (Używamy Map dla błyskawicznego dostępu)
     const onClick = (selector, callback) => {
         if (!clickHandlers.has(selector)) {
             clickHandlers.set(selector, []);
@@ -26,7 +14,7 @@ window.EventDispatcher = (() => {
         clickHandlers.get(selector).push(callback);
     };
 
-    // 3. GLÓWNA PĘTLA OBSŁUGI ZDARZEŃ (NATURALNY DOM BUBBLING)
+    // 2. GŁÓWNA PĘTLA OBSŁUGI ZDARZEŃ
     document.addEventListener('click', (e) => {
         let node = e.target;
 

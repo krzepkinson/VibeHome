@@ -417,7 +417,7 @@ window.QuickAdd = (() => {
         byId('health-fab-menu')?.classList.add('hidden');
         window.loadAndShowModal('quick-add-modal', '/modals/quick-add.html', () => {
             if (current !== draft || !draft.open) return;
-            render(); window.UX?.openDialog('quick-add-modal');
+            render();
             if (current.values.name && !current.taskKey && !current.eventKey) updateHints(true);
             if (context.scan) startScan();
         });

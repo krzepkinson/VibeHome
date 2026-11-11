@@ -888,7 +888,6 @@ window.HealthModule = (() => {
             document.getElementById('pharmacy-item-purpose').value = group?.description || '';
             const title = document.getElementById('new-pharmacy-title');
             if (title) title.textContent = group ? `Dodaj opakowanie: ${group.name}` : 'Dodaj do apteczki';
-            window.UX?.openDialog('new-pharmacy-item-modal');
         });
     };
     window.closeNewPharmacyItemModal = function() {
@@ -922,7 +921,6 @@ window.HealthModule = (() => {
             } else {
                 document.getElementById('edit-pharmacy-exp').value = '';
             }
-            window.UX?.openDialog('edit-pharmacy-item-modal');
         });
     };
 

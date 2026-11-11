@@ -81,9 +81,20 @@ window.UX = (() => {
     function openDialog(id) {
         const el = typeof id === 'string' ? document.getElementById(id) : id;
         if (!el) return;
-        if (!dialogs.some(x=>x.el===el)) dialogs.push({el,previous:document.activeElement});
+        const alreadyOpen = dialogs.some(x=>x.el===el);
+        if (!alreadyOpen) dialogs.push({el,previous:document.activeElement});
         el.classList.remove('hidden'); el.setAttribute('role','dialog'); el.setAttribute('aria-modal','true');
-        setTimeout(()=>el.querySelector('[autofocus],input:not([type="hidden"]),select,textarea,button')?.focus({preventScroll:true}),0);
+        if (!alreadyOpen) {
+            const explicitTarget = el.querySelector('[autofocus]');
+            const touchDevice = window.matchMedia?.('(pointer: coarse)').matches;
+            const focusTarget = explicitTarget || (touchDevice
+                ? el.querySelector('button:not(:disabled),[tabindex]:not([tabindex="-1"])')
+                : el.querySelector('input:not([type="hidden"]),select,textarea,button:not(:disabled)')) || el;
+            if (focusTarget === el && !el.hasAttribute('tabindex')) el.setAttribute('tabindex','-1');
+            setTimeout(()=>{
+                if (el.isConnected && !el.classList.contains('hidden')) focusTarget.focus?.({preventScroll:true});
+            },0);
+        }
         scheduleDecorate(el);
     }
     function closeDialog(id) {
