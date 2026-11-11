@@ -1,23 +1,22 @@
 <div class="max-w-xl mx-auto bg-[#131314] min-h-[100vh] flex flex-col animate-fade-in relative pb-24">
     
     <header class="p-4 sm:p-6 border-b border-[#333537] bg-[#1e1f20] sticky top-0 z-30">
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex flex-col gap-3 mb-3">
+          <div class="flex justify-between items-center gap-2">
             <div class="flex items-center gap-2 sm:gap-3">
-                <button class="js-cal-go-back text-neutral-400 text-3xl active:scale-90 transition-transform pl-1 pr-3 pb-1 cursor-pointer">←</button>
+                <button class="js-cal-go-back text-neutral-400 text-3xl active:scale-90 transition-transform pl-1 pr-2 pb-1 cursor-pointer">←</button>
                 <div>
-                    <h1 class="text-xl font-bold text-neutral-100 tracking-wide">Kalendarz</h1>
-                    <p class="text-[10px] text-neutral-400 uppercase tracking-widest mt-0.5" id="calendar-subtitle">Wszystko przed Tobą</p>
+                    <h1 class="text-lg font-bold text-neutral-100 tracking-wide">Kalendarz</h1>
+                    <p class="text-[10px] text-neutral-400 uppercase tracking-widest mt-0.5" id="calendar-subtitle">Wydarzenia i terminy</p>
                 </div>
             </div>
-            
-            <div class="flex items-center gap-3">
-                <div class="bg-[#131314] rounded-full p-1 flex items-center border border-[#333537]">
-                    <button id="tab-agenda" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all bg-[#333537] text-white shadow-sm" data-tab="agenda">Agenda</button>
-                    <button id="tab-month" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all text-neutral-500 hover:text-neutral-300" data-tab="month">Miesiąc</button>
-                    <button id="tab-year" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all text-neutral-500 hover:text-neutral-300" data-tab="year">Rok</button>
-                </div>
-                <button class="js-cal-open-new-event w-9 h-9 rounded-full bg-[#d946ef] text-[#4a044e] font-bold text-xl leading-none flex justify-center items-center active:scale-90 transition-transform shadow-lg shadow-[#d946ef]/20 pb-0.5">+</button>
-            </div>
+            <button class="js-open-quick-add h-9 px-2.5 rounded-full bg-[#c4eed0] text-[#133323] font-medium text-[11px] whitespace-nowrap">＋ Dodaj</button>
+          </div>
+          <div class="bg-[#131314] rounded-full p-1 flex items-center border border-[#333537] self-start">
+              <button id="tab-agenda" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all bg-[#333537] text-white shadow-sm" data-tab="agenda">Agenda</button>
+              <button id="tab-month" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all text-neutral-500 hover:text-neutral-300" data-tab="month">Miesiąc</button>
+              <button id="tab-year" class="js-cal-tab px-3 py-1.5 rounded-full text-[10px] font-bold transition-all text-neutral-500 hover:text-neutral-300" data-tab="year">Rok</button>
+          </div>
         </div>
 
         <div class="flex gap-2 overflow-x-auto hide-scrollbar items-center mb-3">
