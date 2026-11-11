@@ -1,0 +1,72 @@
+<div id="quick-add-modal" class="hidden fixed inset-0 z-[110] bg-black/70 backdrop-blur-sm flex justify-center items-end sm:items-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="quick-add-title">
+    <div class="w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-t-[24px] sm:rounded-[24px] border border-[#333537] bg-[#1e1f20] px-5 pt-4 pb-6 shadow-2xl">
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <div>
+                <h2 id="quick-add-title" class="text-base font-medium text-neutral-100">Dodaj</h2>
+            </div>
+            <button class="js-close-quick-add w-10 h-10 rounded-full text-neutral-400 hover:bg-[#333537] text-xl" type="button" aria-label="Zamknij">×</button>
+        </div>
+
+        <form id="quick-add-form" class="space-y-3">
+            <label for="quick-add-description" class="block text-xs text-neutral-300">Co chcesz zapisać?</label>
+            <div class="flex items-stretch gap-2">
+                <input id="quick-add-description" type="text" maxlength="150" autocomplete="off" class="min-w-0 flex-1 p-3 rounded-[14px] bg-[#131314] border border-[#424546] text-neutral-100 text-base focus:outline-none focus:border-[#a8c7fa]" placeholder="np. wymienić filtr za 6 miesięcy">
+                <button class="js-quick-add-scan shrink-0 px-3 rounded-[14px] bg-[#004a77]/40 border border-[#004a77]/60 text-[#c2e7ff] text-sm" type="button" aria-label="Zeskanuj kod leku lub suplementu" title="Zeskanuj kod leku lub suplementu">▦ <span class="ml-1">Skanuj</span></button>
+            </div>
+
+            <div id="quick-add-kind-row" class="hidden flex items-center justify-between gap-2 border-b border-[#333537] pb-2">
+                <p id="quick-add-kind-label" class="text-xs text-neutral-300"></p>
+                <button class="js-change-quick-add-type text-xs text-[#a8c7fa] whitespace-nowrap" type="button" aria-expanded="false">Zmień typ</button>
+            </div>
+            <select id="quick-add-type" class="hidden w-full p-3 rounded-[14px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm" aria-label="Rodzaj wpisu">
+                <option value="task">Zadanie</option>
+                <option value="event">Wydarzenie</option>
+                <option value="pharmacy">Lek lub suplement do apteczki</option>
+            </select>
+
+            <div id="quick-add-task-fields" class="hidden">
+                <button class="js-toggle-quick-add-details w-full min-h-10 flex items-center justify-between text-xs text-neutral-400 border-b border-[#333537]" type="button" aria-expanded="false">
+                    <span>Szczegóły zadania <span class="text-neutral-500">(opcjonalnie)</span></span><span id="quick-add-details-chevron">＋</span>
+                </button>
+                <div id="quick-add-task-details" class="hidden grid grid-cols-2 gap-2 pt-3">
+                    <label class="text-xs text-neutral-400">Termin
+                        <input id="quick-add-task-date" type="date" class="mt-1 w-full p-2.5 rounded-[12px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm [color-scheme:dark]">
+                    </label>
+                    <label class="text-xs text-neutral-400">Powtarzaj co (dni)
+                        <input id="quick-add-task-interval" type="number" min="1" max="3650" inputmode="numeric" class="mt-1 w-full p-2.5 rounded-[12px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm" placeholder="np. 180">
+                    </label>
+                    <label class="col-span-2 text-xs text-neutral-400">Pomieszczenie
+                        <select id="quick-add-room" class="mt-1 w-full p-2.5 rounded-[12px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm"></select>
+                    </label>
+                </div>
+            </div>
+
+            <div id="quick-add-event-fields" class="hidden">
+                <label for="quick-add-event-datetime" class="block text-xs text-neutral-400 mb-1">Data i godzina</label>
+                <input id="quick-add-event-datetime" type="datetime-local" class="w-full p-3 rounded-[14px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm [color-scheme:dark]">
+            </div>
+
+            <div id="quick-add-pharmacy-fields" class="hidden space-y-2">
+                <div id="quick-add-scanner" class="hidden overflow-hidden rounded-[14px] border border-[#333537] bg-black"></div>
+                <label for="quick-add-ean" class="block text-xs text-neutral-400">Kod kreskowy <span class="text-neutral-500">(opcjonalnie)</span></label>
+                <input id="quick-add-ean" type="text" inputmode="numeric" autocomplete="off" maxlength="13" class="w-full p-3 rounded-[14px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm" placeholder="EAN">
+                <div class="grid grid-cols-2 gap-2">
+                    <label for="quick-add-expiry" class="text-xs text-neutral-400">Termin ważności
+                        <input id="quick-add-expiry" type="month" class="mt-1 w-full p-2.5 rounded-[12px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm [color-scheme:dark]">
+                    </label>
+                    <label for="quick-add-purpose" class="text-xs text-neutral-400">Notatka <span class="text-neutral-500">(opcjonalnie)</span>
+                        <input id="quick-add-purpose" type="text" maxlength="150" class="mt-1 w-full p-2.5 rounded-[12px] bg-[#131314] border border-[#333537] text-neutral-200 text-sm" placeholder="np. dla Oli">
+                    </label>
+                </div>
+            </div>
+
+                <p id="quick-add-hint" class="hidden text-xs text-neutral-400 leading-relaxed"></p>
+            <p id="quick-add-error" class="hidden text-xs text-[#ffb4ab]" role="alert"></p>
+
+            <div class="flex gap-2 pt-1">
+                <button class="js-close-quick-add flex-1 min-h-11 rounded-full text-neutral-300 text-sm hover:bg-[#333537]" type="button">Anuluj</button>
+                <button class="js-save-quick-add flex-1 min-h-11 rounded-full bg-[#c4eed0] text-[#133323] text-sm font-medium disabled:opacity-50" type="submit" disabled>Dodaj</button>
+            </div>
+        </form>
+    </div>
+</div>
